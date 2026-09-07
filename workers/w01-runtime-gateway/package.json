@@ -1,0 +1,11 @@
+{
+  "name": "d1-fabric-w01-runtime-gateway",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "smoke": "node test/smoke.mjs"
+  },
+  "devDependencies": { "wrangler": "latest" }
+}
