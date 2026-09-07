@@ -1,0 +1,142 @@
+const CONTENT_TYPES = new Set(['article','video','image','dynamic','audio','qa','live','ai']);
+const ASSET_ROLES = new Set(['cover','body','gallery','video','audio','thumbnail','attachment']);
+
+type PublishAsset = { media_id?: string; asset_role?: string; asset_order?: number; required?: boolean };
+type PublishBody = {
+  tenant_id?: string;
+  publish_id?: string;
+  idempotency_key?: string;
+  content_id?: string;
+  author_id?: string;
+  content_type?: string;
+  title?: string | null;
+  summary?: string | null;
+  cover_media_id?: string | null;
+  body_ref?: string | null;
+  language?: string | null;
+  region?: string | null;
+  category_id?: string | null;
+  visibility?: 'public' | 'followers' | 'private';
+  assets?: PublishAsset[];
+};
+
+const text = (v: unknown, max: number) => typeof v === 'string' && v.length > 0 && v.length <= max;
+const hash = async (v: unknown) => {
+  const bytes = new TextEncoder().encode(JSON.stringify(v));
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest), (x) => x.toString(16).padStart(2, '0')).join('');
+};
+
+export async function publish(db: D1Database, body: PublishBody, requestId: string, json: (b: unknown, s?: number, r?: string) => Response) {
+  if (!text(body.tenant_id, 256) || !text(body.publish_id, 128) || !text(body.idempotency_key, 128) || !text(body.content_id, 128) || !text(body.author_id, 128)) return json({ code: 'PUBLISH_VALIDATION_FAILED', reason: 'IDENTITY_REQUIRED' }, 400, requestId);
+  if (!text(body.content_type, 32) || !CONTENT_TYPES.has(body.content_type)) return json({ code: 'PUBLISH_VALIDATION_FAILED', reason: 'INVALID_CONTENT_TYPE' }, 400, requestId);
+  if (body.visibility && !['public','followers','private'].includes(body.visibility)) return json({ code: 'PUBLISH_VALIDATION_FAILED', reason: 'INVALID_VISIBILITY' }, 400, requestId);
+  const assets = Array.isArray(body.assets) ? body.assets : [];
+  if (assets.length > 50) return json({ code: 'PUBLISH_VALIDATION_FAILED', reason: 'TOO_MANY_ASSETS' }, 400, requestId);
+  if (assets.some((a) => !text(a.media_id, 128) || !text(a.asset_role, 32) || !ASSET_ROLES.has(a.asset_role!) || !Number.isInteger(a.asset_order) || a.asset_order! < 0)) return json({ code: 'PUBLISH_VALIDATION_FAILED', reason: 'INVALID_ASSET_MANIFEST' }, 400, requestId);
+
+  const requiredAssets = assets.filter((a) => a.required !== false);
+  const fingerprint = await hash({
+    tenant_id: body.tenant_id, publish_id: body.publish_id, content_id: body.content_id, author_id: body.author_id,
+    content_type: body.content_type, title: body.title ?? null, summary: body.summary ?? null,
+    cover_media_id: body.cover_media_id ?? null, body_ref: body.body_ref ?? null, language: body.language ?? null,
+    region: body.region ?? null, category_id: body.category_id ?? null, visibility: body.visibility ?? 'public',
+    assets: assets.map((a) => ({ media_id: a.media_id, asset_role: a.asset_role, asset_order: a.asset_order, required: a.required !== false }))
+      .sort((a, b) => a.media_id!.localeCompare(b.media_id!)),
+  });
+
+  const existing = await db.prepare(
+    'SELECT publish_id,idempotency_key,request_hash,status,content_id,error_code FROM platform_publish_operations WHERE tenant_id=?1 AND idempotency_key=?2 LIMIT 1',
+  ).bind(body.tenant_id, body.idempotency_key).first<{ publish_id:string; idempotency_key:string; request_hash:string; status:string; content_id:string; error_code:string|null }>();
+  if (existing) {
+    if (existing.request_hash !== fingerprint || existing.publish_id !== body.publish_id) return json({ code: 'PUBLISH_IDEMPOTENCY_CONFLICT' }, 409, requestId);
+    if (existing.status === 'COMMITTED') return json({ accepted:true, replay:true, publish_id:existing.publish_id, content_id:existing.content_id, status:'PUBLISHED' }, 200, requestId);
+  }
+
+  const statements: D1PreparedStatement[] = [];
+  if (!existing) {
+    statements.push(db.prepare(
+      `INSERT INTO platform_publish_operations(tenant_id,publish_id,idempotency_key,content_id,content_type,expected_asset_count,request_hash,status)
+       VALUES(?1,?2,?3,?4,?5,?6,?7,'PENDING')`,
+    ).bind(body.tenant_id, body.publish_id, body.idempotency_key, body.content_id, body.content_type, requiredAssets.length, fingerprint));
+    statements.push(db.prepare(
+      `INSERT INTO platform_content(tenant_id,content_id,author_id,content_type,title,summary,cover_media_id,body_ref,language,region,category_id,status,visibility,publish_at)
+       SELECT ?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,'draft',?12,NULL
+       WHERE EXISTS(SELECT 1 FROM platform_authors WHERE tenant_id=?1 AND author_id=?3 AND status='active')`,
+    ).bind(body.tenant_id, body.content_id, body.author_id, body.content_type, body.title ?? null, body.summary ?? null, body.cover_media_id ?? null, body.body_ref ?? null, body.language ?? null, body.region ?? null, body.category_id ?? null, body.visibility ?? 'public'));
+    statements.push(db.prepare(
+      `INSERT INTO platform_content_stats(tenant_id,content_id) VALUES(?1,?2)`,
+    ).bind(body.tenant_id, body.content_id));
+  }
+  for (const a of assets) statements.push(db.prepare(
+    `INSERT OR IGNORE INTO platform_publish_assets(tenant_id,publish_id,media_id,asset_role,asset_order,required) VALUES(?1,?2,?3,?4,?5,?6)`,
+  ).bind(body.tenant_id, body.publish_id, a.media_id, a.asset_role, a.asset_order, a.required === false ? 0 : 1));
+
+  statements.push(db.prepare(
+    `UPDATE platform_publish_operations SET validated_asset_count=(
+       SELECT COUNT(*) FROM platform_publish_assets pa JOIN platform_media pm
+       ON pm.tenant_id=pa.tenant_id AND pm.media_id=pa.media_id
+       WHERE pa.tenant_id=?1 AND pa.publish_id=?2 AND pa.required=1 AND pm.owner_id=?3
+     ),updated_at=CURRENT_TIMESTAMP WHERE tenant_id=?1 AND publish_id=?2`,
+  ).bind(body.tenant_id, body.publish_id, body.author_id));
+  statements.push(db.prepare(
+    `UPDATE platform_content SET status='published',publish_at=COALESCE(publish_at,CURRENT_TIMESTAMP),updated_at=CURRENT_TIMESTAMP
+     WHERE tenant_id=?1 AND content_id=?2 AND status='draft'
+     AND EXISTS(SELECT 1 FROM platform_publish_operations WHERE tenant_id=?1 AND publish_id=?3 AND status='PENDING' AND validated_asset_count=expected_asset_count)`,
+  ).bind(body.tenant_id, body.content_id, body.publish_id));
+  statements.push(db.prepare(
+    `UPDATE platform_publish_operations SET status=CASE WHEN EXISTS(SELECT 1 FROM platform_content WHERE tenant_id=?1 AND content_id=?2 AND status='published') THEN 'COMMITTED' ELSE 'FAILED' END,
+       error_code=CASE WHEN EXISTS(SELECT 1 FROM platform_content WHERE tenant_id=?1 AND content_id=?2 AND status='published') THEN NULL
+       WHEN NOT EXISTS(SELECT 1 FROM platform_authors WHERE tenant_id=?1 AND author_id=?3 AND status='active') THEN 'PUBLISH_AUTHOR_MISSING'
+       WHEN validated_asset_count<>expected_asset_count THEN 'PUBLISH_ASSET_MISSING' ELSE 'PUBLISH_COMMIT_FAILED' END,
+       committed_at=CASE WHEN EXISTS(SELECT 1 FROM platform_content WHERE tenant_id=?1 AND content_id=?2 AND status='published') THEN CURRENT_TIMESTAMP ELSE NULL END,updated_at=CURRENT_TIMESTAMP
+     WHERE tenant_id=?1 AND publish_id=?4 AND status='PENDING'`,
+  ).bind(body.tenant_id, body.content_id, body.author_id, body.publish_id));
+  statements.push(db.prepare(
+    `INSERT INTO platform_publish_failures(tenant_id,publish_id,error_code,retryable,message)
+     SELECT tenant_id,publish_id,error_code,1,error_code FROM platform_publish_operations
+     WHERE tenant_id=?1 AND publish_id=?2 AND status='FAILED' AND error_code IS NOT NULL`,
+  ).bind(body.tenant_id, body.publish_id));
+
+  try {
+    await db.batch(statements);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'D1_ERROR';
+    if (message.includes('UNIQUE constraint failed: platform_publish_operations')) return json({ code: 'PUBLISH_WRITE_RACE', retryable: true }, 409, requestId);
+    if (message.includes('UNIQUE constraint failed: platform_content')) return json({ code: 'PUBLISH_CONTENT_EXISTS', retryable: false }, 409, requestId);
+    return json({ code: 'PUBLISH_COMMIT_FAILED', retryable: true }, 503, requestId);
+  }
+
+  const result = await db.prepare(
+    'SELECT status,error_code,content_id,validated_asset_count,expected_asset_count FROM platform_publish_operations WHERE tenant_id=?1 AND publish_id=?2 LIMIT 1',
+  ).bind(body.tenant_id, body.publish_id).first<{ status:string; error_code:string|null; content_id:string; validated_asset_count:number; expected_asset_count:number }>();
+  if (result?.status === 'COMMITTED') return json({ accepted:true, replay:false, publish_id:body.publish_id, content_id:result.content_id, status:'PUBLISHED' }, 200, requestId);
+  if (result?.error_code === 'PUBLISH_ASSET_MISSING') return json({ code:'PUBLISH_ASSET_MISSING', retryable:true, publish_id:body.publish_id, validated_asset_count:result?.validated_asset_count ?? 0, expected_asset_count:result?.expected_asset_count ?? requiredAssets.length }, 422, requestId);
+  if (result?.error_code === 'PUBLISH_AUTHOR_MISSING') return json({ code:'PUBLISH_VALIDATION_FAILED', reason:'AUTHOR_MISSING', retryable:false }, 422, requestId);
+  return json({ code:'PUBLISH_COMMIT_FAILED', retryable:true, publish_id:body.publish_id }, 503, requestId);
+}
+
+export async function publishStatus(db: D1Database, tenantId: string, publishId: string, requestId: string, json: (b: unknown, s?: number, r?: string) => Response) {
+  const row = await db.prepare(
+    'SELECT publish_id,content_id,content_type,status,error_code,expected_asset_count,validated_asset_count,created_at,updated_at,committed_at FROM platform_publish_operations WHERE tenant_id=?1 AND publish_id=?2 LIMIT 1',
+  ).bind(tenantId, publishId).first();
+  if (!row) return json({ code:'PUBLISH_NOT_FOUND' }, 404, requestId);
+  return json(row, 200, requestId);
+}
+
+export async function integrityCheck(db: D1Database, requestId: string, json: (b: unknown, s?: number, r?: string) => Response) {
+  const [publishedMissingOp, incomplete, orphanAssets, quick] = await Promise.all([
+    db.prepare(`SELECT COUNT(*) AS n FROM platform_content c WHERE c.status='published' AND NOT EXISTS(SELECT 1 FROM platform_publish_operations p WHERE p.tenant_id=c.tenant_id AND p.content_id=c.content_id AND p.status='COMMITTED')`).first<{n:number}>(),
+    db.prepare(`SELECT COUNT(*) AS n FROM platform_publish_operations WHERE status='COMMITTED' AND validated_asset_count<>expected_asset_count`).first<{n:number}>(),
+    db.prepare(`SELECT COUNT(*) AS n FROM platform_publish_assets a WHERE NOT EXISTS(SELECT 1 FROM platform_content c WHERE c.tenant_id=a.tenant_id AND c.content_id=(SELECT p.content_id FROM platform_publish_operations p WHERE p.tenant_id=a.tenant_id AND p.publish_id=a.publish_id LIMIT 1))`).first<{n:number}>(),
+    db.prepare('PRAGMA quick_check').first<{quick_check:string}>(),
+  ]);
+  const violations = {
+    published_without_commit: publishedMissingOp?.n ?? 0,
+    committed_asset_count_mismatch: incomplete?.n ?? 0,
+    orphan_publish_assets: orphanAssets?.n ?? 0,
+    sqlite_check: quick?.quick_check ?? 'UNKNOWN',
+  };
+  const healthy = Object.values(violations).every((v) => v === 0 || v === 'ok');
+  return json({ healthy, violations }, healthy ? 200 : 503, requestId);
+}
