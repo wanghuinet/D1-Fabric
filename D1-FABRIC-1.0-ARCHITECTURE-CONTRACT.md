@@ -1,244 +1,251 @@
 # D1-Fabric 1.0 Architecture Contract
 
-**Status:** ARCHITECTURE BASELINE  
-**Version:** 1.0  
-**Authority:** Foundational architecture contract  
+**Status:** ARCHITECTURE BASELINE
+**Version:** 1.1
+**Authority:** D1-FABRIC-1.0-CONTRACT-BASELINE.md
 
 ## 1. Mission
 
-D1-Fabric is a domain-neutral distributed data runtime designed to provide deterministic sharding, bounded distributed execution, high concurrency, low D1 I/O, predictable latency, failure isolation, migration/recovery, cost-aware execution, and AI-governed optimization.
+D1-Fabric is a domain-neutral distributed data runtime designed for deterministic sharding, bounded distributed execution, high concurrency, low D1 I/O, predictable latency, failure isolation, migration/recovery, cost-aware execution, and governed AI optimization.
 
-The implementation objective is the **minimum amount of correct code** that provides complete, runnable, verifiable, maintainable, scalable, and deployable distributed-data capability.
+The implementation objective is the minimum amount of correct code that provides complete, runnable, verifiable, maintainable, scalable, secure, recoverable, and deployable capability.
 
 ## 2. Priority Order
 
-1. Correctness
-2. Data safety
-3. Deterministic behavior
-4. Failure isolation and recovery
-5. Bounded resource use
-6. Scalability
-7. Latency
-8. D1 cost
-9. Operational simplicity
-10. AI optimization
+```text
+Correctness
+→ Data Safety / Security / Isolation
+→ Deterministic Behavior
+→ Ownership / Epoch / Fencing
+→ Failure Isolation / Recovery
+→ Bounded Resources
+→ Useful Availability
+→ Scalability
+→ Latency
+→ D1 Cost
+→ Operational Simplicity
+→ AI Optimization
+```
 
 No lower-priority optimization may violate a higher-priority property.
 
 ## 3. Core Architecture
 
 ```text
-                         AI Governance Plane
-                 Observe → Analyze → Optimize
-                       → Experiment → Verify
-                                  │
-                           Governed Decisions
-                                  │
-                                  ▼
-┌──────────────────────────────────────────────────────────┐
-│                    D1-Fabric Runtime                     │
-│                                                          │
-│ Normalize → Validate → Route → Plan → Execute → Commit  │
-│                                  │                       │
-│                         ┌────────┴────────┐              │
-│                         │                 │              │
-│                       Read              Write            │
-│                         │                 │              │
-│                       Cache         Batch / WAL          │
-│                         │                 │              │
-│                         └────────┬────────┘              │
-│                                  │                       │
-│                            Shard-local D1                │
-└──────────────────────────────────────────────────────────┘
+                    AI Governance Plane
+      Observe → Analyze → Candidate → Verify → Canary
+          → Measure → Promote/Reject → Learn
+                         │
+                    Governed Decision
+                         │
+                         ▼
+┌──────────────────────────────────────────────────────┐
+│                    D1-Fabric Runtime                 │
+│                                                      │
+│ Normalize → Validate → Route → Plan → Execute →     │
+│ Commit / Read Result → Observe                       │
+│                 │                    │               │
+│               Read                 Write             │
+│                 │                    │               │
+│               Cache             Batch / WAL          │
+│                 └──────────┬─────────┘               │
+│                       Shard-local D1                 │
+└──────────────────────────────────────────────────────┘
 ```
 
-The system has two logical planes:
+Data Plane correctness MUST NOT depend on Governance Plane availability.
 
-- **Data Plane:** deterministic request execution.
-- **Governance Plane:** observation, analysis, optimization, experimentation, verification, and learning.
+## 4. Semantic Ownership
 
-The Governance Plane MUST NOT become a correctness dependency of the Data Plane.
+Each architectural concern has one semantic owner. Other contracts and modules may integrate with it but MUST NOT redefine it.
 
-## 4. Unified Execution Pipeline
+```text
+Architecture        → Architecture Contract
+State / Ownership   → Data & State Contract
+Execution           → Runtime Execution Contract
+Retry / Recovery    → Reliability & Recovery Contract
+Security            → Security & Compatibility Contract
+Performance / Cost  → Performance & Cost Contract
+AI Authority        → AI Governance Contract
+```
+
+This ownership rule is machine-verifiable through the Semantic Contract Map required by development governance.
+
+## 5. Unified Execution Pipeline
 
 ```text
 Request
 → Normalize
-→ Validate
-→ Resolve Routing
+→ Authenticate / Authorize
+→ Resolve Authorized Scope
+→ Construct Canonical Routing Identity
+→ Resolve Routing Epoch
+→ Validate Ownership / Consistency / Resource Policy
+→ Resolve Idempotency where applicable
 → Build Bounded Plan
 → Execute
 → Commit / Read Result
+→ Update Derived/Cache State
 → Observe
 ```
 
-## 5. Deterministic Routing
+## 6. Deterministic Routing
 
-Routing MUST be deterministic and versioned by a routing epoch. A request MUST NOT silently write through stale ownership information.
+Routing MUST be deterministic and versioned by a routing epoch. A stale ownership view MUST NOT perform authoritative mutation.
 
-Every mutable state has exactly one authoritative owner at a valid epoch.
+```text
+RoutingIdentity = normalized_namespace + authorized_scope + logical_routing_key
+Route(RoutingIdentity, routing_epoch) → logical_shard
+```
 
-## 6. Shards
+Logical shard identity MUST remain decoupled from physical D1 placement.
 
-A logical shard is an ownership and routing unit. A logical shard MUST NOT be assumed to equal one physical D1 database.
+## 7. Shards and Placement
 
-The runtime owns:
-
-- partitioning;
-- routing;
-- placement;
-- execution;
-- ownership transitions;
-- migration;
-- resource budgets;
-- consistency semantics.
+A logical shard is an ownership/routing unit, not necessarily one D1 database. The runtime owns partitioning, routing, placement, execution, ownership transitions, migration, resource budgets, consistency semantics, and distributed recovery.
 
 D1 is the persistence substrate, not the distributed-system coordinator.
 
-## 7. Distributed Execution
+## 8. Distributed Execution
 
-Cross-shard operations MUST be explicit and bounded by:
+Cross-shard operations MUST explicitly bound:
 
-- shard fan-out;
-- parallelism;
-- payload;
-- memory;
-- D1 I/O;
-- execution time;
-- retries.
+```text
+shard fan-out
+parallelism
+payload
+memory
+D1 I/O
+deadline
+retries
+result size
+```
 
 There MUST be no mandatory global coordinator on the ordinary hot path.
 
-## 8. Write Path
+## 9. Write Path
 
-Mutations MUST support:
+Mutations MUST provide deterministic ownership, idempotency where retry is possible, bounded batching, safe ordering, timeout/cancellation, bounded retries, partial-failure semantics, and recovery.
 
-- deterministic ownership;
-- idempotency where retry is possible;
-- bounded batching;
-- safe ordering;
-- timeout/cancellation;
-- bounded retries;
-- partial-failure handling;
-- recovery.
+Cross-shard writes MUST NOT imply global atomicity without an explicit distributed protocol.
 
-Cross-shard writes MUST NOT pretend to have global atomicity unless an explicit contract provides it.
+## 10. Cache and Derived State
 
-## 9. Cache
+Cache and derived state are non-authoritative unless explicitly declared otherwise. They MUST NOT bypass authorization, tenant isolation, ownership, epoch, consistency, schema compatibility, or recovery requirements.
 
-Cache and derived state are non-authoritative unless explicitly declared authoritative by the Data and State Contract.
+## 11. Backpressure
 
-Cache MUST NOT bypass authorization, ownership, or required consistency semantics.
+Queues, retries, fan-out, memory, concurrency, and D1 I/O MUST be bounded. Overload results in controlled backpressure, degradation, or rejection rather than unbounded accumulation.
 
-## 10. Backpressure
-
-Queues, retries, fan-out, memory, and D1 I/O MUST be bounded. Overload MUST result in controlled backpressure, degradation, or rejection rather than unbounded accumulation.
-
-## 11. Failure and Recovery
+## 12. Failure and Recovery
 
 Partial failure MUST NOT corrupt committed authoritative state.
 
 Recovery MUST restore:
 
-- routing validity;
-- ownership validity;
-- epoch/fencing validity;
-- state consistency;
-- resource safety;
+```text
+schema
+control metadata
+ownership
+routing/epoch/fencing
+migration state
+idempotency state
+data invariants
+security policy
+representative operations
+load/error stability
+```
 
-before normal service resumes.
+before normal service resumes where applicable.
 
-## 12. AI Governance
+## 13. Migration
 
-AI may optimize:
+Ownership migration follows:
 
-- query plans;
-- cache policy;
-- shard placement;
-- hotspot handling;
-- batching;
-- concurrency;
-- cost;
-- predictive operations;
-- experiments.
+```text
+Plan → Prepare → Copy → Verify → Fence → Commit Ownership → Advance Epoch → Serve → Retire Source
+```
 
-AI MUST NOT bypass:
+Copy completion is not ownership transfer. Uncontrolled dual-write is forbidden.
 
-- ownership;
-- fencing;
-- authorization;
-- consistency;
-- idempotency;
-- resource limits;
-- recovery rules;
-- auditability.
+## 14. Worker Boundary
 
-Authority levels:
+Worker boundaries exist only where a real correctness, isolation, scaling, security, deployment, or resource boundary exists. Workers MUST NOT be created merely to mirror document sections or concepts.
 
-- **L0:** Observe
-- **L1:** Recommend
-- **L2:** Governed Auto-Optimize
-- **L3:** Controlled Runtime Optimization
+## 15. Domain Neutrality
 
-AI confidence is not evidence. Production promotion requires measurable verification.
+The runtime MUST NOT hardcode product semantics such as social, finance, content, video, commerce, or user-specific business rules. Applications own domain semantics above the runtime.
 
-## 13. Worker Boundary
+## 16. AI Governance Boundary
 
-Worker boundaries are created only when a real correctness, isolation, scaling, security, deployment, or resource boundary exists.
+AI may optimize query plans, cache policy, shard placement, hotspot handling, batching, concurrency, cost, and predictive operations only through the AI Governance Contract.
 
-Adding Workers merely to create architectural components is prohibited.
+AI MUST NOT bypass ownership, fencing, authorization, consistency, idempotency, resource limits, recovery, compatibility, or auditability.
 
-## 14. Domain Neutrality
+AI-derived configuration may enter the Data Plane only after deterministic validation and within explicit version/validity bounds.
 
-The runtime MUST NOT hardcode product semantics such as social media, finance, content, video, commerce, or user-specific business rules.
+## 17. Contract Evolution Boundary
 
-Applications define domain semantics above the runtime.
+Architecture semantics are frozen per contract version. A semantic change requires a versioned contract-evolution process, not an implementation-side interpretation.
 
-## 15. Mandatory Architecture Invariants
+```text
+Proposal
+→ Evidence / Impact Analysis
+→ Compatibility / Migration Analysis
+→ Adversarial Verification
+→ Review / Approval
+→ New Contract Version
+→ Implementation
+→ Revalidation
+```
+
+## 18. Mandatory Architecture Invariants
 
 - One authoritative owner for every mutable state.
-- Deterministic routing.
-- Routing epoch and fencing.
-- No global coordinator on the ordinary hot path.
-- Bounded D1 I/O.
-- Bounded fan-out.
-- Bounded queues.
-- Bounded retries.
-- Retry does not amplify overload without bound.
+- Deterministic routing for a fixed epoch.
+- Stale writers are fenced.
+- No global coordinator on ordinary hot path.
+- Bounded D1 I/O, fan-out, queues, retries, and concurrency.
+- Retry cannot amplify overload without bound.
 - Partial failure cannot corrupt committed state.
-- Recovery restores invariants.
+- Recovery restores distributed invariants.
+- Logical and physical placement are distinct.
+- Worker boundaries require real boundaries.
 - Scale claims require reproducible evidence.
 - AI failure cannot break ordinary Data Plane correctness.
+- Contract semantics cannot be silently changed by implementation agents.
 
-## 16. Forbidden Architecture
+## 19. Forbidden Architecture
 
-The following are prohibited:
+Prohibited:
 
-- hidden global coordination on the hot path;
-- unbounded fan-out;
-- unbounded queues;
-- unbounded retries;
-- ambiguous ownership;
-- stale authoritative writes;
-- uncontrolled dual-write migration;
-- AI-controlled bypass of safety contracts;
-- unnecessary Workers;
-- speculative abstractions without measurable value;
-- domain coupling in the core runtime.
+```text
+hidden global coordination on hot path
+unbounded fan-out/queues/retries
+ambiguous ownership
+stale authoritative writes
+uncontrolled dual-write migration
+AI bypass of safety contracts
+unnecessary Workers
+speculative abstractions without measurable value
+domain coupling in core runtime
+implementation-side contract reinterpretation
+```
 
-## 17. Minimal-Code Principle
+## 20. Minimal-Code Principle
 
 Every abstraction, dependency, queue, Worker, cache, protocol, or persistent state addition MUST have:
 
 1. a concrete requirement;
-2. an invariant it protects;
+2. a protected invariant;
 3. a measurable benefit;
-4. a real architectural boundary.
+4. a real boundary;
+5. a verification method.
 
 Otherwise it MUST NOT be added.
 
-## 18. Final Architectural Law
+## 21. Final Architectural Law
 
-> **Simple Data Plane + Powerful Governance Plane = Advanced Distributed Runtime.**
+> **Simple deterministic Data Plane + bounded execution + explicit ownership + evidence-driven Governance Plane = advanced distributed runtime.**
 
-The Data Plane should remain deterministic and small. The Governance Plane should continuously improve how that Data Plane behaves without becoming its correctness dependency.
+The runtime remains small and deterministic while governance evolves through evidence without acquiring authority to violate the contracts.
