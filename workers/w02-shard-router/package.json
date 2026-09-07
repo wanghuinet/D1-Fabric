@@ -10,7 +10,7 @@
     "smoke": "node test/smoke.mjs"
   },
   "devDependencies": {
-    "typescript": "latest",
-    "wrangler": "latest"
+    "typescript": "7.0.2",
+    "wrangler": "4.129.0"
   }
 }
