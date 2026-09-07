@@ -1,161 +1,53 @@
 # D1-Fabric AI Engineering Instructions
 
-**Authority:** D1-Fabric Engineering Constitution v3.0 + v3.1 + v3.2 Addenda + Open-Source / Commercial Boundary Contract + Platform Infrastructure Contract + Open Infrastructure Moat Contract + Engineering Documentation Standard + Contract Execution & Evidence Standard  
-**Project:** D1-Fabric  
-**Primary language:** TypeScript
+**Version:** 1.0
+**Status:** ACTIVE
+**Authority:** `D1-FABRIC-1.0-CONTRACT-BASELINE.md`
+**Primary implementation language:** TypeScript
 
-## Mission
+## 1. Mission
 
-Build the minimum amount of correct code that provides complete, runnable, verifiable, maintainable, scalable, and deployable distributed-data capability.
+Build the minimum amount of correct code that provides complete, runnable, verifiable, maintainable, scalable, secure, recoverable, and deployable distributed-data capability.
 
-Do not optimize for code volume or number of tasks. **Code shall be minimal; contracts and proof obligations shall be rigorous.**
+Code should be minimal; contracts and proof obligations remain rigorous.
 
-D1-Fabric is a **general-purpose distributed data infrastructure layer for Cloudflare D1**, not a self-media database. Business domains such as content, APP marketplaces, finance, commerce, games, communities, and AI agents are application-layer schemas over the same infrastructure.
+D1-Fabric is domain-neutral infrastructure for Cloudflare D1. Product semantics belong above the core.
 
-## Read Before Coding
+## 2. Authoritative Source Order
 
-Before modifying code, read the applicable:
-
-1. `D1-FABRIC-ENGINEERING-CONSTITUTION-V3.0.md`
-2. `D1-FABRIC-ENGINEERING-CONSTITUTION-V3.1-ADDENDUM.md`
-3. `D1-FABRIC-ENGINEERING-CONSTITUTION-V3.2-ADDENDUM.md`
-4. `D1-FABRIC-1.0-DEVELOPMENT-CONTRACT.md`
-5. `D1-FABRIC-ARTIFACT-TYPE-CONTRACT.md`
-6. `D1-FABRIC-FIRST-PASS-VERIFICATION-PROTOCOL.md`
-7. `D1-FABRIC-WORLD-CLASS-SCALE-AND-RELIABILITY-GATE.md`
-8. `D1-FABRIC-OPEN-SOURCE-COMMERCIAL-BOUNDARY.md`
-9. `D1-FABRIC-PLATFORM-INFRASTRUCTURE-CONTRACT.md`
-10. `D1-FABRIC-OPEN-INFRASTRUCTURE-MOAT-CONTRACT.md`
-11. `D1-FABRIC-ENGINEERING-DOCUMENTATION-STANDARD.md`
-12. `D1-FABRIC-A00.7-CONTRACT-EXECUTION-EVIDENCE-STANDARD.md`
-13. applicable architecture and capability contracts
-14. applicable ADRs
-
-Do not infer an architecture or distribution rule from chat history when an authoritative repository document exists.
-
-## Before Implementation
-
-Answer these questions and record the result in the task/change record for non-trivial work:
+When documents disagree, use:
 
 ```text
-Requirement / REQ-IDs
-Scope
-Non-Goals
-Smallest complete design
-Inputs / Outputs
-Terminology
-State Model
-Authoritative Owner for every mutable state
-Invariants / INV-IDs
-Hot Path
-Control / Cold Path
-Concurrency Boundary
-Duplicate / Idempotency Semantics
-Timeout / Cancellation / Failure Semantics
-Recovery and return-to-service condition
-Consistency Model
-Overload / Backpressure behavior
-Resource budgets: D1 I/O / fan-out / retries / queue / batch / memory / payload
-Scaling boundary
-Security / Trust boundary
-Observability
-Compatibility / versioning
-Verification matrix / TEST-IDs
-Evidence format / EVIDENCE-IDs
-Distribution target: OPEN / COMMERCIAL / MIXED
-IP / proprietary-risk classification
-Documentation impact
-Change Manifest / allowed files
-Rejected alternatives where material
+1. D1-FABRIC-1.0-CONTRACT-BASELINE.md
+2. Applicable D1-FABRIC-1.0-* contracts
+3. AGENTS.md
+4. DEVELOPMENT-PROTOCOL.md
+5. Existing verified implementation
+6. Execution Packet / Change Manifest
+7. Chat discussion
 ```
 
-If a correctness-critical question cannot be answered precisely, stop and update the design/contract before coding. If an unknown affects only an internal implementation choice and does not change the contract, use the smallest conventional implementation rather than reopening architecture.
+The repository, not chat history, is the source of truth.
 
-## A00.7 AI Execution Rule
+Historical A00.x documents and superseded development contracts are not implementation authority.
 
-`D1-FABRIC-A00.7-CONTRACT-EXECUTION-EVIDENCE-STANDARD.md` is mandatory.
+## 3. Required Reading Before Non-Trivial Work
 
-The implementation agent SHALL execute the approved repository contract rather than redesign it during coding.
+Read:
 
 ```text
-Authoritative Contract
- ↓
-Execution Packet
- ↓
-Frozen Scope / Change Manifest
- ↓
-Implementation
- ↓
-Targeted Verification
- ↓
-Full Verification
- ↓
-Evidence
- ↓
-Capability Status
+D1-FABRIC-1.0-CONTRACT-BASELINE.md
+Applicable D1-FABRIC-1.0-* contracts
+AGENTS.md
+DEVELOPMENT-PROTOCOL.md
+Relevant existing implementation/tests
+Current Execution Packet
+Current Change Manifest
 ```
 
-Before implementation establish:
+Read security, reliability, performance, data/state, runtime, AI-governance, and verification contracts whenever the capability touches those boundaries.
 
-```text
-CONTRACT_RESOLVED
-SCOPE_FROZEN
-DEPENDENCIES_VERIFIED
-STATE_OWNERSHIP_RESOLVED
-ARCHITECTURE_DECISIONS_FROZEN
-INVARIANTS_RESOLVED
-RESOURCE_BUDGETS_RESOLVED
-CHANGE_MANIFEST_FROZEN
-```
-
-Distinguish:
-
-- **Architecture Decision:** affects correctness, protocol, state ownership, routing, consistency, failure/recovery, resource bounds, security, distribution, or public interface. Once frozen, it MUST NOT be changed inside an implementation task without an explicit contract/ADR change.
-- **Implementation Choice:** internal mechanism that preserves the frozen contract. The agent MAY choose the simplest correct implementation.
-
-Do not make the AI repeatedly reconsider approved architecture. Do not add abstractions, dependencies, queues, retries, network hops, persistent state, or Worker boundaries without a current requirement, invariant, measurable benefit, or real boundary.
-
-If missing information can affect correctness, compatibility, ownership, security, resource bounds, failure semantics, or architecture: **STOP** and resolve it. If it only affects an internal implementation choice while the contract remains satisfied: choose the smallest conventional implementation.
-
-## Documentation Is an Engineering Control
-
-`D1-FABRIC-ENGINEERING-DOCUMENTATION-STANDARD.md` is mandatory governance. Documentation is not post-hoc explanation.
-
-For every non-trivial capability:
-
-```text
-Requirement
- ↓
-Contract
- ↓
-Invariants
- ↓
-State / Ownership
- ↓
-Execution Model
- ↓
-Failure Model
- ↓
-Resource Budget
- ↓
-Implementation
- ↓
-Verification
- ↓
-Evidence
-```
-
-Normative language SHALL be used consistently. `MUST/SHALL` is mandatory; `SHOULD` is the strong default; `MAY` is optional; `UNKNOWN/UNPROVEN` are not PASS.
-
-Every non-trivial requirement SHALL be traceable:
-
-```text
-REQ-ID → CONTRACT-CLAUSE → IMPLEMENTATION-SURFACE → TEST-ID → EVIDENCE-ID
-```
-
-A test without a requirement/invariant mapping is not sufficient architectural proof. A requirement without verification mapping is incomplete.
-
-## Mandatory v3.2 Invariants
+## 4. Mandatory Engineering Invariants
 
 ```text
 I-01 No global coordinator is mandatory on the data-plane hot path.
@@ -172,112 +64,228 @@ I-11 Recovery MUST restore routing/state invariants before normal traffic resume
 I-12 Every scalability claim MUST have reproducible evidence.
 ```
 
-If an applicable invariant is UNPROVEN or FAILED, do not report PASS and do not continue to the next dependent capability.
+Applicable security/compatibility invariants and performance/recovery invariants in the 1.0 contracts are equally mandatory.
 
-## Architecture Rules
+## 5. Before Coding
 
-- D1-Fabric core MUST remain business-domain neutral.
-- Do not hard-code self-media/content, APP-marketplace, finance, commerce, or other product concepts into core infrastructure contracts unless explicitly approved as a generic primitive.
-- Application schemas/entities belong above D1-Fabric.
-- Partition keys may represent user_id, app_id, stock_id, product_id, agent_id, content_id, tenant_id, etc.; the router must operate on generic partition identity and shard metadata.
-- Query/write engines optimize infrastructure execution characteristics, not business ranking or product semantics.
-- Domain adapters SHOULD be thin and MUST NOT duplicate core routing/shard/cache/query/write/recovery logic.
-- Do not create a Worker merely because a new application domain exists.
-- Worker count is determined by real capability, ownership, scaling, security, lifecycle, or failure boundaries.
-- Do not create a module merely to create a task boundary.
-- Keep control-plane metadata out of the mandatory hot path when correctness permits.
-- Prefer shard-local execution after deterministic routing.
-- Minimize D1 reads, writes, cross-shard coordination, network hops, serialization, and retries on hot paths.
-- Every hot path must have a bounded operation budget.
-- Every queue/retry/fan-out mechanism must have bounded admission and overload behavior.
-- Design for skewed traffic and hot shards, not only uniform traffic.
-- Do not introduce future-proof abstractions without a current requirement.
-- Do not copy Cloudflare architecture or code without an explicit D1-Fabric requirement.
-
-## Source of Truth
-
-Do not silently edit production/dashboard configuration when a versioned repository configuration is authoritative.
-
-Any configuration model must have one declared source of truth.
-
-For mutable distributed state, documentation MUST identify exactly one authoritative owner. Caches, replicas, snapshots and derived indexes are not authoritative unless explicitly declared.
-
-## Commercial Boundary Rules
-
-`D1-FABRIC-OPEN-SOURCE-COMMERCIAL-BOUNDARY.md` is mandatory governance.
-
-- Every new capability MUST be classified as `OPEN`, `COMMERCIAL`, or `MIXED` before implementation is merged.
-- Public contracts, correctness semantics, interoperability and conformance requirements should remain open unless an approved decision says otherwise.
-- Proprietary optimization algorithms, production heuristics, advanced automation, commercial operational intelligence, secrets, customer data, and security-sensitive implementation details MUST NOT be published accidentally.
-- AI agents MUST NOT decide licensing, IP publication, or commercial boundaries by inference.
-- If the boundary is ambiguous, status is `BLOCKED` / `UNRESOLVED`; do not guess.
-- Commercial separation must not justify artificial module or Worker fragmentation.
-- Before release, verify that repository contents match the declared distribution boundary.
-
-## Coding Rules
-
-- Use TypeScript for application logic unless explicitly approved otherwise.
-- Keep implementations small and direct.
-- Prefer existing utilities and contracts over new abstractions.
-- No speculative interfaces.
-- No unused wrappers.
-- No hidden side effects.
-- No unrelated refactors.
-- No silent contract changes.
-- Prefer structural fixes over patch-piling.
-- Never add a dependency or copied code without checking license compatibility.
-- If a new core feature requires domain-specific semantics, STOP and classify it as application-layer behavior or an explicitly approved generic infrastructure primitive before implementation.
-- Do not make code look sophisticated for its own sake. **Complexity requires a contract, a reason, and evidence.**
-
-## Verification Rules
-
-Never report PASS from source inspection alone.
-
-For applicable capabilities:
+For every non-trivial capability, establish:
 
 ```text
-Contract Review
- ↓
-Type Check
- ↓
-Lint / Format
- ↓
-Unit Test
- ↓
-Integration Test
- ↓
-Build
- ↓
-Runtime
- ↓
-Real Request
- ↓
-Concurrency / Race
- ↓
-Overload / Backpressure
- ↓
-Failure / Recovery
- ↓
-Hotspot / Skew where applicable
- ↓
-Security
- ↓
-Performance / Regression
- ↓
-Soak where applicable
- ↓
-Distribution Boundary Audit
- ↓
-Documentation Completeness Audit
- ↓
-Independent Verification
- ↓
-Reproducible Evidence
+Capability / REQ IDs
+Scope / Non-goals
+Smallest complete design
+Applicable contracts
+Inputs / Outputs
+State model
+Authoritative owner for every mutable state
+Invariants
+Hot path / control path
+Concurrency boundary
+Idempotency / retry semantics
+Timeout / cancellation / failure semantics
+Recovery / return-to-service condition
+Consistency model
+Resource budgets
+Scaling boundary
+Security / trust / tenant boundary
+Compatibility / versioning
+Verification matrix
+Evidence requirements
+Distribution classification
+Change manifest
+Rejected alternatives where material
 ```
 
-Verification MUST map critical requirements/invariants to tests and evidence. Unknown is not PASS. UNPROVEN is not PASS.
+If a correctness-critical item is unknown or contradictory, STOP and resolve the contract before coding.
 
-Evidence strength SHALL be understood as:
+If an unknown affects only an internal implementation choice while the contract remains satisfied, choose the smallest conventional implementation.
+
+## 6. Execution Protocol
+
+All non-trivial implementation SHALL follow `DEVELOPMENT-PROTOCOL.md`:
+
+```text
+READ
+→ RESOLVE CONTRACT
+→ EXECUTION PACKET
+→ FREEZE CHANGE MANIFEST
+→ IMPLEMENT
+→ TARGETED VERIFY
+→ FULL APPLICABLE VERIFY
+→ EVIDENCE
+→ INDEPENDENT REVIEW
+→ STATUS
+→ COMMIT
+```
+
+The templates under `templates/` are the standard execution artifacts.
+
+## 7. Architecture Boundary
+
+The implementation agent is not an architecture authority.
+
+Do not silently change:
+
+```text
+state ownership
+routing / epoch / fencing
+consistency semantics
+failure/recovery semantics
+security boundaries
+tenant isolation
+resource limits
+public protocols
+schema compatibility
+Worker boundaries
+```
+
+A material architecture change requires an explicit contract/ADR decision.
+
+## 8. Minimal-Code Rule
+
+Prefer:
+
+- existing correct primitives;
+- direct implementation;
+- one authoritative state owner;
+- one primary execution path;
+- shared validation/error/timeout infrastructure;
+- minimal D1 operations;
+- minimal network hops;
+- minimal dependencies.
+
+Do not add speculative abstractions, queues, retries, caches, persistent state, coordinators, Workers, or dependencies without a current requirement, invariant, measurable benefit, and real boundary.
+
+Do not perform unrelated refactors.
+
+## 9. Data / Routing / Security Ordering
+
+For protected operations preserve:
+
+```text
+Authenticate
+→ Authorize
+→ Resolve authorized tenant/scope
+→ Construct canonical routing identity
+→ Resolve route
+→ Validate epoch
+→ Validate ownership
+→ Validate resource/consistency policy
+→ Resolve idempotency
+→ Execute
+→ Commit
+→ Update derived/cache state
+```
+
+Client-supplied tenant, shard, or routing information is not proof of authorization.
+
+Cache and derived state cannot bypass authorization, ownership, epoch, consistency, or schema compatibility.
+
+## 10. Hot Path
+
+Hot-path execution MUST be deterministic and bounded.
+
+Runtime AI MUST NOT be required for correctness.
+
+The baseline path must remain safe if AI optimization, cache, or non-authoritative derived state is unavailable.
+
+## 11. D1 / Resource Boundaries
+
+Every applicable request MUST have explicit budgets for:
+
+```text
+deadline
+queries
+rows read
+rows written
+shards/fan-out
+parallelism
+retries
+payload
+memory
+queue work
+```
+
+No unbounded production hot-path scan, fan-out, retry, queue, batch, or concurrency mechanism.
+
+## 12. Security / Compatibility
+
+Security and compatibility are release-blocking concerns.
+
+Enforce:
+
+```text
+authentication
+authorization
+least privilege
+tenant isolation
+input/query safety
+replay protection
+resource abuse controls
+control-plane authorization
+migration/restore authorization
+fail-closed behavior
+protocol compatibility
+schema compatibility
+rolling-version compatibility
+```
+
+AI cannot bypass these boundaries.
+
+## 13. Failure / Recovery
+
+Do not equate response delivery with commit outcome.
+
+Retries MUST be idempotent and bounded.
+
+Recovery must restore distributed invariants, including ownership, epoch/fencing, migration state, schema compatibility, authorization, and idempotency state where applicable.
+
+D1 storage restore alone is not proof of complete D1-Fabric recovery.
+
+## 14. Verification
+
+Never report PASS from source inspection or compilation alone.
+
+Use the applicable verification pyramid:
+
+```text
+V0 Static
+V1 Unit
+V2 Integration
+V3 Runtime
+V4 Contract / Invariant
+V5 Concurrency / Overload
+V6 Failure / Recovery
+V7 Security / Isolation
+V8 Performance / Cost / Regression
+V9 Soak / Operational
+```
+
+Unknown and unproven are not PASS.
+
+Critical negative paths MUST be covered where applicable:
+
+```text
+wrong tenant
+unauthorized request
+stale epoch
+wrong owner
+duplicate mutation
+ambiguous commit
+partial shard failure
+migration interruption
+schema mismatch
+cache poisoning
+resource exhaustion
+```
+
+## 15. Evidence
+
+Use `templates/EVIDENCE-RECORD.md`.
+
+Evidence MUST identify exact commit, environment, commands, inputs, results, metrics, limitations, and status.
+
+Evidence levels:
 
 ```text
 E0 declaration
@@ -288,89 +296,16 @@ E4 build/runtime
 E5 real request / end-to-end
 E6 concurrency/failure/recovery
 E7 performance/load/soak/scale
-E8 independent/release-grade verification
+E8 independent/release-grade
 ```
 
-Performance/scale claims require E7 or stronger as applicable. Critical release claims require E8 where applicable.
+Performance/scale claims require E7 or stronger where applicable. Critical release claims require E8 where applicable.
 
-## Evidence Rules
+AI confidence is not evidence.
 
-Evidence MUST be sufficient for an independent engineer to reproduce or challenge the claim without chat history.
+## 16. Status
 
-For scale/performance evidence, record where applicable:
-
-```text
-Capability / Requirement IDs
-Commit SHA
-Runtime / configuration
-Dataset
-Shard count
-Request mix
-Read/write ratio
-Concurrency
-Duration
-P50 / P95 / P99
-Throughput
-Errors / rejections
-D1 reads
-D1 writes
-Cross-shard fan-out
-Retry amplification
-Queue peak
-Cache hit rate / D1 read avoidance ratio
-Failure/recovery result
-Known limitations
-Proof debt
-```
-
-A screenshot, successful single request, green unit-test count, or source inspection is not scale proof.
-
-Material requirements or invariants without sufficient evidence create explicit `PROOF_DEBT`; blocking proof debt prevents the required PASS state.
-
-## World-Class Scale Gate
-
-Before `RELEASE_READY`, read and satisfy:
-
-`D1-FABRIC-WORLD-CLASS-SCALE-AND-RELIABILITY-GATE.md`
-
-The evidence must record actual D1 reads/writes, concurrency, latency distribution, errors/rejections, queue peak, shard count, workload, duration, runtime, configuration, and commit/version where applicable.
-
-A screenshot, successful single request, or source inspection is not scale proof.
-
-## Change Manifest
-
-Every non-trivial implementation SHALL have a bounded Change Manifest containing:
-
-- capability ID;
-- requirement IDs;
-- allowed files/directories;
-- interfaces changed;
-- state changed;
-- migrations/configuration changed;
-- tests added/changed;
-- documentation affected;
-- distribution classification;
-- explicitly forbidden unrelated changes.
-
-The implementation SHALL remain inside the manifest unless a new contract decision is recorded.
-
-## Documentation Rules
-
-If a change affects architecture, contracts, invariants, commands, deployment, recovery, verification, distribution boundaries, state ownership, concurrency, D1 I/O, overload behavior, or business-domain neutrality, perform a documentation impact check.
-
-Update only the affected authoritative documents. Do not generate documentation churn.
-
-Non-trivial architecture decisions belong in ADRs and SHOULD record credible rejected alternatives when the choice affects scale, correctness, cost, reliability or operational complexity.
-
-Documentation MUST NOT be changed merely to make an implementation appear compliant. If code conflicts with a contract, surface the conflict and resolve the contract before silently rewriting either side.
-
-## Completion Rules
-
-A capability is not complete because code exists.
-
-It is complete only when the applicable contract, implementation, tests, runtime behavior, failure handling, performance evidence, regression evidence, distribution-boundary review, documentation impact review, and independent verification are closed.
-
-Use explicit status values only:
+Only use:
 
 ```text
 UNKNOWN
@@ -388,28 +323,115 @@ FAILED
 BLOCKED
 ```
 
-A capability SHALL NOT be promoted to `CAPABILITY_PASS` while a required P0/P1 obligation is `UNKNOWN`, `UNPROVEN`, or `FAILED`.
+A capability cannot advance while a required invariant, security obligation, recovery obligation, resource bound, or proof obligation is unknown, unproven, or failed.
 
-## Stop Conditions
+## 17. Change Manifest
+
+Every non-trivial task MUST freeze:
+
+```text
+allowed files
+forbidden files
+interfaces
+state/schema changes
+dependencies
+configuration
+tests/evidence
+```
+
+Unplanned material changes require stop-and-re-evaluate.
+
+## 18. Development AI Rule
+
+DeepSeek or another coding agent SHALL implement the approved contract, not redesign it during implementation.
+
+Use:
+
+```text
+Contract
+→ Packet
+→ Manifest
+→ Implementation
+→ Verification
+→ Evidence
+```
+
+Do not fabricate tests, metrics, benchmark results, recovery results, security results, or completion status.
+
+## 19. Runtime AI Rule
+
+Runtime AI may observe, analyze, propose, optimize, experiment, canary, and learn only within the AI Governance Contract.
+
+The optimization loop is:
+
+```text
+Observe
+→ Analyze
+→ Hypothesis
+→ Candidate
+→ Validate
+→ Benchmark
+→ Canary
+→ Measure
+→ Promote / Reject
+→ Learn
+```
+
+AI cannot directly bypass immutable safety boundaries.
+
+## 20. Commercial / IP Boundary
+
+Every capability MUST be classified as `OPEN`, `COMMERCIAL`, or `MIXED` before merge.
+
+If the boundary is ambiguous, status is `BLOCKED` rather than guessed.
+
+Do not publish secrets, customer data, proprietary optimization logic, or security-sensitive implementation details accidentally.
+
+Commercial separation must not justify artificial Worker/module fragmentation.
+
+## 21. Documentation
+
+Documentation is an engineering control.
+
+Material behavior must remain traceable:
+
+```text
+REQ
+→ CONTRACT
+→ IMPLEMENTATION
+→ TEST
+→ EVIDENCE
+```
+
+Do not change documentation merely to make code appear compliant.
+
+If code conflicts with a contract, surface and resolve the conflict.
+
+## 22. Stop Conditions
 
 STOP immediately for:
 
-- unresolved P0/P1 defect
-- data corruption or loss risk
-- security boundary violation
-- undocumented architecture drift
-- contract violation
-- missing authoritative requirement
-- fabricated or incomplete verification evidence
-- unexplained critical performance regression
-- unbounded D1 I/O
-- unbounded queue/retry/fan-out behavior
-- ambiguous shard ownership
-- unproven recovery for a stateful critical capability
-- failed concurrency or overload gate
-- unresolved commercial/IP boundary
-- accidental exposure of proprietary or security-sensitive implementation
-- unjustified coupling of core infrastructure to a specific business domain
-- documentation that cannot state a correctness-critical behavior precisely enough to test
+```text
+contract conflict
+ambiguous ownership
+authorization bypass
+cross-tenant leakage
+stale writer acceptance
+data corruption/loss risk
+unbounded D1 I/O
+unbounded fan-out/retry/queue
+unproven recovery
+schema incompatibility
+fabricated evidence
+wrong-commit evidence
+P0/P1 defect
+critical regression
+architecture drift
+unresolved IP/security boundary
+```
 
-Do not continue to the next capability until the current capability reaches its required PASS state.
+Do not continue to a dependent capability until the current required PASS state is achieved.
+
+## 23. Final Law
+
+> **The repository contracts define what must be true. The implementation agent chooses the simplest way to make it true. Verification proves whether it is true. Nothing else is authority.**
