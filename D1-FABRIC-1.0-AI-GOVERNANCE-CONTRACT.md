@@ -1,360 +1,378 @@
 # D1-Fabric 1.0 AI Governance Contract
 
-**Status:** GOVERNANCE BASELINE  
-**Version:** 1.0  
-**Authority:** Architecture Contract  
+**Status:** GOVERNANCE BASELINE
+**Version:** 1.1
+**Authority:** D1-FABRIC-1.0-CONTRACT-BASELINE.md
 
 ## 1. Purpose
 
-AI is a governed optimization participant in D1-Fabric, not an unrestricted administrator.
+AI is a governed optimization participant in D1-Fabric, never an unrestricted administrator.
 
-The system contains two AI domains:
+Two AI domains exist:
 
-- **Development AI:** designs and implements changes under repository contracts.
+- **Development AI:** implements approved repository contracts.
 - **Runtime AI:** observes production behavior and proposes or performs governed optimization.
-
-The central rule is:
 
 > D1-Fabric must remain safe when AI is wrong and become better when AI is right.
 
-## 2. Data Plane Independence
+## 2. Data-Plane Independence
 
-Ordinary requests MUST remain correct when:
-
-- AI is unavailable;
-- AI is slow;
-- a model is wrong;
-- an optimization is rejected;
-- an optimization is rolled back.
-
-AI inference MUST NOT be a mandatory hot-path dependency.
+Ordinary requests MUST remain correct when AI is unavailable, slow, wrong, rejected, or rolled back. AI inference MUST NOT be a mandatory hot-path dependency.
 
 ## 3. Authority Levels
 
-### L0 — Observe
+- **L0 Observe:** telemetry and analysis only.
+- **L1 Recommend:** recommendations require human/policy approval.
+- **L2 Governed Auto-Optimize:** pre-approved classes within hard bounds.
+- **L3 Controlled Runtime Optimization:** explicitly authorized control envelopes with verification, bounded blast radius, and rollback.
 
-AI may inspect telemetry and identify patterns.
+Authority MUST be automatically reduced when defined failure, regression, security, or evidence-quality thresholds are exceeded.
 
-### L1 — Recommend
-
-AI may produce recommendations for human or policy review.
-
-### L2 — Governed Auto-Optimize
-
-AI may automatically apply pre-approved optimization classes within hard bounds.
-
-### L3 — Controlled Runtime Optimization
-
-AI may perform limited runtime changes inside explicitly authorized control envelopes, with verification and rollback.
-
-AI MUST never bypass immutable safety boundaries at any level.
+AI MUST never bypass immutable safety boundaries.
 
 ## 4. Immutable Safety Boundaries
 
 AI cannot override:
 
 - authoritative state ownership;
-- routing correctness;
-- routing epochs;
-- fencing;
-- tenant isolation;
-- authentication and authorization;
+- routing correctness, epoch, or fencing;
+- authentication, authorization, or tenant isolation;
 - declared consistency semantics;
 - idempotency requirements;
-- resource limits;
+- resource limits and admission controls;
 - recovery invariants;
-- audit requirements.
+- compatibility/schema contracts;
+- audit/evidence requirements.
 
-## 5. AI Decision Contract
+## 5. AI Decision Record
 
-Every material automated decision SHOULD record:
+Every material automated decision MUST record, at minimum:
 
 ```text
- decision_id
- timestamp
- model_or_agent
- authority_level
- observed_evidence
- detected_condition
- hypothesis
- candidate_action
- expected_benefit
- affected_resources
- risk
- confidence
- policy_result
- verification_plan
- canary_plan
- rollback_plan
- expiration
- actual_result
- final_status
+decision_id
+timestamp
+model_or_agent
+model_version
+authority_level
+contract_version
+observed_evidence
+detected_condition
+hypothesis
+candidate_action
+expected_benefit
+affected_resources
+risk
+confidence
+policy_result
+verification_plan
+canary_plan
+rollback_plan
+resource_budget
+expiration
+actual_result
+final_status
 ```
 
 AI confidence is an input, never proof.
 
-## 6. Evidence Before Authority
+## 6. Contract Semantic Map
 
-The minimum progression is:
+Before implementation or material runtime optimization, the applicable contracts MUST be reduced to a machine-checkable Semantic Contract Map.
+
+The map MUST identify:
+
+```text
+capability
+contract/version
+semantic owner for each concern
+authoritative state
+state owner
+untrusted vs verified inputs
+routing identity
+epoch/fencing
+security boundary
+consistency
+idempotency
+resource budgets
+failure/recovery obligations
+compatibility obligations
+verification obligations
+forbidden behavior
+```
+
+The implementation or candidate action MUST be checked against this map before completion or promotion.
+
+A passing test suite does not prove semantic compliance if a contract obligation was not tested.
+
+## 7. Evidence Before Authority
+
+The production optimization progression is:
 
 ```text
 Observe
 → Analyze
 → Hypothesize
-→ Verify
+→ Candidate
+→ Parse
+→ Validate
+→ Security Check
+→ Ownership/Epoch Check
+→ Consistency Check
+→ Resource Check
+→ Compatibility Check
+→ Policy
+→ Benchmark
 → Canary
+→ Measure
 → Promote / Reject
 → Learn
 ```
 
-No production optimization should be promoted merely because a model predicts improvement.
+No production optimization may be promoted solely from model confidence or predicted benefit.
 
-## 7. Optimization Objective
+## 8. Optimization Objective
 
-AI optimization SHOULD jointly consider:
+Optimization MUST consider, in priority order:
 
-- correctness;
-- reliability;
-- useful throughput;
-- latency;
-- D1 cost;
-- resource consumption;
-- operational complexity.
+```text
+correctness
+security/isolation
+reliability
+useful throughput
+latency
+D1 I/O and cost
+resource consumption
+operational complexity
+AI decision cost
+```
 
-Optimizing a single metric while causing unacceptable regression elsewhere is not a valid optimization.
+A single-metric improvement is invalid when it creates unacceptable regression in a higher-priority property.
 
-## 8. Cost-Aware AI
+## 9. Cost and Optimization Budget
 
-AI MUST treat D1 rows read and rows written as first-class optimization signals.
+D1 rows read/written, compute, latency, memory, network, and AI inference are first-class costs.
 
-It may optimize:
+Every material experiment MUST have bounded:
 
-- query plans;
-- indexes;
-- cache policy;
-- batch size;
-- shard placement;
-- fan-out;
-- admission control;
-- retry policy.
+```text
+AI inference budget
+experiment duration
+D1 budget
+compute/resource budget
+latency budget
+change frequency
+blast radius
+canary scope
+```
 
-It must not optimize latency by blindly increasing storage, replication, Workers, or writes.
+The optimization system itself MUST be subject to resource limits. An optimizer whose total cost exceeds its measured value is a failed optimization.
 
-## 9. Query Optimization
+## 10. Query and Hotspot Optimization
 
-AI may identify expensive Query Shapes using:
-
-- rows read;
-- rows returned;
-- query duration;
-- frequency;
-- index usage;
-- fan-out;
-- error rate.
-
-A candidate query optimization MUST pass the same runtime plan validation as a deterministic plan.
-
-## 10. Hotspot Optimization
-
-AI may detect:
-
-- hot shards;
-- hot keys;
-- hot tenants;
-- hot queries.
+AI may identify expensive query shapes, hot shards, hot keys, hot tenants, and workload shifts using measured evidence.
 
 Candidate responses may include:
 
 ```text
-cache
-→ coalescing
-→ admission control
-→ load shaping
-→ split / rebalance
+query/index optimization
+cache/coalescing
+admission control
+load shaping
+batching
+split/rebalance
 ```
 
 Shard ownership changes MUST follow the Data and State Contract.
 
 ## 11. Predictive Operations
 
-AI MAY predict:
+Predictions MAY cover traffic, cost, storage, hotspots, failures, and workload changes. Predictions MUST record horizon, input evidence, model/version, confidence, and expiration. A prediction is never authoritative state.
 
-- traffic growth;
-- cost growth;
-- storage growth;
-- hotspot formation;
-- failure risk;
-- workload changes.
+## 12. Experiment Contract
 
-Predictions MUST record their horizon, input evidence, and confidence.
-
-A prediction is not authoritative state.
-
-## 12. Experiment Engine
-
-AI experiments MUST define:
+Every material experiment MUST define:
 
 ```text
+contract_version
 baseline
 candidate
 workload
 scope
 success metrics
 failure thresholds
+resource budget
 canary size
 rollback action
 expiration
 ```
 
-Experiments MUST be isolated from unrelated workloads where practical.
+Experiments SHOULD be isolated from unrelated workloads where practical.
 
-## 13. Canary and Rollback
+## 13. Canary, Rollback, and Auto-Downgrade
 
-Automatic optimization SHOULD use canary deployment when risk is material.
+Material automatic changes MUST use a bounded canary unless architecture explicitly classifies them as low-risk.
 
-Rollback triggers SHOULD include:
+Rollback triggers MUST include applicable:
 
+- correctness/invariant violation;
+- security/tenant-isolation violation;
 - error regression;
 - P95/P99 regression;
-- D1 I/O regression;
+- D1 I/O/cost regression;
 - retry amplification;
-- consistency violation;
-- security violation;
-- resource-limit violation.
+- resource-limit violation;
+- compatibility failure.
 
 Every automatic change MUST be reversible unless explicitly classified as irreversible by architecture review.
 
-## 14. AI Memory
+Authority downgrade MUST be deterministic and fail closed:
 
-The Governance Plane SHOULD retain structured optimization memory:
+```text
+L3 → L2 → L1 → L0
+```
+
+Security or correctness violations MAY immediately force L0 and block further automation until revalidation.
+
+Promotion back to a higher authority level requires fresh evidence, not elapsed time alone.
+
+## 14. AI Memory and Knowledge Lifecycle
+
+Governance memory MUST retain structured records of:
 
 ```text
 observation
 hypothesis
-change
+candidate/change
+contract_version
 workload
 result
 accepted/rejected
 rollback
 ```
 
-The purpose is to prevent repeated failed experiments and allow future decisions to build on evidence.
+Every learned decision MUST have applicability and lifecycle metadata:
+
+```text
+VALID
+EXPIRED
+INVALIDATED
+SUPERSEDED
+REGRESSED
+REVALIDATION_REQUIRED
+```
+
+A historical success MUST NOT be reused as current authority when workload, contract, model, schema, runtime, or resource conditions have materially changed.
+
+Repeated failed experiments MUST be detected and suppressed unless a new hypothesis or materially changed conditions justify re-execution.
 
 ## 15. Policy Engine
 
-AI decisions MUST pass a policy layer that evaluates:
+All material AI decisions MUST pass policy evaluation for:
 
 - authority level;
+- contract/version;
 - resource bounds;
 - security;
 - tenant scope;
 - blast radius;
-- consistency impact;
+- consistency;
 - migration impact;
-- reversibility.
+- compatibility;
+- reversibility;
+- evidence quality;
+- experiment frequency/budget.
 
-## 16. Blast Radius
+## 16. Multi-Tenancy
 
-Automatic optimization MUST have a bounded blast radius.
+AI optimization MUST preserve tenant isolation and global resource ceilings. A high-volume tenant cannot consume unlimited shared resources merely because optimization predicts benefit.
 
-Preferred progression:
+## 17. Prompt and Model Isolation
 
-```text
-single request
-→ single Query Shape
-→ single shard
-→ small shard group
-→ controlled global rollout
-```
+Runtime correctness MUST NOT depend on a model following instructions correctly. AI output is untrusted input and MUST be parsed, schema-validated, policy-checked, bounded, audited, and observed.
 
-The system should not jump directly from experiment to global production.
+Model/version changes are governance events. Prior evidence does not automatically transfer to a materially different model or agent.
 
-## 17. Multi-Tenancy
-
-AI optimization MUST preserve tenant isolation.
-
-AI must not infer that a high-volume tenant can consume unlimited shared resources.
-
-Tenant-specific optimization must remain within global safety limits.
-
-## 18. Prompt and Model Isolation
-
-Runtime correctness MUST NOT depend on a model following an instruction correctly.
-
-AI output is untrusted input and must be:
+## 18. AI Failure Handling
 
 ```text
-parsed
-validated
-policy-checked
-bounded
-observed
+AI unavailable → deterministic baseline
+invalid candidate → reject
+verification failure → reject
+production regression → rollback → downgrade if threshold met → record
+stale knowledge → revalidate
+policy failure → reject
 ```
 
-## 19. AI Failure Handling
-
-When AI fails:
-
-```text
-AI unavailable
-→ deterministic baseline
-```
-
-When AI proposes an invalid action:
-
-```text
-candidate
-→ validation
-→ reject
-```
-
-When AI optimization regresses production:
-
-```text
-regression
-→ rollback
-→ record
-→ learn
-```
-
-## 20. Development AI Governance
+## 19. Development AI Governance
 
 Development AI MUST follow:
 
 ```text
 Authoritative Contract
+→ Semantic Contract Map
 → Execution Packet
-→ Frozen Scope
+→ Frozen Change Manifest
 → Implementation
 → Targeted Verification
+→ Contract-driven Adversarial Verification
 → Full Verification
 → Evidence
+→ Independent Review
 → Capability Status
 ```
 
-AI MUST NOT invent architecture by silently expanding scope.
+Development AI MUST NOT silently expand scope, redefine semantics, or treat chat history as architecture authority.
 
-Adding an abstraction, dependency, queue, Worker, persistent state, or network hop requires a concrete requirement, invariant, measurable benefit, and real boundary.
+## 20. Contract Evolution Governance
 
-## 21. AI Cost Governance
+A frozen contract is immutable for its declared version. Any change to a `MUST`, invariant, semantic owner, protocol meaning, schema compatibility rule, security boundary, routing/epoch meaning, recovery rule, or AI authority boundary MUST use a contract revision.
 
-AI itself consumes resources.
+The evolution lifecycle is:
 
-The Governance Plane SHOULD measure:
+```text
+Change Proposal
+→ Reason / Evidence
+→ Semantic Impact Analysis
+→ Compatibility Analysis
+→ Migration / Rollback Plan
+→ Adversarial Verification
+→ Review / Approval
+→ New Contract Version
+→ Implementation
+→ Revalidation
+→ Deprecate / Retire Old Version
+```
 
-- inference frequency;
-- inference latency;
-- model cost;
-- optimization success rate;
-- avoided D1 cost;
-- avoided compute;
-- avoided incidents.
+No implementation agent may modify frozen semantics as an implementation convenience.
 
-An AI optimization system that costs more than the resources it saves is a failed optimization.
+## 21. Contract-Driven Adversarial Verification
+
+Independent verification MUST derive critical negative tests from contract obligations, not only from implementation tests.
+
+At minimum, applicable cases include:
+
+```text
+wrong tenant
+unauthorized request
+stale epoch
+wrong owner
+duplicate mutation
+ambiguous commit
+partial shard failure
+migration interruption
+schema mismatch
+cache poisoning
+resource exhaustion
+invalid AI candidate
+expired AI knowledge
+authority downgrade
+```
+
+The verifier MUST be able to reject a change even when source code compiles and implementation-authored tests pass.
 
 ## 22. Decision Value
 
-A useful decision should satisfy:
+A decision is valid only when:
 
 ```text
 Expected Benefit
@@ -362,43 +380,43 @@ Expected Benefit
 Decision Cost + Risk + Complexity
 ```
 
-Simple decisions SHOULD be preferred over complex decisions when both achieve equivalent outcomes.
+AND the candidate satisfies all higher-priority safety, correctness, security, compatibility, and resource constraints.
 
 ## 23. Mandatory AI Invariants
 
 - **AI-01:** AI cannot bypass correctness.
 - **AI-02:** AI cannot bypass ownership/fencing.
-- **AI-03:** AI cannot bypass security.
-- **AI-04:** AI cannot bypass consistency.
+- **AI-03:** AI cannot bypass security or tenant isolation.
+- **AI-04:** AI cannot bypass consistency or idempotency.
 - **AI-05:** AI cannot bypass resource limits.
-- **AI-06:** AI cannot make unbounded changes.
-- **AI-07:** Production optimization requires measurable evidence.
-- **AI-08:** Material automatic changes are observable.
+- **AI-06:** AI cannot make unbounded changes or experiments.
+- **AI-07:** Production optimization requires reproducible evidence.
+- **AI-08:** Material automatic changes are observable and auditable.
 - **AI-09:** Material automatic changes are reversible where technically possible.
 - **AI-10:** AI failure cannot break ordinary Data Plane correctness.
-- **AI-11:** AI decisions are auditable.
+- **AI-11:** AI knowledge has version, applicability, expiration, and revalidation semantics.
 - **AI-12:** AI complexity must produce measurable value.
+- **AI-13:** AI authority automatically decreases after defined unsafe/regressive behavior.
+- **AI-14:** Contract semantics cannot be silently changed by implementation AI.
+- **AI-15:** Contract-driven verification is independent of implementation-authored tests.
 
 ## 24. Forbidden AI Behavior
 
 Prohibited:
 
-- direct arbitrary D1 mutation by AI;
-- AI-generated SQL executed without runtime validation;
-- AI bypass of authorization;
-- AI bypass of routing/fencing;
-- AI-created unbounded fan-out;
-- AI-created unbounded retry;
-- AI-created unbounded queues;
-- AI-required hot-path inference;
-- global rollout without verification;
-- treating confidence as evidence;
-- hiding failed experiments;
-- silently changing architecture.
+- arbitrary D1 mutation by AI;
+- AI-generated SQL executed without deterministic runtime validation;
+- bypass of authorization, routing, fencing, consistency, or resource limits;
+- unbounded fan-out, retry, queue, experiment, or rollout;
+- mandatory hot-path inference;
+- global rollout without required verification;
+- treating confidence or historical success as proof;
+- reusing expired/superseded knowledge as authority;
+- hiding failed experiments or rollbacks;
+- silently changing contracts or architecture;
+- promoting authority after failure without fresh evidence.
 
 ## 25. Governance Maturity
-
-The system evolves through:
 
 ```text
 L0 Observe
@@ -407,12 +425,10 @@ L0 Observe
 → L3 Controlled Runtime Optimization
 ```
 
-Higher authority requires stronger evidence, tighter blast-radius control, and stronger rollback.
+Higher authority requires stronger evidence, tighter bounds, and stronger rollback. Authority can move downward automatically.
 
 ## 26. Final AI Governance Law
 
-> **AI should make D1-Fabric more capable without making the runtime proportionally more complex.**
+> **AI may improve D1-Fabric, but contracts, deterministic enforcement, bounded resources, and evidence remain stronger than AI judgment.**
 
-The Data Plane remains simple.
-The Governance Plane becomes increasingly intelligent.
-The contracts remain the boundary that neither may cross.
+The Data Plane remains simple. The Governance Plane becomes increasingly intelligent. Governance knowledge evolves only through evidence and revalidation.
