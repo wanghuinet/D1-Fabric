@@ -1,68 +1,68 @@
 # D1-Fabric 1.0 Development and AI Engineering Contract
 
 **Status:** CONTRACT BASELINE
-**Version:** 1.0
-**Authority:** D1-Fabric 1.0 Contract Baseline + AGENTS.md
+**Version:** 1.1
+**Authority:** D1-FABRIC-1.0-CONTRACT-BASELINE.md
 
 ## 1. Purpose
 
-This contract defines how implementation agents, including DeepSeek and other AI coding agents, MUST convert the frozen 1.0 architecture into the smallest correct, verifiable, production-capable implementation.
+This contract defines how DeepSeek and other implementation agents convert frozen architecture into the smallest correct, verifiable, production-capable implementation.
 
-Core law:
+> Implement the contract; do not redesign the contract while coding.
 
-> **Implement the contract; do not redesign the contract while coding.**
-
-The objective is minimum correct code, maximum capability density, deterministic behavior, reproducible verification, and near-zero avoidable rework.
+The objective is minimum correct code, maximum verified capability density, deterministic behavior, reproducible verification, and near-zero avoidable rework.
 
 ## 2. Source of Truth
 
-Implementation authority is, in order:
-
 ```text
-1. D1-FABRIC-1.0-CONTRACT-BASELINE.md
-2. Individual 1.0 Contracts
+1. Contract Baseline
+2. Applicable versioned contracts
 3. AGENTS.md
-4. Existing verified implementation
-5. Implementation notes / task packet
-6. Chat discussion
+4. DEVELOPMENT-PROTOCOL.md
+5. Existing verified implementation
+6. Execution Packet
+7. Chat discussion
 ```
 
 Chat history MUST NOT override repository contracts.
 
-## 3. Contract-First Development
+## 3. Contract Semantic Map — Mandatory
 
-Before changing code, the agent MUST identify:
+Before non-trivial coding, DeepSeek MUST create a compact Semantic Contract Map from the authoritative repository documents.
 
 ```text
 capability
-applicable contracts
-required invariants
-state touched
-state owner
-hot path / control path
+contract/version
+semantic owner of each concern
+authoritative state/state owner
+untrusted vs verified inputs
+routing identity
+epoch/fencing
+authorization/tenant boundary
+consistency/idempotency
 resource budgets
-security boundary
-failure behavior
-recovery behavior
-compatibility impact
-verification requirements
+failure/recovery obligations
+compatibility obligations
+verification obligations
+forbidden behavior
 ```
 
-If any item is materially unknown, implementation MUST stop at that boundary rather than inventing architecture.
+The map is an interpretation artifact, not a new authority. If two authoritative contracts cannot be reconciled, STOP and resolve the contract.
+
+After implementation, every MUST obligation in the map MUST have a verification reference.
 
 ## 4. Execution Packet
 
-Every non-trivial implementation MUST begin from a compact Execution Packet containing:
+Every non-trivial implementation MUST begin from a compact packet containing:
 
 ```text
 Capability ID
 Goal
-In scope
-Out of scope
+In scope / Out of scope
 Applicable contracts
+Semantic Contract Map
 Acceptance criteria
-State touched
-Semantic owners
+State touched / owners
 Change manifest
 Resource budget
 Security requirements
@@ -72,16 +72,12 @@ Verification plan
 Evidence required
 ```
 
-The packet MUST be small enough for an AI agent to hold as one coherent unit.
-
 ## 5. Frozen Change Manifest
 
-Before coding, the agent MUST declare the expected change surface:
+Before coding, declare:
 
 ```text
-files to add
-files to modify
-files to delete
+files to add/modify/delete
 schema changes
 configuration changes
 dependencies
@@ -90,22 +86,11 @@ runtime behavior changes
 verification artifacts
 ```
 
-Unplanned architectural expansion is forbidden.
-
-If implementation discovers a necessary change outside the manifest, the agent MUST classify it as:
-
-```text
-required correction
-contract defect
-implementation convenience
-optional optimization
-```
-
-Only a required correction may be added automatically, and it MUST remain contract-compatible and be recorded in evidence.
+Anything outside the manifest requires re-evaluation before implementation. Only a necessary contract-compatible correction may be added automatically and it MUST be recorded.
 
 ## 6. Smallest Complete Implementation
 
-The implementation MUST optimize for:
+Optimize for:
 
 ```text
 minimum code
@@ -116,54 +101,38 @@ minimum D1 queries
 minimum serialization
 minimum Workers
 minimum dependencies
-maximum capability density
+maximum verified capability density
 ```
 
-Small code is not a goal if it removes required correctness, security, recovery, observability, or verification behavior.
+Do not remove required correctness, security, recovery, observability, or verification to reduce code.
 
 ## 7. No Speculative Architecture
 
-The agent MUST NOT add:
-
-```text
-Worker
-Queue
-Cache
-Coordinator
-Replica
-Abstraction layer
-Framework
-Dependency
-Background service
-Persistent state
-Retry layer
-Generic plugin system
-```
-
-unless the change has a concrete requirement, invariant, real boundary, measurable benefit, and verification method.
+Do not add Workers, queues, caches, coordinators, replicas, abstractions, frameworks, dependencies, background services, persistent state, retry layers, or generic plugin systems without a concrete requirement, protected invariant, real boundary, measurable benefit, and verification method.
 
 ## 8. Semantic Ownership
 
-Each cross-cutting concern has one semantic owner.
+Each concern has one semantic owner:
 
 ```text
-Architecture        → architecture contract
-State/ownership     → Data & State
-Execution           → Runtime Execution
-Retry/recovery      → Reliability & Recovery
-Security            → Security & Compatibility
-Performance/cost    → Performance & Cost
-AI authority        → AI Governance
+Architecture        → Architecture Contract
+State/ownership     → Data & State Contract
+Execution           → Runtime Execution Contract
+Retry/recovery      → Reliability & Recovery Contract
+Security            → Security & Compatibility Contract
+Performance/cost    → Performance & Cost Contract
+AI authority        → AI Governance Contract
 ```
 
-Implementation modules may execute a concern but MUST NOT redefine its semantics.
+Modules may implement a concern but MUST NOT redefine its semantics.
 
 ## 9. Implementation Order
 
-For a new capability, prefer:
+Prefer:
 
 ```text
 Contract
+→ Semantic Contract Map
 → state model
 → invariants
 → pure deterministic logic
@@ -174,27 +143,11 @@ Contract
 → verification
 ```
 
-Do not start with framework plumbing or abstractions.
+Do not start with framework plumbing or speculative abstractions.
 
 ## 10. Hot Path Discipline
 
-Hot-path code MUST be deterministic and bounded.
-
-The agent MUST minimize:
-
-```text
-D1 queries
-cross-shard fan-out
-serialization
-allocation
-network hops
-locks/contention
-retries
-cache lookups
-branching complexity
-```
-
-AI inference MUST NOT be a correctness dependency of the normal request path.
+Hot-path code MUST be deterministic and bounded. Minimize D1 queries, fan-out, serialization, allocation, network hops, contention, retries, cache work, and branching complexity. Runtime AI MUST NOT be a correctness dependency.
 
 ## 11. Resource Budget First
 
@@ -205,8 +158,7 @@ deadline
 queries
 rows read
 rows written
-shards
-fan-out
+shards/fan-out
 parallelism
 retries
 payload
@@ -218,45 +170,29 @@ An implementation without a bounded resource model is incomplete.
 
 ## 12. State Before Code
 
-For every new persistent state element, the agent MUST answer:
+For every persistent state element answer:
 
 ```text
-What is it?
-Classification?
-Who owns it?
-Where is authoritative storage?
-What epoch/version governs it?
-How is it updated?
-How is it recovered?
-How is it migrated?
-How is it invalidated?
+what
+classification
+semantic owner
+authoritative storage
+epoch/version
+update semantics
+recovery
+migration
+invalidation/rebuild
 ```
 
 No hidden persistent state is permitted.
 
-## 13. Database Access Rule
+## 13. Database Access
 
-D1 access MUST be explicit and measurable.
+For every D1 operation record query count, rows read/written, transaction boundary, index dependency, expected latency, and retry behavior. Queries MUST be parameterized. Unbounded production scans are forbidden on hot paths.
 
-The implementation MUST know for each operation:
+## 14. Write and Read Paths
 
-```text
-query count
-rows read
-rows written
-transaction boundary
-index dependency
-expected latency
-retry behavior
-```
-
-Queries MUST be parameterized.
-
-Unbounded production scans are forbidden on hot paths.
-
-## 14. Write Path Rule
-
-The preferred write sequence is:
+Write:
 
 ```text
 Authenticate
@@ -270,57 +206,44 @@ Authenticate
 → Update derived/cache state
 ```
 
-No derived or cache update may become authoritative accidentally.
-
-## 15. Read Path Rule
-
-The preferred read sequence is:
+Read:
 
 ```text
 Authenticate
-→ Authorize / public scope
-→ Resolve consistency context
+→ Authorize/public scope
+→ Resolve consistency
 → Route
 → Safe cache lookup if applicable
-→ Authoritative read / permitted replica
-→ Merge bounded results
+→ Authoritative read/permitted replica
+→ Bounded merge
 ```
 
-Cache MUST NOT bypass security, tenant isolation, ownership, or consistency rules.
+Cache MUST NOT bypass security, ownership, or consistency.
 
-## 16. Cross-Shard Rule
+## 15. Cross-Shard Rule
 
-Cross-shard execution MUST be explicit.
-
-The implementation MUST declare:
+Declare:
 
 ```text
 fan-out
 parallelism
 deadline
+resource budget
 consistency
-partial failure semantics
+partial-failure semantics
 atomicity semantics
 merge policy
 ```
 
-A generic fan-out abstraction without bounded semantics is forbidden.
+Never imply global atomicity across independent D1 databases without an explicit protocol.
 
-## 17. Retry Rule
+## 16. Retry Rule
 
-Only one retry semantic may exist.
+There is one retry semantic owned by Reliability. Every retryable mutation requires an idempotency identity, explicit attempt/deadline/backoff/jitter, and overload accounting. Provider retries MUST be included in the budget.
 
-Every retryable mutation MUST have an idempotency identity.
+## 17. Error Handling
 
-The implementation MUST account for provider-level retries and MUST prevent retry multiplication.
-
-A retry loop without an explicit attempt, deadline, and overload budget is a defect.
-
-## 18. Error Handling
-
-Errors MUST be classified according to the Reliability Contract.
-
-The implementation MUST distinguish at least:
+At minimum distinguish:
 
 ```text
 invalid
@@ -338,80 +261,38 @@ recovery required
 
 Human-readable messages MUST NOT become machine compatibility contracts.
 
-## 19. Security Rule
+## 18. Security
 
-Security checks MUST remain in the execution path even when an optimization appears to make them redundant.
+Never trust client tenant/shard/routing identifiers as authorization. Never use cache or idempotency as authorization. Unknown security state MUST fail closed.
 
-The agent MUST NOT:
-
-```text
-trust client tenant_id
-trust client shard_id
-trust routing key as authorization
-use cache as authorization
-reuse idempotency as authorization
-skip ownership checks after authentication
-let AI bypass policy
-```
-
-Unknown security state MUST fail closed.
-
-## 20. Routing / Epoch / Ownership Rule
-
-The implementation MUST preserve this distinction:
+Keep distinct:
 
 ```text
-Authorization → may this actor perform the operation?
-Routing       → where should the operation go?
-Epoch         → is this routing/ownership view current?
-Ownership     → is this target the authoritative writer?
+Authorization → may actor perform operation?
+Routing       → where should operation go?
+Epoch         → is view current?
+Ownership     → is target authoritative writer?
 ```
 
-No one of these checks substitutes for another.
+## 19. Migration and Schema
 
-## 21. Migration Rule
-
-Migration code MUST implement the frozen ownership transition:
+Migration:
 
 ```text
-Plan
-→ Prepare
-→ Copy
-→ Verify
-→ Fence
-→ Commit Ownership
-→ Advance Epoch
-→ Serve
-→ Retire Source
+Plan → Prepare → Copy → Verify → Fence → Commit Ownership → Advance Epoch → Serve → Retire Source
 ```
 
-The implementation MUST persist enough state to resume or deterministically abort.
-
-Copy completion MUST NOT be interpreted as ownership transfer.
-
-## 22. Schema Change Rule
-
-Schema changes MUST use:
+Schema:
 
 ```text
-Expand
-→ compatible readers
-→ compatible writers
-→ migrate/backfill
-→ verify
-→ switch
-→ contract old form
+Expand → Compatible Readers/Writers → Migrate/Backfill → Verify → Switch → Contract
 ```
 
-Migration tooling order alone is not application compatibility.
+Copy completion is not ownership transfer. Destructive changes require proof that supported readers/writers and recovery paths are retired.
 
-A destructive schema change without proof that supported readers/writers are retired is forbidden.
+## 20. Recovery
 
-## 23. Recovery Rule
-
-Recovery MUST restore distributed invariants, not only database rows.
-
-After storage restore or ownership recovery, verify:
+Recovery MUST restore distributed invariants, not merely database bytes:
 
 ```text
 schema
@@ -419,305 +300,187 @@ control metadata
 ownership
 epoch
 migration state
-idempotency state
+idempotency
 data invariants
 security policy
-representative reads/writes
+representative operations
+load/error stability
 ```
 
-A reachable D1 database is not sufficient evidence of recovery.
+Normal admission cannot resume before required verification succeeds.
 
-## 24. AI Authority Boundary
+## 21. Development AI Workflow
 
-AI is an implementation accelerator and runtime optimization participant, not an unrestricted administrator.
-
-AI MUST NOT directly bypass:
-
-```text
-security
-ownership
-fencing
-tenant isolation
-consistency
-idempotency
-resource bounds
-recovery safety
-compatibility
-```
-
-AI-generated code has no authority merely because the model is confident.
-
-## 25. AI Coding Workflow
-
-The required coding loop is:
+DeepSeek MUST execute:
 
 ```text
 Read authoritative contracts
+→ Build Semantic Contract Map
 → Build Execution Packet
 → Freeze Change Manifest
-→ Inspect existing code
+→ Inspect existing implementation
 → Implement smallest complete change
-→ Run targeted verification immediately
-→ Review contract invariants
-→ Run full applicable verification
-→ Generate evidence
-→ Update capability status
+→ Targeted verification immediately
+→ Contract-driven adversarial verification
+→ Full applicable verification
+→ Evidence
+→ Independent review
+→ Status
 ```
 
-Do not perform a large unverified batch of unrelated changes.
+DeepSeek is an implementation agent, not architecture authority.
 
-## 26. DeepSeek Prompt Boundary
+## 22. Contract-Driven Adversarial Verification
 
-When delegating implementation to DeepSeek, the controlling prompt MUST contain:
+Verification MUST derive critical negative tests from contracts independently of implementation-authored tests.
 
-```text
-Repository is source of truth.
-Read applicable contracts before coding.
-Do not redesign architecture.
-Do not add unrequested abstractions.
-Implement only the frozen capability.
-Keep the change manifest minimal.
-Verify immediately after each meaningful boundary.
-Do not claim tests that were not run.
-Do not claim evidence that was not generated.
-Stop on contract conflict or missing requirement.
-```
-
-The prompt MUST reference contract files by repository path rather than relying on conversational summaries.
-
-## 27. AI Defect Prevention
-
-The agent MUST actively check for the highest-risk defect classes before declaring completion:
+Applicable cases include:
 
 ```text
-wrong state owner
-stale epoch acceptance
-cross-tenant leakage
-authorization bypass
+wrong tenant
+unauthorized request
+stale epoch
+wrong owner
 duplicate mutation
-retry storm
-unbounded query/fan-out
-partial commit corruption
-migration cutover error
-restore inconsistency
-schema incompatibility
-cache correctness violation
-resource budget bypass
+ambiguous commit
+partial shard failure
+migration interruption
+schema mismatch
+cache poisoning
+resource exhaustion
+invalid AI candidate
+expired knowledge
+authority downgrade
 ```
 
-## 28. Verification Pyramid
+Compilation and implementation-authored tests are never sufficient evidence of semantic compliance.
 
-Verification MUST progress from cheap to expensive:
+## 23. AI Boundary
+
+AI-generated code has no authority merely because the model is confident. AI MUST NOT bypass security, ownership, fencing, consistency, idempotency, resource bounds, recovery safety, or compatibility.
+
+## 24. DeepSeek Anti-Drift Rules
+
+DeepSeek MUST:
 
 ```text
-format/type/lint
-→ unit tests
+read repository contracts before coding
+reference repository paths, not chat summaries
+state the Semantic Contract Map before implementation
+freeze scope before implementation
+keep changes inside the manifest
+verify each coherent boundary immediately
+trace each contract MUST to evidence
+run negative/adversarial verification
+stop on semantic conflict or missing requirement
+never fabricate tests, metrics, evidence, or status
+```
+
+DeepSeek MUST NOT:
+
+```text
+redesign architecture during implementation
+invent a second semantic owner
+expand scope silently
+add speculative abstractions
+reinterpret a frozen MUST for convenience
+mark complete from compilation
+use its own summary as authority
+```
+
+## 25. Contract Evolution
+
+Frozen semantics may not be changed by implementation. A change to a `MUST`, invariant, semantic owner, protocol meaning, schema compatibility, security boundary, routing/epoch meaning, recovery rule, or AI authority requires a contract revision:
+
+```text
+Change Proposal
+→ Evidence / Reason
+→ Semantic Impact Analysis
+→ Compatibility Analysis
+→ Migration/Rollback Plan
+→ Adversarial Verification
+→ Review/Approval
+→ New Contract Version
+→ Implementation
+→ Revalidation
+→ Deprecate/Retire Old Version
+```
+
+## 26. Verification Pyramid
+
+```text
+static/type/lint
+→ unit
 → targeted integration
 → build
 → runtime smoke
-→ contract/invariant checks
-→ concurrency
-→ overload/backpressure
+→ contract/invariant
+→ concurrency/overload
 → failure/recovery
-→ security/tenant isolation
+→ security/isolation
 → performance/cost
 → regression
 → soak where required
 ```
 
-A higher-level test does not replace a missing lower-level invariant test.
+Applicability MUST be recorded. Unknown/unproven is not PASS.
 
-## 29. Evidence Rule
+## 27. Evidence
 
-Every capability completion MUST produce evidence that identifies:
+Every completion MUST identify:
 
 ```text
+exact commit
+contracts/version
 what changed
-what contract requires it
-what was tested
-exact commands
-results
+commands
+inputs/outputs
 environment/version
-known limitations
+verification results
+limitations
 remaining risk
 ```
 
-Evidence MUST be reproducible.
+Evidence MUST be reproducible and generated from the actual commit being evaluated.
 
-The agent MUST never convert “code exists” into “capability verified.”
+## 28. Regression
 
-## 30. Test Design Rule
+Check correctness, security, reliability, compatibility, performance, D1 I/O, cost, and complexity. A local improvement that violates a higher-priority contract is a failed change.
 
-Tests MUST target invariants, not only examples.
+## 29. Completion and Release Gate
 
-For critical paths include negative tests for:
+Allowed capability states:
 
 ```text
-wrong tenant
-wrong authorization
-stale epoch
-wrong owner
-duplicate request
-retry after ambiguous commit
-partial shard failure
-migration interruption
-restore mismatch
-schema version mismatch
-overload
-cache poisoning
+UNKNOWN READY IN_PROGRESS LOCAL_PASS CONTRACT_PASS INTEGRATION_PASS REGRESSION_PASS CAPABILITY_PASS RELEASE_READY RELEASED ROLLED_BACK FAILED BLOCKED
 ```
 
-## 31. Performance Verification
+`RELEASE_READY` requires contract satisfaction, semantic-map coverage, security, ownership/epoch, applicable recovery, resource bounds, compatibility, performance evidence where claimed, regression pass, and evidence.
 
-Performance claims MUST use fixed, reproducible workloads.
+## 30. Documentation Synchronization
 
-At minimum, measure where applicable:
+Changes to contract meaning, state model, public behavior, migration, recovery, or verification MUST update affected documentation in the same change set. Documentation describes actual implementation, never intended implementation.
 
-```text
-P50
-P95
-P99
-queries/request
-rows read/request
-rows written/request
-fan-out
-retry rate
-error rate
-cost/useful operation
-```
+## 31. Commit Discipline
 
-Average latency alone is insufficient for critical claims.
+Commit only coherent verified units plus required evidence/documentation. No unrelated cleanup.
 
-## 32. Regression Rule
+## 32. Forbidden Development Behavior
 
-Every implementation change MUST be checked for regression across:
+Prohibited:
 
 ```text
-correctness
-security
-reliability
-compatibility
-performance
-D1 I/O
-cost
-complexity
-```
-
-A local improvement that violates a higher-priority contract is a failed change.
-
-## 33. Stop Conditions
-
-The agent MUST stop and report BLOCKED when it encounters:
-
-```text
-contract conflict
-ambiguous state ownership
-missing security rule
-unbounded resource behavior
-unproven recovery
-schema incompatibility
-unknown compatibility impact
-P0/P1 correctness defect
-security violation
-data corruption/loss risk
-fabricated evidence
-unresolved architectural drift
-```
-
-The agent MUST NOT patch around an architectural contradiction silently.
-
-## 34. Completion States
-
-Use only these capability states:
-
-```text
-UNKNOWN
-READY
-IN_PROGRESS
-LOCAL_PASS
-CONTRACT_PASS
-INTEGRATION_PASS
-REGRESSION_PASS
-CAPABILITY_PASS
-RELEASE_READY
-RELEASED
-ROLLED_BACK
-FAILED
-BLOCKED
-```
-
-A status MUST correspond to actual evidence.
-
-## 35. Documentation Synchronization
-
-When implementation changes a public contract, state model, operational behavior, migration behavior, or verification method, the affected documentation MUST be updated in the same change set or the capability remains incomplete.
-
-Documentation MUST describe actual implementation, not intended implementation.
-
-## 36. Commit Discipline
-
-Commits SHOULD represent coherent verified units.
-
-Preferred sequence:
-
-```text
-small complete change
-→ targeted verification
-→ commit
-```
-
-Do not mix unrelated refactors with capability implementation.
-
-## 37. Release Gate
-
-A capability may reach `RELEASE_READY` only when:
-
-```text
-contract satisfied
-+ security verified
-+ ownership/epoch verified
-+ failure/recovery verified where applicable
-+ resource bounds verified
-+ compatibility verified where applicable
-+ performance evidence available where claimed
-+ regression pass
-+ evidence recorded
-```
-
-## 38. Forbidden Development Behavior
-
-The following are prohibited:
-
-```text
-coding before reading contracts
-architecture invention during implementation
+coding before contract read
+architecture invention
 large speculative refactors
-copying patterns without checking semantics
-adding dependencies for convenience
-claiming unrun tests
-fabricating benchmark results
-ignoring negative tests
-silently changing contract meaning
-using chat history over repository authority
-marking complete because compilation succeeds
+unreviewed semantic changes
+dependency convenience additions
+fabricated tests/benchmarks/evidence
+ignoring negative paths
+chat authority over repository authority
+completion from compilation only
 ```
 
-## 39. Minimum-Code / Maximum-Capability Law
+## 33. Final Development Law
 
-The correct optimization target is not minimum lines of code alone.
-
-It is:
-
-```text
-Capability
-──────────
-Code + State + I/O + Complexity + Operational Burden
-```
-
-Prefer the design that delivers more verified capability per unit of total system complexity.
-
-## 40. Final Development Law
-
-> **One frozen contract, one execution packet, one semantic owner, one bounded implementation, immediate verification, reproducible evidence.**
-
-The fastest path is not writing code faster. It is preventing wrong code from being written.
+> **One authoritative contract, one Semantic Contract Map, one execution packet, one semantic owner, one bounded implementation, immediate verification, adversarial verification, reproducible evidence.**
