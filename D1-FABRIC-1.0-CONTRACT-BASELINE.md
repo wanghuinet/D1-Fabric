@@ -1,19 +1,16 @@
 # D1-Fabric 1.0 Contract Baseline
 
-**Status:** FROZEN  
-**Version:** 1.0  
-**Baseline:** Contract Freeze  
+**Status:** CONTRACT-FROZEN
+**Version:** 1.1 governance revision
 **Authority:** Cross-contract precedence and integration baseline
 
 ## 1. Purpose
 
-This document freezes the integrated meaning of the D1-Fabric 1.0 contracts.
+This document freezes the integrated meaning of the D1-Fabric 1.x contracts and resolves cross-contract ambiguity. Individual contracts remain authoritative for their own concerns.
 
-The individual contracts remain authoritative for their own concerns. This baseline resolves cross-contract ambiguity and defines the rules that an implementation MUST follow when multiple contracts apply to the same operation.
+The repository, not chat history, is the source of truth.
 
 ## 2. Frozen Contract Set
-
-The D1-Fabric 1.0 baseline consists of:
 
 ```text
 D1-FABRIC-1.0-ARCHITECTURE-CONTRACT.md
@@ -25,28 +22,22 @@ D1-FABRIC-1.0-RELIABILITY-AND-RECOVERY-CONTRACT.md
 D1-FABRIC-1.0-SECURITY-AND-COMPATIBILITY-CONTRACT.md
 ```
 
-`D1-FABRIC-1.0-CONTRACT-AUDIT.md` records the final cross-contract audit that authorized this freeze.
+`D1-FABRIC-1.0-CONTRACT-AUDIT.md` records the audit supporting the baseline.
 
-## 3. Baseline State
-
-The architecture is now **CONTRACT-FROZEN**.
-
-Implementation may proceed only against this baseline.
+## 3. Baseline Rules
 
 Implementation MUST NOT:
 
-- reinterpret a contract to make code easier;
-- add architecture because an implementation agent prefers it;
-- split the runtime into modules merely because a document contains many concepts;
-- silently weaken a MUST requirement;
-- create a second semantic owner for an existing concern;
-- use chat history to override repository contracts.
+- reinterpret contracts to make code easier;
+- add architecture because an agent prefers it;
+- split runtime merely because documents contain many concepts;
+- silently weaken a MUST;
+- create a second semantic owner;
+- use chat to override repository authority.
 
-If implementation exposes a genuine contract defect, implementation stops at the affected boundary and a contract change is required before proceeding.
+A genuine semantic contract defect blocks the affected boundary until revised.
 
 ## 4. Cross-Contract Precedence
-
-When two requirements appear to compete, use this order:
 
 ```text
 Security / Isolation
@@ -61,11 +52,25 @@ Security / Isolation
 → AI Optimization
 ```
 
-This is a conflict-resolution rule, not a replacement for the individual contracts.
+## 5. Semantic Ownership
 
-## 5. Identity and Tenant Resolution
+Each concern has exactly one semantic owner. Other contracts may impose integration obligations but cannot redefine the concern.
 
-The runtime MUST distinguish:
+```text
+Architecture        → Architecture Contract
+State/ownership     → Data & State Contract
+Execution           → Runtime Execution Contract
+Retry/recovery      → Reliability & Recovery Contract
+Security            → Security & Compatibility Contract
+Performance/cost    → Performance & Cost Contract
+AI authority        → AI Governance Contract
+```
+
+The owner and all applicable obligations MUST be represented in the Semantic Contract Map for non-trivial implementation.
+
+## 6. Identity and Tenant Resolution
+
+The runtime distinguishes:
 
 ```text
 Untrusted Request Input
@@ -75,9 +80,9 @@ Routing Identity
 Shard Ownership
 ```
 
-A client-supplied `tenant_id` is never proof of tenant authority.
+A client-supplied `tenant_id` is never proof of authority.
 
-The frozen authorization sequence is:
+Frozen sequence:
 
 ```text
 Authenticate
@@ -94,78 +99,30 @@ Authenticate
 → Update Derived/Cache State
 ```
 
-Public/non-tenant operations MUST use an explicit public/global scope rather than relying on an implicit missing tenant value.
+Public/global operations MUST use an explicit public/global scope.
 
-## 6. Canonical Routing Identity
-
-The semantic routing input is:
+## 7. Canonical Routing Identity
 
 ```text
-RoutingIdentity =
-    normalized_namespace
-  + authorized_tenant_scope
-  + logical_routing_key
-```
-
-Then:
-
-```text
+RoutingIdentity = normalized_namespace + authorized_tenant_scope + logical_routing_key
 Route(RoutingIdentity, routing_epoch) → logical_shard
 ```
 
-The exact encoding/hash is an implementation choice, but it MUST be deterministic, versioned, collision-safe for the declared namespace, and independent of untrusted authorization claims.
+Encoding/hash is implementation-defined but MUST be deterministic, versioned, collision-safe for its declared namespace, and independent of untrusted authorization claims.
 
-Routing does not prove authorization.
-Authorization does not prove ownership.
-Ownership does not replace epoch validation.
-Epoch validation does not replace consistency validation.
+## 8. State Ownership
 
-## 7. State Ownership Matrix
+Every mutable authoritative state has exactly one logical owner at a valid epoch. Logical shards and physical D1 databases remain distinct concepts.
 
-| State | Classification | Semantic owner | Recovery requirement |
-|---|---|---|---|
-| Application authoritative data | AUTHORITATIVE | Application-defined logical shard owner | Restore data + ownership + epoch |
-| Shard ownership | CONTROL | D1-Fabric control plane | Must restore before authoritative writes |
-| Routing epoch/fence | CONTROL | D1-Fabric control plane | Must prevent stale writers |
-| Physical placement | CONTROL | D1-Fabric control plane | Must reconcile before service |
-| Migration state | CONTROL | D1-Fabric control plane | Must resume/abort deterministically |
-| Schema compatibility metadata | CONTROL | D1-Fabric schema governance | Must verify before admission |
-| Authorization policy owned by Fabric | CONTROL | D1-Fabric security control plane | Must restore before protected operations |
-| External identity assertion | EPHEMERAL/request context | Trusted identity provider/application boundary | Must be re-established per request |
-| Cache | CACHE | Cache subsystem | Rebuild/expire safely |
-| Derived state | DERIVED | Derived-state subsystem | Rebuild/reconcile |
-| Telemetry | OBSERVATION | Observability subsystem | Loss must not corrupt authoritative state |
-| Process-local execution state | EPHEMERAL | Runtime instance | Loss must be safe and recoverable |
-| Recovery state affecting ownership | CONTROL | D1-Fabric recovery/control plane | Must be durable/recoverable |
+Control metadata covering ownership, routing, epoch/fence, placement, migration, schema compatibility, security policy, AI authority, or recovery MUST have explicit semantic ownership, versioning, integrity protection, and recovery semantics.
 
-Application-specific business semantics remain application-owned and MUST NOT be moved into D1-Fabric merely to simplify routing.
+## 9. Cache / Derived State
 
-## 8. Cache Rule
+Cache and derived state are downstream of authorization and authoritative state. They MUST NOT bypass authorization, tenant isolation, ownership, epoch, consistency, schema compatibility, or recovery requirements.
 
-Cache is semantically downstream from authorization and authoritative state.
+## 10. Retry / Idempotency
 
-Safe cache execution is:
-
-```text
-Authenticate
-→ Authorize / resolve public scope
-→ establish consistency context
-→ build security-safe cache identity
-→ Cache Lookup
-→ if miss, authoritative execution
-```
-
-A cache hit MUST NOT bypass authorization, tenant isolation, ownership, consistency, or schema compatibility.
-
-## 9. Retry and Idempotency Rule
-
-Reliability owns retry semantics.
-
-Performance measures retry cost.
-Security protects against replay.
-Runtime integrates retries into execution.
-
-The single semantic rule is:
+Reliability owns retry semantics. Performance measures retry cost. Security protects replay. Runtime integrates the single semantic rule:
 
 ```text
 retryable mutation
@@ -175,44 +132,27 @@ retryable mutation
 → outcome resolution
 ```
 
-A new retry layer may not be introduced by another contract or module with different semantics.
+No second retry semantic may be introduced by another module.
 
-## 10. Commit and Response Rule
+## 11. Commit and Response
 
-The authoritative commit boundary is independent of response delivery.
-
-Therefore:
+Commit outcome is independent of response delivery:
 
 ```text
 Commit succeeds
-→ response may succeed or fail
+→ response may fail
 → later retry resolves existing outcome
 ```
 
-An ambiguous commit MUST be resolved before replay.
+Ambiguous commit MUST be resolved before replay.
 
-## 11. Cross-Shard Rule
+## 12. Cross-Shard Operations
 
-Cross-shard operations MUST declare:
+Every cross-shard operation declares fan-out, parallelism, deadline, resource budget, consistency, partial-failure semantics, atomicity semantics, and merge behavior. No global atomicity is implied without an explicit protocol.
 
-```text
-fan-out
-parallelism
-deadline
-resource budget
-consistency
-partial-failure semantics
-atomicity semantics
-merge behavior
-```
+## 13. Recovery
 
-No global atomicity may be implied by the existence of multiple D1 databases.
-
-## 12. Recovery Rule
-
-Recovery restores distributed invariants, not just database bytes.
-
-Minimum recovery verification:
+Recovery restores distributed invariants, not only bytes:
 
 ```text
 Process
@@ -230,9 +170,7 @@ Process
 
 Normal admission cannot resume before required verification succeeds.
 
-## 13. Schema / Deployment Rule
-
-All schema evolution uses:
+## 14. Schema / Deployment
 
 ```text
 Expand
@@ -243,63 +181,11 @@ Expand
 → Contract
 ```
 
-A schema version is compatible only if every supported runtime version can safely interpret the authoritative state it may encounter.
+Destructive schema changes require proof that old readers/writers, recovery paths, and rollback requirements are retired or satisfied.
 
-A database restore MUST verify schema compatibility against the serving runtime before traffic resumes.
+## 15. AI Authority
 
-Destructive schema changes require proof that:
-
-```text
-old readers retired
-+
-old writers retired
-+
-recovery path upgraded
-+
-rollback/recovery requirements satisfied
-```
-
-## 14. Security / Performance Rule
-
-Security predicates, tenant isolation, authorization, and audit requirements are not optional performance costs.
-
-Performance optimization may improve their implementation through:
-
-```text
-routing
-indexes
-data layout
-cache
-batching
-admission
-```
-
-but may never remove or weaken a security invariant.
-
-Security-critical audit writes are legitimate work but MUST remain bounded and minimal.
-
-## 15. AI Authority Rule
-
-AI is subordinate to all frozen correctness and security boundaries.
-
-Even L3 cannot:
-
-```text
-invent ownership
-bypass authorization
-bypass tenant isolation
-bypass epoch/fencing
-bypass consistency
-bypass resource limits
-bypass recovery verification
-execute arbitrary D1
-silently change schema semantics
-hide evidence
-```
-
-AI output is untrusted input.
-
-The minimum AI execution gate is:
+AI is subordinate to all frozen safety and correctness boundaries. The minimum candidate gate is:
 
 ```text
 Candidate
@@ -316,160 +202,97 @@ Candidate
 → Verify
 ```
 
-## 16. Hot Path Rule
+AI cannot execute arbitrary D1, bypass authorization, ownership/fencing, consistency, resource limits, recovery verification, schema semantics, or audit/evidence.
 
-The ordinary Data Plane hot path MUST NOT require:
+The hot path MUST NOT require remote AI inference, global coordination, or unbounded metadata lookup.
 
-```text
-remote AI inference
-global coordinator
-unbounded metadata lookup
-experimental decision generation
-```
+## 16. Semantic Contract Map
 
-Approved AI-derived configuration MAY be consumed by the hot path only after validation and within explicit validity/version bounds.
-
-## 17. Failure State Rule
-
-Reliability lifecycle state and security incident state are orthogonal.
-
-They MUST NOT be implemented as competing meanings of one generic state field.
-
-For example:
+Before every non-trivial implementation or material AI optimization, create a compact map of:
 
 ```text
-Shard Lifecycle = ACTIVE / FAILED / RECOVERING / ...
-Security Incident = NORMAL / SUSPECTED / ISOLATED / ...
-```
-
-A security incident may force a shard or capability into a restricted reliability/availability state, but the two dimensions remain semantically distinct.
-
-## 18. Control-Plane Rule
-
-Control metadata is authoritative distributed-system state.
-
-Any state that can change:
-
-```text
-ownership
-routing
-epoch/fence
-placement
-migration
-schema compatibility
-security policy
-AI authority
-recovery
-```
-
-must have an explicit semantic owner, version, integrity protection, and recovery path.
-
-No process-local copy can silently become authoritative.
-
-## 19. Compatibility Rule
-
-Public compatibility is defined by documented semantic contracts, not by accidental implementation behavior.
-
-Clients MUST rely on:
-
-```text
-version
-machine-readable error code
-retryability
-schema contract
-consistency contract
-resource limits
-```
-
-They MUST NOT rely on:
-
-```text
-internal shard IDs
-internal routing metadata
-field ordering
-error message text
-incidental timing
-undocumented fields
-```
-
-## 20. DeepSeek Implementation Rules
-
-For every implementation task, DeepSeek MUST first identify:
-
-```text
-contract(s) involved
-semantic owner of each concern
+capability
+contract/version
+semantic owner per concern
+state/state owner
 untrusted vs verified input
-state owner
 routing identity
-epoch/fence requirement
-authorization boundary
-resource budget
-failure/retry behavior
-schema compatibility
-verification evidence
+epoch/fencing
+security/tenant boundary
+consistency/idempotency
+resource budgets
+failure/recovery
+compatibility
+verification obligations
+forbidden behavior
 ```
 
-DeepSeek MUST NOT create a new module merely because multiple contracts mention the same concept.
+The map is not a new authority. It is a traceability artifact. Every applicable contract MUST obligation must map to verification evidence before completion.
 
-Example:
+## 17. Contract-Driven Adversarial Verification
+
+Independent verification MUST derive critical negative tests from contract obligations rather than relying only on implementation-authored tests. Applicable cases include stale epoch, wrong owner, cross-tenant access, duplicate mutation, ambiguous commit, partial failure, migration interruption, schema mismatch, cache poisoning, resource exhaustion, invalid AI candidate, expired knowledge, and authority downgrade.
+
+## 18. Contract Evolution
+
+Frozen semantics are immutable for their declared version. Changes to a MUST, invariant, semantic owner, protocol meaning, schema compatibility, security boundary, routing/epoch meaning, recovery rule, or AI authority require revision:
 
 ```text
-Routing
+Change Proposal
+→ Evidence / Reason
+→ Semantic Impact Analysis
+→ Compatibility Analysis
+→ Migration/Rollback Plan
+→ Adversarial Verification
+→ Review / Approval
+→ New Contract Version
+→ Implementation
+→ Revalidation
+→ Deprecate / Retire Old Version
 ```
 
-is one semantic concern owned by Data/State, not separate routing implementations in Runtime, Security, Performance, and AI.
+Implementation agents cannot create semantic revisions implicitly.
 
-Likewise:
+## 19. AI Knowledge Evolution
+
+AI optimization memory is evidence, not authority. Every learned result has version, workload/applicability, expiration, and revalidation semantics. Historical success becomes invalid when materially changed conditions invalidate its evidence.
+
+Allowed knowledge lifecycle:
 
 ```text
-Retry
+VALID
+→ EXPIRED / INVALIDATED / SUPERSEDED / REGRESSED
+→ REVALIDATION_REQUIRED
+→ VALID
 ```
 
-has one reliability meaning with execution, cost, and security integrations.
+## 20. AI Authority Auto-Downgrade
 
-## 21. Change Control
-
-After this freeze, any change to a `MUST`, invariant, state owner, protocol semantics, schema compatibility rule, security boundary, routing/epoch meaning, or AI authority boundary requires a new contract revision.
-
-Implementation may refine:
-
-- function names;
-- file layout;
-- internal data structures;
-- serialization details;
-- algorithm choice;
-- benchmark harness;
-
-provided the frozen semantics remain unchanged.
-
-## 22. Release Interpretation
-
-`CONTRACT-FROZEN` does not mean the software is production-ready.
-
-It means:
+AI authority MUST be able to decrease without human timing dependencies when configured safety thresholds are violated:
 
 ```text
-Architecture semantics = frozen
-Implementation = not yet proven
+L3 → L2 → L1 → L0
 ```
 
-The next gates are:
+Security/correctness violations MAY force immediate L0 and block further automation. Promotion requires fresh evidence.
+
+## 21. Release Interpretation
+
+`CONTRACT-FROZEN` means architecture semantics are frozen, not that software is production-ready.
 
 ```text
 Implementation
 → Targeted Verification
+→ Adversarial Verification
 → Full Verification
-→ Failure/Recovery Verification
-→ Security Verification
-→ Performance/Cost Verification
+→ Failure/Recovery
+→ Security
+→ Performance/Cost
 → Evidence Review
 → Capability Gate
 → Release Gate
 ```
 
-## 23. Final Baseline Law
+## 22. Final Baseline Law
 
-> **One architecture, one semantic owner per concern, one authoritative state owner, one security boundary, one routing interpretation, one recovery interpretation, one compatibility contract.**
-
-The repository is now the source of truth for D1-Fabric 1.0 architecture. Implementation agents must obey this baseline rather than reconstructing architecture from conversation history.
+> **One architecture, one semantic owner per concern, one authoritative state owner, one security boundary, one routing interpretation, one recovery interpretation, one compatibility contract, and one evidence-driven evolution path.**
