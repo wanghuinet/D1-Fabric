@@ -1,6 +1,6 @@
 # D1-Fabric Development Protocol
 
-**Version:** 1.1
+**Version:** 1.2
 **Status:** ACTIVE
 **Authority:** D1-FABRIC-1.0-CONTRACT-BASELINE.md
 
@@ -8,7 +8,9 @@
 
 Single execution protocol for implementing D1-Fabric capabilities.
 
-> One capability, one Semantic Contract Map, one execution packet, one frozen change manifest, one verification record, one evidence trail.
+> One capability, one appropriate contract set, one Semantic Contract Map when semantics change, one scoped change manifest, one verification record, one evidence trail.
+
+The protocol is intentionally proportional: trivial changes use a light path; semantic changes use the full path.
 
 ## 2. Source of Truth
 
@@ -18,16 +20,41 @@ Single execution protocol for implementing D1-Fabric capabilities.
 3. AGENTS.md
 4. DEVELOPMENT-PROTOCOL.md
 5. Existing verified implementation
-6. Execution Packet
+6. Execution Packet / Change Manifest
 7. Chat discussion
 ```
 
 Chat cannot override repository contracts.
 
-## 3. Standard Lifecycle
+## 3. Change Classification
+
+Every task MUST be classified before implementation:
 
 ```text
-READ
+T0 — Non-semantic
+    docs, formatting, comments, mechanical renames with proven no behavior change
+
+T1 — Local semantic
+    one bounded module/path, no contract meaning change, no cross-boundary ownership/routing/recovery/security change
+
+T2 — Cross-boundary / safety-critical
+    state ownership, routing, epoch/fencing, security, consistency, retry semantics, migration, recovery, public protocol, schema compatibility, performance-sensitive hot path, or architecture change
+```
+
+Required workflow:
+
+```text
+T0 → scoped inspect → change → targeted check → commit
+T1 → routed contracts → scoped map → scoped manifest → implement → targeted verification → evidence → commit
+T2 → full workflow below
+```
+
+Never use T0/T1 to bypass a correctness, security, ownership, recovery, or compatibility requirement.
+
+## 4. Standard T2 Lifecycle
+
+```text
+READ ROUTED CONTRACTS
 → RESOLVE CONTRACT
 → BUILD SEMANTIC CONTRACT MAP
 → DEFINE EXECUTION PACKET
@@ -42,19 +69,17 @@ READ
 → COMMIT
 ```
 
-Do not skip a stage because implementation appears simple.
+## 5. Read and Resolve
 
-## 4. Read and Resolve
+Inspect `AGENTS.md`, Contract Baseline, routed contracts, relevant implementation/tests, and current capability status.
 
-Inspect repository tree, AGENTS.md, Contract Baseline, applicable contracts, relevant implementation/tests, and current capability status.
-
-Identify capability, requirements, invariants, state touched/owners, hot/control path, budgets, security, failure/recovery, compatibility, and verification obligations.
+Load the smallest relevant contract set. Expand only when the Semantic Contract Map proves another concern is affected.
 
 If authoritative requirements conflict, STOP. Do not invent a compromise in code.
 
-## 5. Semantic Contract Map
+## 6. Semantic Contract Map
 
-Before coding, create a compact map covering:
+Required for T1/T2 changes that affect behavior; compact for T1, complete for T2:
 
 ```text
 capability
@@ -73,11 +98,11 @@ verification obligations
 forbidden behavior
 ```
 
-The map is an interpretation artifact, not a new authority. Every contract MUST in the map must map to verification evidence before completion.
+The map is an interpretation artifact, not a new authority. Every applicable contract MUST map to verification evidence.
 
-## 6. Execution Packet
+## 7. Execution Packet
 
-Use `templates/EXECUTION-PACKET.md` for:
+Required for T2 and optional for T1 when useful. Use `templates/EXECUTION-PACKET.md` for:
 
 ```text
 Capability ID
@@ -96,19 +121,23 @@ Verification plan
 Evidence required
 ```
 
-## 7. Frozen Change Manifest
+## 8. Frozen Change Manifest
 
-Freeze files, schema, dependencies, public interfaces, configuration, runtime behavior, and verification artifacts. Anything outside the manifest requires re-evaluation before implementation.
+T1/T2 changes MUST declare relevant files, schema, dependencies, public interfaces, configuration, runtime behavior, and verification artifacts.
 
-## 8. Minimum Implementation
+Anything outside the manifest requires re-evaluation before implementation. Necessary contract-compatible corrections MUST be recorded rather than silently absorbed.
+
+## 9. Minimum Implementation
 
 Implement the smallest complete solution. Do not add abstractions, Workers, queues, retries, caches, persistent state, dependencies, network hops, or coordinators without requirement + invariant + measurable benefit + real boundary + verification method.
 
-## 9. Hot Path
+## 10. Hot Path
 
 Hot-path execution MUST be deterministic and bounded. Runtime AI MUST NOT be required for correctness. AI-derived configuration may be consumed only after deterministic validation and within explicit validity/version bounds.
 
-## 10. Implementation Order
+## 11. Implementation Order
+
+Prefer:
 
 ```text
 state model
@@ -123,13 +152,15 @@ state model
 → optimization
 ```
 
-## 11. Immediate Targeted Verification
+Do not start with framework plumbing or speculative abstractions.
+
+## 12. Immediate Targeted Verification
 
 After each coherent implementation unit, run the smallest relevant verification immediately. Do not accumulate a large unverified diff.
 
-## 12. Contract-Driven Adversarial Verification
+## 13. Contract-Driven Adversarial Verification
 
-Independent verification MUST derive dangerous tests from contract obligations rather than only from implementation-authored tests.
+Required for T2 and for any T1 change touching a protected boundary. Derive dangerous tests from contract obligations rather than only from implementation-authored tests.
 
 Applicable cases:
 
@@ -150,9 +181,7 @@ expired/superseded knowledge
 authority downgrade
 ```
 
-A compilation/test pass cannot override an unverified contract obligation.
-
-## 13. Full Applicable Verification
+## 14. Full Applicable Verification
 
 Determine applicability of:
 
@@ -169,21 +198,21 @@ V8 Performance/Cost/Regression
 V9 Soak
 ```
 
-Applicability and omissions MUST be recorded.
+Run only levels required by the change classification and Semantic Contract Map. Applicability and omissions MUST be recorded.
 
-## 14. Evidence
+## 15. Evidence
 
-Evidence MUST identify exact commit, contract/version, environment, commands, inputs, outputs, metrics, limitations, and status. Evidence MUST be generated from the actual evaluated commit.
+T1/T2 evidence MUST identify exact commit, contract/version, environment, commands, inputs, outputs, metrics where relevant, limitations, and status. Evidence MUST be generated from the actual evaluated commit.
 
 Never report PASS from source inspection, compilation, model confidence, or unrun tests.
 
-## 15. Independent Review
+## 16. Independent Review
 
-Critical capabilities require an independent verification path able to challenge requirements, semantic ownership, invariants, test completeness, evidence provenance, performance, recovery, and security claims.
+T2 capabilities require an independent verification path able to challenge requirements, semantic ownership, invariants, test completeness, evidence provenance, performance, recovery, and security claims. T1 requires independent review when risk or contract boundaries justify it.
 
 The independent reviewer MUST NOT treat implementation-authored tests as the only oracle.
 
-## 16. Status
+## 17. Status
 
 ```text
 READY
@@ -199,11 +228,11 @@ READY
 
 Failure or unsafe uncertainty moves to `FAILED` or `BLOCKED`.
 
-## 17. Commit
+## 18. Commit
 
 A capability commit contains only the approved change set plus required evidence/documentation. No unrelated cleanup.
 
-## 18. Contract Evolution
+## 19. Contract Evolution
 
 A change to a `MUST`, invariant, semantic owner, protocol meaning, schema compatibility, security boundary, routing/epoch meaning, recovery rule, or AI authority boundary requires contract revision:
 
@@ -223,11 +252,13 @@ Change Proposal
 
 Implementation agents may not modify frozen semantics as a convenience.
 
-## 19. AI Coding Rule
+## 20. AI Coding Rule
 
-DeepSeek is an implementation agent, not architecture authority. It MUST read repository contracts, build the Semantic Contract Map, freeze scope, implement only the manifest, verify immediately, run adversarial verification, trace MUST obligations to evidence, and stop on semantic conflict.
+DeepSeek is an implementation agent, not architecture authority. It MUST follow the change classification and only load the routed contract set required for that class.
 
-## 20. AI Optimization Rule
+For T1/T2 it MUST build the appropriate Semantic Contract Map, freeze scope, implement the smallest complete change, verify immediately, and stop on semantic conflict.
+
+## 21. AI Optimization Rule
 
 Runtime optimization follows:
 
@@ -246,15 +277,15 @@ Observe
 
 Material optimization also requires bounded resource budget, expiration, rollback, and authority-downgrade behavior.
 
-## 21. No Fabricated Completion
+## 22. No Fabricated Completion
 
 The agent MUST NOT claim implemented, verified, benchmarked, recovered, secure, or release-ready unless corresponding evidence exists.
 
-## 22. Efficiency
+## 23. Efficiency
 
-Prefer one complete capability over artificial fragmentation. Use the smallest test set that completely covers applicable contracts and boundaries.
+Prefer one complete capability over artificial fragmentation. Use the smallest contract set, artifact set, and test set that completely covers the task's actual risk and obligations.
 
-## 23. Stop Conditions
+## 24. Stop Conditions
 
 Stop immediately on:
 
@@ -273,8 +304,8 @@ P0/P1 defect
 architecture/semantic drift
 ```
 
-## 24. Final Gate
+## 25. Final Gate
 
-A capability is complete only when scope, contracts, semantic map, invariants, negative paths, resource bounds, security, applicable recovery, compatibility, performance claims, regression, evidence, and status are all justified.
+A T1/T2 capability is complete only when scope, applicable contracts, required semantic map, invariants, negative paths, resource bounds, security, applicable recovery, compatibility, performance claims, regression, evidence, and status are justified.
 
-> **Build against the contract, prove semantics independently, then move on.**
+> **Use the smallest workflow that is safe for the change. Build against the contract, prove semantics where required, then move on.**
