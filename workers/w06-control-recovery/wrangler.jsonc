@@ -3,11 +3,16 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-09-07",
   "workers_dev": true,
+  "triggers": { "crons": ["*/5 * * * *"] },
   "d1_databases": [
-    {
-      "binding": "CONTROL_DB",
-      "database_name": "d1-fabric-control",
-      "database_id": "6de606c9-9fed-40d8-8e90-9f2ec751eb74"
-    }
+    { "binding": "CONTROL_DB", "database_name": "d1-fabric-control", "database_id": "6de606c9-9fed-40d8-8e90-9f2ec751eb74" },
+    { "binding": "SHARD_01", "database_name": "d1-fabric-shard-01", "database_id": "c495aacc-8298-48a7-b405-98718e1757af" },
+    { "binding": "SHARD_02", "database_name": "d1-fabric-shard-02", "database_id": "98c29497-d06c-4211-8f70-10c6125ae839" },
+    { "binding": "SHARD_03", "database_name": "d1-fabric-shard-03", "database_id": "e60ee56a-6245-4dd0-b8c5-2effb8220971" },
+    { "binding": "SHARD_04", "database_name": "d1-fabric-shard-04", "database_id": "5e66685c-9f15-4051-a534-5f58ab3aa4f5" },
+    { "binding": "SHARD_05", "database_name": "d1-fabric-shard-05", "database_id": "61df0724-e2b4-42fa-913c-b890ced4a1d6" },
+    { "binding": "SHARD_06", "database_name": "d1-fabric-shard-06", "database_id": "a4abacd7-d76b-45fd-a391-4c6fac39b55f" },
+    { "binding": "SHARD_07", "database_name": "d1-fabric-shard-07", "database_id": "33759570-43c5-4d57-83e8-30ad1380d5f3" },
+    { "binding": "SHARD_08", "database_name": "d1-fabric-shard-08", "database_id": "f6f8554f-fb1f-47ed-b669-8aa34bc4071d" }
   ]
 }
