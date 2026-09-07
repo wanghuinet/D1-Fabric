@@ -1,0 +1,6 @@
+{
+  "name": "d1-fabric-w04-write-engine",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-07",
+  "workers_dev": true
+}
