@@ -4,8 +4,13 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
+    "typecheck": "wrangler types && tsc -p ./tsconfig.json --noEmit",
+    "build": "wrangler deploy --dry-run",
     "deploy": "wrangler deploy",
     "smoke": "node test/smoke.mjs"
   },
-  "devDependencies": { "wrangler": "latest" }
+  "devDependencies": {
+    "typescript": "latest",
+    "wrangler": "latest"
+  }
 }
