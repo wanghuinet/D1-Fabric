@@ -1,168 +1,76 @@
 # D1-Fabric Development Protocol
 
-**Version:** 1.2
+**Version:** 1.3
 **Status:** ACTIVE
-**Authority:** D1-FABRIC-1.0-CONTRACT-BASELINE.md
+**Authority:** `D1-FABRIC-1.0-CONTRACT-BASELINE.md`
 
 ## 1. Purpose
 
-Single execution protocol for implementing D1-Fabric capabilities.
+Single execution protocol with proportional rigor. The process must prevent semantic drift without turning local work into repository-wide ceremony.
 
-> One capability, one appropriate contract set, one Semantic Contract Map when semantics change, one scoped change manifest, one verification record, one evidence trail.
+> One capability, one appropriate contract set, one boundary, one declared scope, one proof trail.
 
-The protocol is intentionally proportional: trivial changes use a light path; semantic changes use the full path.
-
-## 2. Source of Truth
+## 2. Development Modes
 
 ```text
-1. Contract Baseline
-2. Applicable versioned contracts
-3. AGENTS.md
-4. DEVELOPMENT-PROTOCOL.md
-5. Existing verified implementation
-6. Execution Packet / Change Manifest
-7. Chat discussion
+T0 Trivial:
+inspect → change → targeted check → commit
+
+T1 Local semantic:
+route contracts → Semantic Map → Module Boundary Card → scoped Manifest
+→ implement → targeted verify → Diff Scope Gate → evidence → commit
+
+T2 Material / safety-critical:
+route contracts → Semantic Map → Execution Packet → Module Boundary Card
+→ Change Manifest → implement → targeted verify → Diff Scope Gate
+→ adversarial/full applicable verification → evidence → Capability Gate → status → commit
 ```
 
-Chat cannot override repository contracts.
+Use the lowest safe mode. A task touching security, state ownership, routing/epoch, recovery, public compatibility, schema compatibility, cross-shard correctness, or hot-path performance MUST NOT be downgraded below T1/T2 as applicable.
 
-## 3. Change Classification
+## 3. Read and Resolve
 
-Every task MUST be classified before implementation:
+Inspect `AGENTS.md`, Contract Baseline, routed contracts, relevant code/tests, and current status. Load the smallest relevant contract set and expand only when the boundary proves another concern is affected.
 
-```text
-T0 — Non-semantic
-    docs, formatting, comments, mechanical renames with proven no behavior change
+If authoritative requirements conflict, STOP. Never invent a compromise in code.
 
-T1 — Local semantic
-    one bounded module/path, no contract meaning change, no cross-boundary ownership/routing/recovery/security change
+## 4. Semantic Contract Map
 
-T2 — Cross-boundary / safety-critical
-    state ownership, routing, epoch/fencing, security, consistency, retry semantics, migration, recovery, public protocol, schema compatibility, performance-sensitive hot path, or architecture change
-```
+T1/T2 behavior changes require a compact map covering capability, contracts/version, semantic owners, authoritative state, trust boundary, routing/epoch, authorization, consistency/idempotency, resource budgets, failure/recovery, compatibility, verification obligations, and forbidden behavior.
 
-Required workflow:
+The map is an interpretation artifact, not authority. Every applicable MUST must map to evidence.
 
-```text
-T0 → scoped inspect → change → targeted check → commit
-T1 → routed contracts → scoped map → scoped manifest → implement → targeted verification → evidence → commit
-T2 → full workflow below
-```
+## 5. Module Boundary Card
 
-Never use T0/T1 to bypass a correctness, security, ownership, recovery, or compatibility requirement.
+T1/T2 work requires `templates/MODULE-BOUNDARY-CARD.md` before implementation. It defines responsibility/non-responsibility, semantic ownership, interfaces, state, dependencies, resource limits, security boundary, failure/recovery ownership, and verification obligations.
 
-## 4. Standard T2 Lifecycle
+No silent transfer of semantics between modules.
 
-```text
-READ ROUTED CONTRACTS
-→ RESOLVE CONTRACT
-→ BUILD SEMANTIC CONTRACT MAP
-→ DEFINE EXECUTION PACKET
-→ FREEZE CHANGE MANIFEST
-→ IMPLEMENT
-→ TARGETED VERIFY
-→ CONTRACT-DRIVEN ADVERSARIAL VERIFY
-→ FULL APPLICABLE VERIFY
-→ GENERATE EVIDENCE
-→ INDEPENDENT REVIEW
-→ UPDATE STATUS
-→ COMMIT
-```
+## 6. Execution Packet and Change Manifest
 
-## 5. Read and Resolve
+T2 requires `templates/EXECUTION-PACKET.md`. T1/T2 require `templates/CHANGE-MANIFEST.md` before coding. Freeze relevant files, schema, dependencies, public interfaces, configuration, runtime behavior, and verification artifacts.
 
-Inspect `AGENTS.md`, Contract Baseline, routed contracts, relevant implementation/tests, and current capability status.
+Necessary contract-compatible corrections outside the manifest require an explicit revision with reason and verification.
 
-Load the smallest relevant contract set. Expand only when the Semantic Contract Map proves another concern is affected.
+## 7. Implementation
 
-If authoritative requirements conflict, STOP. Do not invent a compromise in code.
+Implement the smallest complete solution. Prefer existing correct primitives, one primary execution path, one authoritative owner, minimal D1 operations, minimal network hops, and minimal dependencies.
 
-## 6. Semantic Contract Map
+No speculative Workers, queues, caches, coordinators, retry layers, persistent state, dependencies, or abstractions without requirement + invariant + measurable benefit + real boundary + verification.
 
-Required for T1/T2 changes that affect behavior; compact for T1, complete for T2:
+## 8. Immediate Verification
 
-```text
-capability
-contract/version
-semantic owner per concern
-authoritative state/state owner
-untrusted vs verified input
-routing identity
-epoch/fencing
-authorization/tenant scope
-consistency/idempotency
-resource budgets
-failure/recovery
-compatibility
-verification obligations
-forbidden behavior
-```
+Verify each coherent implementation boundary immediately. Do not accumulate a large unverified diff.
 
-The map is an interpretation artifact, not a new authority. Every applicable contract MUST map to verification evidence.
+## 9. Diff Scope Gate
 
-## 7. Execution Packet
+Before completion, evaluate `templates/DIFF-SCOPE-GATE.md` against the actual diff.
 
-Required for T2 and optional for T1 when useful. Use `templates/EXECUTION-PACKET.md` for:
+`SCOPE_DRIFT` or `BLOCKED` prevents completion until the scope is corrected or formally revised.
 
-```text
-Capability ID
-Goal
-In scope / Out of scope
-Applicable contracts
-Semantic Contract Map
-Acceptance criteria
-State touched / owners
-Change manifest
-Resource budget
-Security
-Failure/recovery
-Compatibility
-Verification plan
-Evidence required
-```
+## 10. Contract-Driven Adversarial Verification
 
-## 8. Frozen Change Manifest
-
-T1/T2 changes MUST declare relevant files, schema, dependencies, public interfaces, configuration, runtime behavior, and verification artifacts.
-
-Anything outside the manifest requires re-evaluation before implementation. Necessary contract-compatible corrections MUST be recorded rather than silently absorbed.
-
-## 9. Minimum Implementation
-
-Implement the smallest complete solution. Do not add abstractions, Workers, queues, retries, caches, persistent state, dependencies, network hops, or coordinators without requirement + invariant + measurable benefit + real boundary + verification method.
-
-## 10. Hot Path
-
-Hot-path execution MUST be deterministic and bounded. Runtime AI MUST NOT be required for correctness. AI-derived configuration may be consumed only after deterministic validation and within explicit validity/version bounds.
-
-## 11. Implementation Order
-
-Prefer:
-
-```text
-state model
-→ ownership
-→ validation/security
-→ deterministic routing
-→ bounded execution
-→ commit semantics
-→ failure handling
-→ observability
-→ verification
-→ optimization
-```
-
-Do not start with framework plumbing or speculative abstractions.
-
-## 12. Immediate Targeted Verification
-
-After each coherent implementation unit, run the smallest relevant verification immediately. Do not accumulate a large unverified diff.
-
-## 13. Contract-Driven Adversarial Verification
-
-Required for T2 and for any T1 change touching a protected boundary. Derive dangerous tests from contract obligations rather than only from implementation-authored tests.
-
-Applicable cases:
+Required for T2 and any T1 change touching a protected boundary. Derive critical negative tests independently from contract obligations, including where applicable:
 
 ```text
 wrong tenant
@@ -181,9 +89,9 @@ expired/superseded knowledge
 authority downgrade
 ```
 
-## 14. Full Applicable Verification
+## 11. Full Applicable Verification
 
-Determine applicability of:
+Select only applicable levels:
 
 ```text
 V0 Static
@@ -195,117 +103,49 @@ V5 Concurrency/Overload
 V6 Failure/Recovery
 V7 Security/Isolation
 V8 Performance/Cost/Regression
-V9 Soak
+V9 Soak/Operational
 ```
 
-Run only levels required by the change classification and Semantic Contract Map. Applicability and omissions MUST be recorded.
+Omitted levels and reasons must be recorded. Unknown/unproven is not PASS.
 
-## 15. Evidence
+## 12. Evidence
 
-T1/T2 evidence MUST identify exact commit, contract/version, environment, commands, inputs, outputs, metrics where relevant, limitations, and status. Evidence MUST be generated from the actual evaluated commit.
+Evidence identifies the exact evaluated commit, contract/version, environment, commands, inputs/outputs, metrics where relevant, limitations, and status. Wrong-commit or fabricated evidence is invalid.
 
-Never report PASS from source inspection, compilation, model confidence, or unrun tests.
+## 13. Capability Gate
 
-## 16. Independent Review
+T2 capabilities MUST pass `templates/CAPABILITY-GATE.md` before `CAPABILITY_PASS` or `RELEASE_READY`.
 
-T2 capabilities require an independent verification path able to challenge requirements, semantic ownership, invariants, test completeness, evidence provenance, performance, recovery, and security claims. T1 requires independent review when risk or contract boundaries justify it.
+The gate verifies scope, contract obligations, module boundary, security, routing/epoch/ownership, idempotency/retry, resource bounds, recovery, compatibility, negative paths, applicable performance/cost claims, regression, and evidence provenance.
 
-The independent reviewer MUST NOT treat implementation-authored tests as the only oracle.
+The implementation agent cannot self-certify completion without evidence.
 
-## 17. Status
+## 14. Independent Review
+
+T2 capabilities require an independent verification path able to challenge contract interpretation, module ownership, invariants, security, recovery, performance claims, and evidence provenance. T1 review is risk-based.
+
+## 15. Contract Evolution
+
+Changes to MUSTs, invariants, semantic owners, protocol meaning, schema compatibility, security boundaries, routing/epoch semantics, recovery rules, or AI authority require versioned contract evolution before implementation.
+
+## 16. AI Coding Rule
+
+DeepSeek is an implementation agent, not architecture authority. It MUST obey the change classification, route only required context, define the boundary, freeze scope, implement only the approved change, verify immediately, pass the Diff Scope Gate, and pass the Capability Gate when T2.
+
+## 17. Efficiency
+
+Use the smallest safe mode, smallest routed contract set, smallest artifact set, smallest complete implementation, and smallest verification set that completely covers the actual risk and obligations.
+
+## 18. Stop Conditions
+
+Stop on contract conflict, ambiguous ownership, auth bypass, cross-tenant leakage, stale writer acceptance, corruption/loss risk, unbounded D1 I/O/fan-out/retry/queue, unproven recovery, schema incompatibility, scope drift, fabricated evidence, P0/P1 defect, regression, or semantic/architecture drift.
+
+## 19. Final Gate
 
 ```text
-READY
-→ IN_PROGRESS
-→ LOCAL_PASS
-→ CONTRACT_PASS
-→ INTEGRATION_PASS
-→ REGRESSION_PASS
-→ CAPABILITY_PASS
-→ RELEASE_READY
-→ RELEASED
+T0 → targeted proof
+T1 → Diff Scope Gate
+T2 → Diff Scope Gate + Capability Gate
 ```
 
-Failure or unsafe uncertainty moves to `FAILED` or `BLOCKED`.
-
-## 18. Commit
-
-A capability commit contains only the approved change set plus required evidence/documentation. No unrelated cleanup.
-
-## 19. Contract Evolution
-
-A change to a `MUST`, invariant, semantic owner, protocol meaning, schema compatibility, security boundary, routing/epoch meaning, recovery rule, or AI authority boundary requires contract revision:
-
-```text
-Change Proposal
-→ Evidence / Reason
-→ Semantic Impact Analysis
-→ Compatibility Analysis
-→ Migration/Rollback Plan
-→ Adversarial Verification
-→ Review/Approval
-→ New Contract Version
-→ Implementation
-→ Revalidation
-→ Deprecate/Retire Old Version
-```
-
-Implementation agents may not modify frozen semantics as a convenience.
-
-## 20. AI Coding Rule
-
-DeepSeek is an implementation agent, not architecture authority. It MUST follow the change classification and only load the routed contract set required for that class.
-
-For T1/T2 it MUST build the appropriate Semantic Contract Map, freeze scope, implement the smallest complete change, verify immediately, and stop on semantic conflict.
-
-## 21. AI Optimization Rule
-
-Runtime optimization follows:
-
-```text
-Observe
-→ Analyze
-→ Hypothesize
-→ Candidate
-→ Validate
-→ Benchmark
-→ Canary
-→ Measure
-→ Promote/Reject
-→ Learn
-```
-
-Material optimization also requires bounded resource budget, expiration, rollback, and authority-downgrade behavior.
-
-## 22. No Fabricated Completion
-
-The agent MUST NOT claim implemented, verified, benchmarked, recovered, secure, or release-ready unless corresponding evidence exists.
-
-## 23. Efficiency
-
-Prefer one complete capability over artificial fragmentation. Use the smallest contract set, artifact set, and test set that completely covers the task's actual risk and obligations.
-
-## 24. Stop Conditions
-
-Stop immediately on:
-
-```text
-contract conflict
-ambiguous ownership
-auth bypass
-cross-tenant leakage
-stale writer acceptance
-unbounded D1 I/O/fan-out/retry/queue
-corruption/loss risk
-unproven recovery
-schema incompatibility
-fabricated/wrong-commit evidence
-P0/P1 defect
-architecture/semantic drift
-```
-
-## 25. Final Gate
-
-A T1/T2 capability is complete only when scope, applicable contracts, required semantic map, invariants, negative paths, resource bounds, security, applicable recovery, compatibility, performance claims, regression, evidence, and status are justified.
-
-> **Use the smallest workflow that is safe for the change. Build against the contract, prove semantics where required, then move on.**
+> **Use the smallest workflow that is safe. Prove the boundary. Prove the diff. Prove the capability.**
