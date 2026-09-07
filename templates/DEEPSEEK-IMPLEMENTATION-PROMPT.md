@@ -1,42 +1,79 @@
-# DeepSeek Implementation Prompt — D1-Fabric 1.1
+# DeepSeek Implementation Prompt — D1-Fabric 1.2
 
 Use this repository as the only architecture authority.
 
-## Mandatory sequence
+## 1. First classify the task
 
 ```text
-READ repository contracts
-→ BUILD Semantic Contract Map
-→ BUILD Execution Packet
-→ FREEZE Change Manifest
-→ INSPECT existing implementation/tests
-→ IMPLEMENT smallest complete change
-→ TARGETED VERIFY immediately
+T0 — Non-semantic
+    docs, formatting, comments, mechanical changes with proven no behavior change
+
+T1 — Local semantic
+    one bounded module/path, no contract meaning change, no cross-boundary safety semantics
+
+T2 — Cross-boundary / safety-critical
+    state ownership, routing, epoch/fencing, security, consistency, retry, migration, recovery,
+    public protocol, schema compatibility, hot-path performance, or architecture change
+```
+
+Use the smallest safe workflow. Never use a lower class to avoid a real safety or contract obligation.
+
+## 2. Route the context
+
+Always read:
+
+```text
+AGENTS.md
+D1-FABRIC-1.0-CONTRACT-BASELINE.md
+```
+
+Then load only the contracts routed by `AGENTS.md` and the task classification. Do not preload historical reports, duplicate v2 documents, or unrelated gates.
+
+## 3. Workflow
+
+T0:
+
+```text
+SCOPED INSPECT
+→ CHANGE
+→ TARGETED CHECK
+→ COMMIT
+```
+
+T1:
+
+```text
+ROUTED CONTRACTS
+→ COMPACT SEMANTIC MAP
+→ SCOPED MANIFEST
+→ INSPECT IMPLEMENTATION/TESTS
+→ IMPLEMENT
+→ TARGETED VERIFY
+→ EVIDENCE
+→ COMMIT
+```
+
+T2:
+
+```text
+ROUTED CONTRACTS
+→ RESOLVE CONTRACT
+→ SEMANTIC CONTRACT MAP
+→ EXECUTION PACKET
+→ FREEZE CHANGE MANIFEST
+→ INSPECT IMPLEMENTATION/TESTS
+→ IMPLEMENT SMALLEST COMPLETE CHANGE
+→ TARGETED VERIFY IMMEDIATELY
 → CONTRACT-DRIVEN ADVERSARIAL VERIFY
-→ FULL applicable VERIFY
-→ GENERATE evidence from the evaluated commit
+→ FULL APPLICABLE VERIFY
+→ EVIDENCE
 → INDEPENDENT REVIEW
-→ UPDATE status
+→ STATUS
 ```
 
-## Authority
+## 4. Semantic Contract Map
 
-Use:
-
-```text
-1. D1-FABRIC-1.0-CONTRACT-BASELINE.md
-2. Applicable versioned D1-FABRIC-1.0-* contracts
-3. AGENTS.md
-4. DEVELOPMENT-PROTOCOL.md
-5. Existing verified implementation
-6. Execution Packet / Change Manifest
-```
-
-Chat history is not architecture authority. Historical A00.x and superseded documents are forbidden implementation inputs.
-
-## Before coding
-
-Produce a compact Semantic Contract Map containing:
+For T1/T2 behavior changes, state:
 
 ```text
 capability
@@ -57,15 +94,33 @@ forbidden behavior
 
 If authoritative contracts conflict, STOP. Do not invent a compromise.
 
-## Scope
+## 5. Scope and implementation
 
-Implement only the frozen capability and manifest. Do not silently add Workers, queues, caches, coordinators, dependencies, persistent state, abstractions, network hops, or retry layers without requirement + invariant + real boundary + measurable benefit + verification.
+Implement only the approved capability and manifest.
 
-## Verification
+Do not silently add:
 
-Do not equate compilation with correctness.
+```text
+Workers
+queues
+caches
+coordinators
+dependencies
+persistent state
+retry layers
+network hops
+abstractions
+```
 
-Derive tests independently from contract obligations, especially:
+unless the requirement, protected invariant, real boundary, measurable benefit, and verification method are explicit.
+
+Prefer existing verified primitives, one primary path, one semantic owner, minimal D1 I/O, minimal serialization, and minimal dependencies.
+
+## 6. Verification
+
+Compilation is not semantic proof.
+
+Derive verification from the routed contracts. For protected boundaries, independently test applicable negative paths:
 
 ```text
 wrong tenant
@@ -81,25 +136,33 @@ cache poisoning
 resource exhaustion
 ```
 
-For AI-governed changes also test:
+For AI-governed changes additionally test invalid/expired/superseded candidates, resource-budget violation, rollback, and authority downgrade.
+
+Run only the applicable verification levels required by the task's risk.
+
+## 7. Evidence
+
+Never claim implemented, verified, benchmarked, recovered, secure, or release-ready without actual evidence.
+
+Evidence MUST reference the exact evaluated commit and applicable contract version.
+
+## 8. Stop conditions
+
+STOP and report BLOCKED on:
 
 ```text
-invalid candidate
-expired knowledge
-superseded knowledge
-resource budget violation
-rollback
-authority downgrade
+contract conflict
+ambiguous ownership
+security bypass
+cross-tenant leakage
+stale writer acceptance
+unbounded resource behavior
+unproven recovery
+semantic drift
+P0/P1 defect
+fabricated or mismatched evidence
 ```
 
-## Evidence
+## 9. Final rule
 
-Never claim a test, benchmark, recovery, security result, or status that was not actually produced. Evidence MUST reference the exact evaluated commit and contract version.
-
-## Stop conditions
-
-STOP and report BLOCKED on contract conflict, ambiguous ownership, security bypass, stale writer acceptance, unbounded resource behavior, unproven recovery, semantic drift, P0/P1 defect, or fabricated/mismatched evidence.
-
-## Final rule
-
-> Implement the repository contract. Prove the semantics independently. Do not redesign the architecture while coding.
+> **Load the minimum correct context. Implement the repository contract. Prove the semantics required by the change. Never redesign the architecture while coding.**
