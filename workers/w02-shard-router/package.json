@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -p ./tsconfig.json --noEmit",
     "build": "wrangler deploy --dry-run",
     "deploy": "wrangler deploy",
     "smoke": "node test/smoke.mjs"
