@@ -1,6 +1,6 @@
 # D1-Fabric AI Engineering Instructions
 
-**Authority:** D1-Fabric Engineering Constitution v3.0 + v3.1 + v3.2 Addenda + Open-Source / Commercial Boundary Contract + Platform Infrastructure Contract  
+**Authority:** D1-Fabric Engineering Constitution v3.0 + v3.1 + v3.2 Addenda + Open-Source / Commercial Boundary Contract + Platform Infrastructure Contract + Open Infrastructure Moat Contract + Engineering Documentation Standard  
 **Project:** D1-Fabric  
 **Primary language:** TypeScript
 
@@ -8,7 +8,7 @@
 
 Build the minimum amount of correct code that provides complete, runnable, verifiable, maintainable, scalable, and deployable distributed-data capability.
 
-Do not optimize for code volume or number of tasks.
+Do not optimize for code volume or number of tasks. **Code shall be minimal; contracts and proof obligations shall be rigorous.**
 
 D1-Fabric is a **general-purpose distributed data infrastructure layer for Cloudflare D1**, not a self-media database. Business domains such as content, APP marketplaces, finance, commerce, games, communities, and AI agents are application-layer schemas over the same infrastructure.
 
@@ -25,39 +25,88 @@ Before modifying code, read the applicable:
 7. `D1-FABRIC-WORLD-CLASS-SCALE-AND-RELIABILITY-GATE.md`
 8. `D1-FABRIC-OPEN-SOURCE-COMMERCIAL-BOUNDARY.md`
 9. `D1-FABRIC-PLATFORM-INFRASTRUCTURE-CONTRACT.md`
-10. applicable architecture and capability contracts
-11. applicable ADRs
+10. `D1-FABRIC-OPEN-INFRASTRUCTURE-MOAT-CONTRACT.md`
+11. `D1-FABRIC-ENGINEERING-DOCUMENTATION-STANDARD.md`
+12. applicable architecture and capability contracts
+13. applicable ADRs
 
 Do not infer an architecture or distribution rule from chat history when an authoritative repository document exists.
 
 ## Before Implementation
 
-Answer these questions:
+Answer these questions and record the result in the task/change record for non-trivial work:
 
 ```text
-What requirement am I implementing?
-What is explicitly out of scope?
-What is the smallest complete design?
-What are the inputs and outputs?
-What are the invariants?
-What is the hot path?
-What is the control/cold path?
-What state is authoritative?
-What happens on duplicate execution?
-What happens on timeout/failure?
-How does recovery work?
-What is the concurrency boundary?
-What is the overload/backpressure behavior?
-What is the scaling boundary?
-What is the D1 I/O budget?
-What is the distribution target: OPEN / COMMERCIAL / MIXED?
-Does the implementation contain proprietary algorithms, heuristics, security-sensitive details, or IP risk?
-Does this change couple core infrastructure to a specific business domain?
-Can the same capability operate over materially different application schemas?
-What evidence will prove completion?
+Requirement / REQ-IDs
+Scope
+Non-Goals
+Smallest complete design
+Inputs / Outputs
+Terminology
+State Model
+Authoritative Owner for every mutable state
+Invariants / INV-IDs
+Hot Path
+Control / Cold Path
+Concurrency Boundary
+Duplicate / Idempotency Semantics
+Timeout / Cancellation / Failure Semantics
+Recovery and return-to-service condition
+Consistency Model
+Overload / Backpressure behavior
+Resource budgets: D1 I/O / fan-out / retries / queue / batch / memory / payload
+Scaling boundary
+Security / Trust boundary
+Observability
+Compatibility / versioning
+Verification matrix / TEST-IDs
+Evidence format / EVIDENCE-IDs
+Distribution target: OPEN / COMMERCIAL / MIXED
+IP / proprietary-risk classification
+Documentation impact
+Change Manifest / allowed files
+Rejected alternatives where material
 ```
 
-If a non-trivial question cannot be answered, stop and update the design/contract before coding.
+If a correctness-critical question cannot be answered precisely, stop and update the design/contract before coding.
+
+## Documentation Is an Engineering Control
+
+`D1-FABRIC-ENGINEERING-DOCUMENTATION-STANDARD.md` is mandatory governance.
+
+Documentation is not post-hoc explanation. For every non-trivial capability:
+
+```text
+Requirement
+ ↓
+Contract
+ ↓
+Invariants
+ ↓
+State / Ownership
+ ↓
+Execution Model
+ ↓
+Failure Model
+ ↓
+Resource Budget
+ ↓
+Implementation
+ ↓
+Verification
+ ↓
+Evidence
+```
+
+Normative language SHALL be used consistently. `MUST/SHALL` is mandatory; `SHOULD` is the strong default; `MAY` is optional; `UNKNOWN/UNPROVEN` are not PASS.
+
+Every non-trivial requirement SHALL be traceable:
+
+```text
+REQ-ID → CONTRACT-CLAUSE → IMPLEMENTATION-SURFACE → TEST-ID → EVIDENCE-ID
+```
+
+A test without a requirement/invariant mapping is not sufficient architectural proof. A requirement without verification mapping is incomplete.
 
 ## Mandatory v3.2 Invariants
 
@@ -104,6 +153,8 @@ Do not silently edit production/dashboard configuration when a versioned reposit
 
 Any configuration model must have one declared source of truth.
 
+For mutable distributed state, documentation MUST identify exactly one authoritative owner. Caches, replicas, snapshots and derived indexes are not authoritative unless explicitly declared.
+
 ## Commercial Boundary Rules
 
 `D1-FABRIC-OPEN-SOURCE-COMMERCIAL-BOUNDARY.md` is mandatory governance.
@@ -129,6 +180,7 @@ Any configuration model must have one declared source of truth.
 - Prefer structural fixes over patch-piling.
 - Never add a dependency or copied code without checking license compatibility.
 - If a new core feature requires domain-specific semantics, STOP and classify it as application-layer behavior or an explicitly approved generic infrastructure primitive before implementation.
+- Do not make code look sophisticated for its own sake. **Complexity requires a contract, a reason, and evidence.**
 
 ## Verification Rules
 
@@ -137,6 +189,8 @@ Never report PASS from source inspection alone.
 For applicable capabilities:
 
 ```text
+Contract Review
+ ↓
 Type Check
  ↓
 Lint / Format
@@ -151,7 +205,7 @@ Runtime
  ↓
 Real Request
  ↓
-Concurrency
+Concurrency / Race
  ↓
 Overload / Backpressure
  ↓
@@ -167,12 +221,45 @@ Soak where applicable
  ↓
 Distribution Boundary Audit
  ↓
+Documentation Completeness Audit
+ ↓
 Independent Verification
  ↓
 Reproducible Evidence
 ```
 
-Unknown is not PASS. UNPROVEN is not PASS.
+Verification MUST map critical requirements/invariants to tests and evidence. Unknown is not PASS. UNPROVEN is not PASS.
+
+## Evidence Rules
+
+Evidence MUST be sufficient for an independent engineer to reproduce or challenge the claim without chat history.
+
+For scale/performance evidence, record where applicable:
+
+```text
+Capability / Requirement IDs
+Commit SHA
+Runtime / configuration
+Dataset
+Shard count
+Request mix
+Read/write ratio
+Concurrency
+Duration
+P50 / P95 / P99
+Throughput
+Errors / rejections
+D1 reads
+D1 writes
+Cross-shard fan-out
+Retry amplification
+Queue peak
+Cache hit rate / D1 read avoidance ratio
+Failure/recovery result
+Known limitations
+```
+
+A screenshot, successful single request, green unit-test count, or source inspection is not scale proof.
 
 ## World-Class Scale Gate
 
@@ -184,13 +271,32 @@ The evidence must record actual D1 reads/writes, concurrency, latency distributi
 
 A screenshot, successful single request, or source inspection is not scale proof.
 
+## Change Manifest
+
+Every non-trivial implementation SHALL have a bounded Change Manifest containing:
+
+- capability ID;
+- requirement IDs;
+- allowed files/directories;
+- interfaces changed;
+- state changed;
+- migrations/configuration changed;
+- tests added/changed;
+- documentation affected;
+- distribution classification;
+- explicitly forbidden unrelated changes.
+
+The implementation SHALL remain inside the manifest unless a new contract decision is recorded.
+
 ## Documentation Rules
 
-If a change affects architecture, contracts, invariants, commands, deployment, recovery, verification, distribution boundaries, or business-domain neutrality, perform a documentation impact check.
+If a change affects architecture, contracts, invariants, commands, deployment, recovery, verification, distribution boundaries, state ownership, concurrency, D1 I/O, overload behavior, or business-domain neutrality, perform a documentation impact check.
 
 Update only the affected authoritative documents. Do not generate documentation churn.
 
-Non-trivial architecture decisions belong in ADRs.
+Non-trivial architecture decisions belong in ADRs and SHOULD record credible rejected alternatives when the choice affects scale, correctness, cost, reliability or operational complexity.
+
+Documentation MUST NOT be changed merely to make an implementation appear compliant. If code conflicts with a contract, surface the conflict and resolve the contract before silently rewriting either side.
 
 ## Completion Rules
 
@@ -216,6 +322,8 @@ FAILED
 BLOCKED
 ```
 
+A capability SHALL NOT be promoted to `CAPABILITY_PASS` while a required P0/P1 obligation is `UNKNOWN`, `UNPROVEN`, or `FAILED`.
+
 ## Stop Conditions
 
 STOP immediately for:
@@ -236,5 +344,6 @@ STOP immediately for:
 - unresolved commercial/IP boundary
 - accidental exposure of proprietary or security-sensitive implementation
 - unjustified coupling of core infrastructure to a specific business domain
+- documentation that cannot state a correctness-critical behavior precisely enough to test
 
 Do not continue to the next capability until the current capability reaches its required PASS state.
