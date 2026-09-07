@@ -1,26 +1,20 @@
 # D1-Fabric Development Protocol
 
-**Version:** 1.0
+**Version:** 1.1
 **Status:** ACTIVE
 **Authority:** D1-FABRIC-1.0-CONTRACT-BASELINE.md
 
 ## 1. Purpose
 
-This is the single execution protocol for implementing D1-Fabric capabilities.
+Single execution protocol for implementing D1-Fabric capabilities.
 
-It does not replace the 1.0 contracts. It operationalizes them.
-
-Core law:
-
-> **One capability, one execution packet, one frozen change manifest, one verification record, one evidence trail.**
+> One capability, one Semantic Contract Map, one execution packet, one frozen change manifest, one verification record, one evidence trail.
 
 ## 2. Source of Truth
 
-Use this precedence:
-
 ```text
 1. Contract Baseline
-2. Applicable 1.0 Contracts
+2. Applicable versioned contracts
 3. AGENTS.md
 4. DEVELOPMENT-PROTOCOL.md
 5. Existing verified implementation
@@ -32,15 +26,15 @@ Chat cannot override repository contracts.
 
 ## 3. Standard Lifecycle
 
-Every non-trivial capability follows:
-
 ```text
 READ
 → RESOLVE CONTRACT
+→ BUILD SEMANTIC CONTRACT MAP
 → DEFINE EXECUTION PACKET
 → FREEZE CHANGE MANIFEST
 → IMPLEMENT
 → TARGETED VERIFY
+→ CONTRACT-DRIVEN ADVERSARIAL VERIFY
 → FULL APPLICABLE VERIFY
 → GENERATE EVIDENCE
 → INDEPENDENT REVIEW
@@ -50,97 +44,74 @@ READ
 
 Do not skip a stage because implementation appears simple.
 
-## 4. READ
+## 4. Read and Resolve
 
-Before coding, inspect:
+Inspect repository tree, AGENTS.md, Contract Baseline, applicable contracts, relevant implementation/tests, and current capability status.
 
-- repository tree
-- AGENTS.md
-- Contract Baseline
-- applicable contracts
-- relevant implementation
-- relevant tests
-- current capability status
+Identify capability, requirements, invariants, state touched/owners, hot/control path, budgets, security, failure/recovery, compatibility, and verification obligations.
 
-Do not infer missing architecture from conversation history when repository contracts exist.
+If authoritative requirements conflict, STOP. Do not invent a compromise in code.
 
-## 5. RESOLVE CONTRACT
+## 5. Semantic Contract Map
 
-Identify:
+Before coding, create a compact map covering:
 
 ```text
 capability
-applicable contracts
-requirements
-invariants
-state touched
-semantic owners
-hot path/control path
+contract/version
+semantic owner per concern
+authoritative state/state owner
+untrusted vs verified input
+routing identity
+epoch/fencing
+authorization/tenant scope
+consistency/idempotency
 resource budgets
-security boundary
-failure/recovery behavior
-compatibility boundary
+failure/recovery
+compatibility
 verification obligations
+forbidden behavior
 ```
 
-If requirements conflict, stop and resolve the contract before coding.
+The map is an interpretation artifact, not a new authority. Every contract MUST in the map must map to verification evidence before completion.
 
-## 6. EXECUTION PACKET
+## 6. Execution Packet
 
-Every non-trivial task MUST have a compact packet using `templates/EXECUTION-PACKET.md`.
-
-It defines the smallest complete implementation and its acceptance criteria.
-
-## 7. CHANGE MANIFEST
-
-Before implementation, freeze:
+Use `templates/EXECUTION-PACKET.md` for:
 
 ```text
-files allowed to change
-files explicitly forbidden
-schema changes
-dependencies
-public interfaces
-configuration
-tests/evidence to add
+Capability ID
+Goal
+In scope / Out of scope
+Applicable contracts
+Semantic Contract Map
+Acceptance criteria
+State touched / owners
+Change manifest
+Resource budget
+Security
+Failure/recovery
+Compatibility
+Verification plan
+Evidence required
 ```
 
-Anything outside the manifest requires re-evaluation before implementation.
+## 7. Frozen Change Manifest
 
-## 8. MINIMUM IMPLEMENTATION
+Freeze files, schema, dependencies, public interfaces, configuration, runtime behavior, and verification artifacts. Anything outside the manifest requires re-evaluation before implementation.
 
-Implement the smallest complete solution that satisfies the contracts.
+## 8. Minimum Implementation
 
-Do not add:
+Implement the smallest complete solution. Do not add abstractions, Workers, queues, retries, caches, persistent state, dependencies, network hops, or coordinators without requirement + invariant + measurable benefit + real boundary + verification method.
 
-```text
-abstractions
-Workers
-queues
-retries
-caches
-persistent state
-dependencies
-network hops
-coordinators
-```
+## 9. Hot Path
 
-unless the requirement, invariant, measurable benefit, and boundary are explicit.
+Hot-path execution MUST be deterministic and bounded. Runtime AI MUST NOT be required for correctness. AI-derived configuration may be consumed only after deterministic validation and within explicit validity/version bounds.
 
-## 9. HOT PATH RULE
-
-Hot-path execution MUST remain deterministic and bounded.
-
-Runtime AI MUST NOT be required for correctness.
-
-The baseline path MUST remain functional when AI, cache, control-plane optimization, or non-authoritative derived state is unavailable.
-
-## 10. IMPLEMENTATION ORDER
-
-Prefer:
+## 10. Implementation Order
 
 ```text
-correct state model
+state model
 → ownership
 → validation/security
 → deterministic routing
@@ -148,24 +119,42 @@ correct state model
 → commit semantics
 → failure handling
 → observability
+→ verification
 → optimization
 ```
 
-Do not optimize an unverified semantic design.
+## 11. Immediate Targeted Verification
 
-## 11. IMMEDIATE TARGETED VERIFICATION
+After each coherent implementation unit, run the smallest relevant verification immediately. Do not accumulate a large unverified diff.
 
-After each coherent implementation unit, run the smallest relevant verification immediately.
+## 12. Contract-Driven Adversarial Verification
 
-Do not accumulate a large unverified diff.
+Independent verification MUST derive dangerous tests from contract obligations rather than only from implementation-authored tests.
 
-If targeted verification fails, diagnose and correct before expanding scope.
+Applicable cases:
 
-## 12. FULL APPLICABLE VERIFICATION
+```text
+wrong tenant
+unauthorized request
+stale epoch
+wrong owner
+duplicate mutation
+ambiguous commit
+partial shard failure
+migration interruption
+schema mismatch
+cache poisoning
+resource exhaustion
+invalid AI candidate
+expired/superseded knowledge
+authority downgrade
+```
 
-After implementation, execute the verification levels required by the Verification and Evidence Contract.
+A compilation/test pass cannot override an unverified contract obligation.
 
-At minimum determine applicability of:
+## 13. Full Applicable Verification
+
+Determine applicability of:
 
 ```text
 V0 Static
@@ -180,54 +169,21 @@ V8 Performance/Cost/Regression
 V9 Soak
 ```
 
-## 13. NEGATIVE-FIRST REVIEW
+Applicability and omissions MUST be recorded.
 
-Before declaring completion, explicitly test the dangerous paths:
+## 14. Evidence
 
-```text
-wrong tenant
-unauthorized request
-stale epoch
-wrong owner
-duplicate write
-ambiguous commit
-partial shard failure
-migration interruption
-schema mismatch
-cache poisoning
-resource exhaustion
-```
+Evidence MUST identify exact commit, contract/version, environment, commands, inputs, outputs, metrics, limitations, and status. Evidence MUST be generated from the actual evaluated commit.
 
-Only applicable cases need execution, but applicability MUST be recorded.
+Never report PASS from source inspection, compilation, model confidence, or unrun tests.
 
-## 14. EVIDENCE
+## 15. Independent Review
 
-Create the evidence record using `templates/EVIDENCE-RECORD.md`.
+Critical capabilities require an independent verification path able to challenge requirements, semantic ownership, invariants, test completeness, evidence provenance, performance, recovery, and security claims.
 
-Evidence MUST identify the exact commit, environment, commands, inputs, outputs, limitations, and status.
+The independent reviewer MUST NOT treat implementation-authored tests as the only oracle.
 
-Never write evidence from memory.
-
-## 15. INDEPENDENT REVIEW
-
-Critical capabilities require an independent verification path.
-
-The reviewer MUST be able to challenge:
-
-```text
-requirements
-state ownership
-invariants
-test completeness
-evidence provenance
-performance claims
-recovery claims
-security claims
-```
-
-## 16. STATUS TRANSITION
-
-Status moves only when evidence satisfies its definition.
+## 16. Status
 
 ```text
 READY
@@ -243,15 +199,62 @@ READY
 
 Failure or unsafe uncertainty moves to `FAILED` or `BLOCKED`.
 
-## 17. COMMIT
+## 17. Commit
 
-A capability commit MUST contain only the approved change set plus required evidence/documentation.
+A capability commit contains only the approved change set plus required evidence/documentation. No unrelated cleanup.
 
-Commit message SHOULD identify capability and completion stage.
+## 18. Contract Evolution
 
-Do not commit unrelated cleanup.
+A change to a `MUST`, invariant, semantic owner, protocol meaning, schema compatibility, security boundary, routing/epoch meaning, recovery rule, or AI authority boundary requires contract revision:
 
-## 18. STOP CONDITIONS
+```text
+Change Proposal
+→ Evidence / Reason
+→ Semantic Impact Analysis
+→ Compatibility Analysis
+→ Migration/Rollback Plan
+→ Adversarial Verification
+→ Review/Approval
+→ New Contract Version
+→ Implementation
+→ Revalidation
+→ Deprecate/Retire Old Version
+```
+
+Implementation agents may not modify frozen semantics as a convenience.
+
+## 19. AI Coding Rule
+
+DeepSeek is an implementation agent, not architecture authority. It MUST read repository contracts, build the Semantic Contract Map, freeze scope, implement only the manifest, verify immediately, run adversarial verification, trace MUST obligations to evidence, and stop on semantic conflict.
+
+## 20. AI Optimization Rule
+
+Runtime optimization follows:
+
+```text
+Observe
+→ Analyze
+→ Hypothesize
+→ Candidate
+→ Validate
+→ Benchmark
+→ Canary
+→ Measure
+→ Promote/Reject
+→ Learn
+```
+
+Material optimization also requires bounded resource budget, expiration, rollback, and authority-downgrade behavior.
+
+## 21. No Fabricated Completion
+
+The agent MUST NOT claim implemented, verified, benchmarked, recovered, secure, or release-ready unless corresponding evidence exists.
+
+## 22. Efficiency
+
+Prefer one complete capability over artificial fragmentation. Use the smallest test set that completely covers applicable contracts and boundaries.
+
+## 23. Stop Conditions
 
 Stop immediately on:
 
@@ -261,85 +264,17 @@ ambiguous ownership
 auth bypass
 cross-tenant leakage
 stale writer acceptance
-unbounded D1 I/O
-unbounded fan-out/retry/queue
+unbounded D1 I/O/fan-out/retry/queue
 corruption/loss risk
 unproven recovery
 schema incompatibility
-fabricated evidence
-wrong-commit evidence
+fabricated/wrong-commit evidence
 P0/P1 defect
+architecture/semantic drift
 ```
 
-## 19. AI CODING RULE
+## 24. Final Gate
 
-DeepSeek MUST behave as an implementation agent, not an architecture authority.
+A capability is complete only when scope, contracts, semantic map, invariants, negative paths, resource bounds, security, applicable recovery, compatibility, performance claims, regression, evidence, and status are all justified.
 
-It may propose alternatives, but it MUST NOT silently change frozen contracts or architecture.
-
-When the repository and prompt disagree, repository authority wins according to the source-of-truth order.
-
-## 20. AI OPTIMIZATION RULE
-
-Optimization follows:
-
-```text
-observe
-→ analyze
-→ hypothesis
-→ candidate
-→ validate
-→ benchmark
-→ canary
-→ measure
-→ promote/reject
-→ learn
-```
-
-No AI optimization is production-valid solely because it has higher model confidence.
-
-## 21. No Fabricated Completion
-
-The agent MUST NOT claim:
-
-```text
-implemented
-verified
-benchmarked
-recovered
-secure
-release-ready
-```
-
-unless the corresponding evidence exists.
-
-## 22. Efficiency Rule
-
-The protocol is intentionally compact.
-
-Prefer one complete capability implementation over a chain of artificially fragmented subtasks.
-
-Use the smallest test set that completely covers the applicable contracts and boundaries.
-
-## 23. Final Gate
-
-A capability is complete only when:
-
-```text
-scope satisfied
-contracts satisfied
-invariants verified
-negative paths covered
-resource bounds proven
-security covered
-failure/recovery covered where applicable
-compatibility covered where applicable
-performance/cost claims evidenced where applicable
-regression passed
-evidence recorded
-status justified
-```
-
-Final law:
-
-> **Build once against the contract, verify immediately, prove with evidence, then move on.**
+> **Build against the contract, prove semantics independently, then move on.**
