@@ -1,6 +1,6 @@
 # D1-Fabric AI Engineering Instructions
 
-**Version:** 1.1
+**Version:** 1.2
 **Status:** ACTIVE
 **Authority:** `D1-FABRIC-1.0-CONTRACT-BASELINE.md`
 **Primary implementation language:** TypeScript
@@ -9,7 +9,7 @@
 
 Build the minimum amount of correct code that provides complete, runnable, verifiable, maintainable, scalable, secure, recoverable, and deployable distributed-data capability.
 
-Code should be minimal; contracts and proof obligations remain rigorous.
+Code should be minimal; contracts and proof obligations remain rigorous. AI context should also be minimal: load only the contracts needed for the current task.
 
 D1-Fabric is domain-neutral infrastructure for Cloudflare D1. Product semantics belong above the core.
 
@@ -27,25 +27,52 @@ D1-Fabric is domain-neutral infrastructure for Cloudflare D1. Product semantics 
 
 The repository, not chat history, is the source of truth.
 
-Historical A00.x and superseded documents are non-authoritative and MUST NOT be used to derive implementation semantics. They are to be removed from the active repository documentation set.
+Historical A00.x and superseded documents are non-authoritative and MUST NOT be used to derive implementation semantics.
 
-## 3. Required Reading Before Non-Trivial Work
+## 3. AI DOCUMENT ROUTER — DEFAULT READING POLICY
 
-Read:
+`AGENTS.md` is the routing entry point. An implementation agent MUST NOT load every repository document by default.
+
+### Always read
 
 ```text
-D1-FABRIC-1.0-CONTRACT-BASELINE.md
-Applicable D1-FABRIC-1.0-* contracts
 AGENTS.md
-DEVELOPMENT-PROTOCOL.md
-Relevant existing implementation/tests
-Current Execution Packet
-Current Change Manifest
+D1-FABRIC-1.0-CONTRACT-BASELINE.md
 ```
+
+### Read by task
+
+| Task | Required contracts | Usually omit unless directly affected |
+|---|---|---|
+| Shard / routing / migration | ARCHITECTURE + DATA-AND-STATE + RUNTIME-EXECUTION | PERFORMANCE, AI-GOVERNANCE |
+| Read / write execution | DATA-AND-STATE + RUNTIME-EXECUTION + PERFORMANCE-AND-COST | RELIABILITY unless failure semantics change |
+| Security / tenant / auth | SECURITY-AND-COMPATIBILITY + DATA-AND-STATE | PERFORMANCE, AI-GOVERNANCE |
+| Failure / retry / recovery | RELIABILITY-AND-RECOVERY + DATA-AND-STATE + RUNTIME-EXECUTION | PERFORMANCE unless budgets change |
+| Performance / cost optimization | PERFORMANCE-AND-COST + RUNTIME-EXECUTION + ARCHITECTURE | SECURITY unless boundary changes |
+| Compatibility / schema / public API | SECURITY-AND-COMPATIBILITY + DATA-AND-STATE + RUNTIME-EXECUTION | AI-GOVERNANCE |
+| Runtime AI / optimizer | AI-GOVERNANCE + PERFORMANCE-AND-COST + SECURITY-AND-COMPATIBILITY | Other contracts unless affected |
+| Verification-only task | VERIFICATION-AND-EVIDENCE + contracts named by the change | Unrelated contracts |
+| Pure refactor with no semantic change | Relevant implementation/tests + BASELINE | Other contracts not touched by semantics |
+
+### Read on demand
+
+```text
+D1-FABRIC-1.0-CONTRACT-AUDIT.md
+D1-FABRIC-1.0-FULL-REPOSITORY-CONSISTENCY-AUDIT.md
+D1-FABRIC-CLOUDFLARE-DOCUMENTATION-MAPPING.md
+D1-FABRIC-ARTIFACT-TYPE-CONTRACT.md
+verification/ and report documents
+```
+
+These are evidence/audit/supporting documents, not first-line implementation authority.
+
+### Loading rule
+
+Start with the smallest relevant contract set. Expand only when the Semantic Contract Map proves another contract is affected. Never omit a contract merely to avoid a difficult requirement.
 
 ## 4. Mandatory Semantic Contract Map
 
-Before coding, build a compact map from repository authority:
+Before coding a non-trivial capability, create a compact map from the routed contracts:
 
 ```text
 capability
@@ -64,11 +91,11 @@ verification obligations
 forbidden behavior
 ```
 
-The map is not authority. It is a traceability artifact. Every applicable contract MUST obligation must map to verification evidence.
+The map is a traceability artifact, not authority. Every applicable MUST obligation MUST map to verification evidence.
 
 If authoritative requirements conflict, STOP and resolve the contract. Never invent a semantic compromise in code.
 
-## 5. Mandatory Engineering Invariants
+## 5. Engineering Invariants
 
 ```text
 I-01 No global coordinator is mandatory on the data-plane hot path.
@@ -88,7 +115,23 @@ I-14 AI authority MUST be bounded, observable, and able to downgrade after unsaf
 I-15 AI knowledge MUST have version, applicability, expiration, and revalidation semantics.
 ```
 
-## 6. Before Coding
+## 6. Minimal Execution Context
+
+For a normal feature, the agent should carry only:
+
+```text
+AGENTS.md
+BASELINE
+3–5 routed contracts
+relevant implementation files
+relevant tests
+current Execution Packet
+current Change Manifest
+```
+
+Do NOT preload historical reports, duplicate v2 documents, unrelated gates, or unrelated domain documentation.
+
+## 7. Before Coding
 
 For every non-trivial capability establish:
 
@@ -96,7 +139,7 @@ For every non-trivial capability establish:
 Capability / REQ IDs
 Scope / Non-goals
 Smallest complete design
-Applicable contracts
+Applicable routed contracts
 Semantic Contract Map
 Inputs / Outputs
 State model
@@ -119,14 +162,14 @@ Change manifest
 Rejected alternatives where material
 ```
 
-If a correctness-critical item is unknown or contradictory, STOP and resolve the contract before coding.
+For trivial, non-semantic changes, use the smallest applicable subset and do not manufacture heavyweight artifacts.
 
-## 7. Execution Protocol
+## 8. Execution Protocol
 
 All non-trivial implementation SHALL follow `DEVELOPMENT-PROTOCOL.md`:
 
 ```text
-READ
+READ ROUTED CONTRACTS
 → RESOLVE CONTRACT
 → SEMANTIC CONTRACT MAP
 → EXECUTION PACKET
@@ -141,7 +184,7 @@ READ
 → COMMIT
 ```
 
-## 8. Architecture Boundary
+## 9. Architecture Boundary
 
 The implementation agent is not an architecture authority.
 
@@ -163,13 +206,13 @@ AI authority
 
 A material architecture or contract change requires the contract-evolution process and new versioned contract semantics.
 
-## 9. Minimal-Code Rule
+## 10. Minimal-Code Rule
 
 Prefer existing correct primitives, direct implementation, one authoritative owner, one primary execution path, shared validation/error/timeout infrastructure, minimal D1 operations, minimal network hops, and minimal dependencies.
 
 Do not add speculative abstractions, queues, retries, caches, persistent state, coordinators, Workers, or dependencies without a current requirement, protected invariant, measurable benefit, real boundary, and verification method.
 
-## 10. Data / Routing / Security Ordering
+## 11. Data / Routing / Security Ordering
 
 For protected operations preserve:
 
@@ -190,11 +233,9 @@ Authenticate
 
 Client-supplied tenant, shard, or routing information is not proof of authorization.
 
-## 11. Hot Path
+## 12. Hot Path and Resource Bounds
 
-Hot-path execution MUST be deterministic and bounded. Runtime AI MUST NOT be required for correctness. Approved AI-derived configuration may be consumed only after deterministic validation and within explicit validity/version bounds.
-
-## 12. D1 / Resource Boundaries
+Hot-path execution MUST be deterministic and bounded. Runtime AI MUST NOT be required for correctness.
 
 Every applicable request MUST have explicit budgets for:
 
@@ -219,7 +260,7 @@ Retries MUST be idempotent and bounded. Recovery must restore ownership, epoch/f
 
 Never report PASS from source inspection or compilation alone.
 
-Use:
+Use the smallest applicable verification levels:
 
 ```text
 V0 Static
@@ -233,6 +274,8 @@ V7 Security / Isolation
 V8 Performance / Cost / Regression
 V9 Soak / Operational
 ```
+
+Do not run irrelevant heavyweight gates merely because they exist. Do run every gate required by the change's Semantic Contract Map.
 
 Critical negative paths MUST be covered where applicable:
 
@@ -270,7 +313,7 @@ DeepSeek or another coding agent SHALL implement the approved contract, not rede
 Required loop:
 
 ```text
-Contract
+Routed Contract Set
 → Semantic Contract Map
 → Packet
 → Manifest
@@ -354,4 +397,4 @@ unresolved IP/security boundary
 
 ## 23. Final Law
 
-> **The repository contracts define what must be true. The Semantic Contract Map makes that meaning explicit. The implementation agent chooses the simplest way to make it true. Independent verification proves whether it is true. AI may optimize, but never becomes the authority over safety or semantics.**
+> **Contracts define what must be true. AGENTS.md routes the minimum required context. The Semantic Contract Map makes meaning explicit. The implementation agent chooses the simplest way to make it true. Independent verification proves whether it is true. AI may optimize, but never becomes the authority over safety or semantics.**
