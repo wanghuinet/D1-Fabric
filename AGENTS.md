@@ -1,6 +1,6 @@
 # D1-Fabric AI Engineering Instructions
 
-**Authority:** D1-Fabric Engineering Constitution v3.0 + v3.1 + v3.2 Addenda + Open-Source / Commercial Boundary Contract + Platform Infrastructure Contract + Open Infrastructure Moat Contract + Engineering Documentation Standard  
+**Authority:** D1-Fabric Engineering Constitution v3.0 + v3.1 + v3.2 Addenda + Open-Source / Commercial Boundary Contract + Platform Infrastructure Contract + Open Infrastructure Moat Contract + Engineering Documentation Standard + Contract Execution & Evidence Standard  
 **Project:** D1-Fabric  
 **Primary language:** TypeScript
 
@@ -27,8 +27,9 @@ Before modifying code, read the applicable:
 9. `D1-FABRIC-PLATFORM-INFRASTRUCTURE-CONTRACT.md`
 10. `D1-FABRIC-OPEN-INFRASTRUCTURE-MOAT-CONTRACT.md`
 11. `D1-FABRIC-ENGINEERING-DOCUMENTATION-STANDARD.md`
-12. applicable architecture and capability contracts
-13. applicable ADRs
+12. `D1-FABRIC-A00.7-CONTRACT-EXECUTION-EVIDENCE-STANDARD.md`
+13. applicable architecture and capability contracts
+14. applicable ADRs
 
 Do not infer an architecture or distribution rule from chat history when an authoritative repository document exists.
 
@@ -68,13 +69,59 @@ Change Manifest / allowed files
 Rejected alternatives where material
 ```
 
-If a correctness-critical question cannot be answered precisely, stop and update the design/contract before coding.
+If a correctness-critical question cannot be answered precisely, stop and update the design/contract before coding. If an unknown affects only an internal implementation choice and does not change the contract, use the smallest conventional implementation rather than reopening architecture.
+
+## A00.7 AI Execution Rule
+
+`D1-FABRIC-A00.7-CONTRACT-EXECUTION-EVIDENCE-STANDARD.md` is mandatory.
+
+The implementation agent SHALL execute the approved repository contract rather than redesign it during coding.
+
+```text
+Authoritative Contract
+ ↓
+Execution Packet
+ ↓
+Frozen Scope / Change Manifest
+ ↓
+Implementation
+ ↓
+Targeted Verification
+ ↓
+Full Verification
+ ↓
+Evidence
+ ↓
+Capability Status
+```
+
+Before implementation establish:
+
+```text
+CONTRACT_RESOLVED
+SCOPE_FROZEN
+DEPENDENCIES_VERIFIED
+STATE_OWNERSHIP_RESOLVED
+ARCHITECTURE_DECISIONS_FROZEN
+INVARIANTS_RESOLVED
+RESOURCE_BUDGETS_RESOLVED
+CHANGE_MANIFEST_FROZEN
+```
+
+Distinguish:
+
+- **Architecture Decision:** affects correctness, protocol, state ownership, routing, consistency, failure/recovery, resource bounds, security, distribution, or public interface. Once frozen, it MUST NOT be changed inside an implementation task without an explicit contract/ADR change.
+- **Implementation Choice:** internal mechanism that preserves the frozen contract. The agent MAY choose the simplest correct implementation.
+
+Do not make the AI repeatedly reconsider approved architecture. Do not add abstractions, dependencies, queues, retries, network hops, persistent state, or Worker boundaries without a current requirement, invariant, measurable benefit, or real boundary.
+
+If missing information can affect correctness, compatibility, ownership, security, resource bounds, failure semantics, or architecture: **STOP** and resolve it. If it only affects an internal implementation choice while the contract remains satisfied: choose the smallest conventional implementation.
 
 ## Documentation Is an Engineering Control
 
-`D1-FABRIC-ENGINEERING-DOCUMENTATION-STANDARD.md` is mandatory governance.
+`D1-FABRIC-ENGINEERING-DOCUMENTATION-STANDARD.md` is mandatory governance. Documentation is not post-hoc explanation.
 
-Documentation is not post-hoc explanation. For every non-trivial capability:
+For every non-trivial capability:
 
 ```text
 Requirement
@@ -230,6 +277,22 @@ Reproducible Evidence
 
 Verification MUST map critical requirements/invariants to tests and evidence. Unknown is not PASS. UNPROVEN is not PASS.
 
+Evidence strength SHALL be understood as:
+
+```text
+E0 declaration
+E1 static/type/lint
+E2 unit
+E3 integration
+E4 build/runtime
+E5 real request / end-to-end
+E6 concurrency/failure/recovery
+E7 performance/load/soak/scale
+E8 independent/release-grade verification
+```
+
+Performance/scale claims require E7 or stronger as applicable. Critical release claims require E8 where applicable.
+
 ## Evidence Rules
 
 Evidence MUST be sufficient for an independent engineer to reproduce or challenge the claim without chat history.
@@ -257,9 +320,12 @@ Queue peak
 Cache hit rate / D1 read avoidance ratio
 Failure/recovery result
 Known limitations
+Proof debt
 ```
 
 A screenshot, successful single request, green unit-test count, or source inspection is not scale proof.
+
+Material requirements or invariants without sufficient evidence create explicit `PROOF_DEBT`; blocking proof debt prevents the required PASS state.
 
 ## World-Class Scale Gate
 
