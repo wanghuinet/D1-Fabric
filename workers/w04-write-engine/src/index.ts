@@ -32,6 +32,12 @@ function validText(value: unknown, max: number) {
   return typeof value === 'string' && value.length > 0 && value.length <= max;
 }
 
+async function sha256(value: string) {
+  const data = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 export default {
   async fetch(request: Request, env: Env) {
     const requestId = request.headers.get('x-request-id')?.slice(0, 128) || crypto.randomUUID();
@@ -43,7 +49,7 @@ export default {
         return json({
           status: ready ? 'READY' : 'NOT_READY',
           service: 'd1-fabric-w04-write-engine',
-          version: '0.2.0',
+          version: '0.2.1',
           shards_bound: ready ? 8 : 0,
         }, ready ? 200 : 503, requestId);
       }
@@ -78,10 +84,22 @@ export default {
         const db = dbForShard(env, body.shard_id);
         if (!db) return json({ code: 'SHARD_NOT_READY', shard_id: body.shard_id }, 503, requestId);
 
-        const existing = await db.prepare(
-          'SELECT status, result_json FROM fabric_idempotency WHERE tenant_id = ?1 AND idempotency_key = ?2 LIMIT 1',
-        ).bind(body.tenant_id, body.idempotency_key).first<{ status: string; result_json: string | null }>();
+        const requestHash = await sha256(JSON.stringify({
+          tenant_id: body.tenant_id,
+          namespace: body.namespace,
+          record_key: body.record_key,
+          shard_id: body.shard_id,
+          op: body.op,
+          payload_json: body.payload_json ?? null,
+        }));
 
+        const existing = await db.prepare(
+          'SELECT status, request_hash, result_json FROM fabric_idempotency WHERE tenant_id = ?1 AND idempotency_key = ?2 LIMIT 1',
+        ).bind(body.tenant_id, body.idempotency_key).first<{ status: string; request_hash: string; result_json: string | null }>();
+
+        if (existing?.request_hash && existing.request_hash !== requestHash) {
+          return json({ code: 'IDEMPOTENCY_KEY_REUSE_CONFLICT' }, 409, requestId);
+        }
         if (existing?.status === 'COMMITTED') {
           return json({
             accepted: true,
@@ -94,6 +112,13 @@ export default {
           return json({ code: 'WRITE_IN_PROGRESS' }, 409, requestId);
         }
 
+        if (body.op === 'UPDATE' || body.op === 'DELETE') {
+          const target = await db.prepare(
+            'SELECT version FROM fabric_records WHERE namespace = ?1 AND record_key = ?2 AND tenant_id = ?3 LIMIT 1',
+          ).bind(body.namespace, body.record_key, body.tenant_id).first<{ version: number }>();
+          if (!target) return json({ code: 'NOT_FOUND' }, 404, requestId);
+        }
+
         const result = {
           operation: body.op,
           tenant_id: body.tenant_id,
@@ -101,7 +126,6 @@ export default {
           record_key: body.record_key,
           shard_id: body.shard_id,
         };
-        const requestHash = `${body.op}:${body.tenant_id}:${body.namespace}:${body.record_key}:${body.payload_json ?? ''}`;
         const resultJson = JSON.stringify(result);
         const statements: D1PreparedStatement[] = [];
 
@@ -149,7 +173,8 @@ export default {
       return json({ code: 'NOT_FOUND' }, 404, requestId);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'INTERNAL_ERROR';
-      return json({ code: message === 'D1_ERROR' ? 'D1_WRITE_FAILED' : 'INTERNAL_ERROR' }, 500, requestId);
+      const code = message.includes('UNIQUE') ? 'WRITE_CONFLICT' : 'D1_WRITE_FAILED';
+      return json({ code }, 502, requestId);
     }
   },
 };
