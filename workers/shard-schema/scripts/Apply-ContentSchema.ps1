@@ -16,7 +16,7 @@ $Databases = @(
 )
 
 Write-Host 'D1-Fabric Content Platform Schema V1' -ForegroundColor Cyan
-Write-Host 'Migration: 0002_content_platform_v1.sql'
+Write-Host 'Migration chain: 0002 + 0003'
 Write-Host 'Target: all configured physical shards'
 Write-Host ''
 
@@ -31,7 +31,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host ''
-Write-Host 'Applying migration to every shard...' -ForegroundColor Yellow
+Write-Host 'Applying complete migration chain to every shard...' -ForegroundColor Yellow
 
 $failed = @()
 foreach ($db in $Databases) {
@@ -54,7 +54,7 @@ if ($failed.Count -gt 0) {
 }
 
 Write-Host ''
-Write-Host 'Verifying schema version on every shard...' -ForegroundColor Yellow
+Write-Host 'Verifying schema on every shard...' -ForegroundColor Yellow
 
 $expected = @(
   'platform_users',
@@ -72,6 +72,9 @@ $expected = @(
   'platform_events',
   'platform_feed_candidates',
   'platform_moderation',
+  'platform_publish_operations',
+  'platform_publish_assets',
+  'platform_publish_failures',
   'platform_schema_meta'
 )
 
@@ -95,4 +98,5 @@ foreach ($db in $Databases) {
 
 Write-Host ''
 Write-Host 'Schema V1 deployment completed and verified on all 8 shards.' -ForegroundColor Green
+Write-Host 'Publication atomicity and idempotency tables are present.' -ForegroundColor Green
 Write-Host 'No destructive ALTER/DROP operation is performed by this migration.' -ForegroundColor Green
