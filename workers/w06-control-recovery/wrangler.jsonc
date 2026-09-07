@@ -2,5 +2,12 @@
   "name": "d1-fabric-w06-control-recovery",
   "main": "src/index.ts",
   "compatibility_date": "2026-09-07",
-  "workers_dev": true
+  "workers_dev": true,
+  "d1_databases": [
+    {
+      "binding": "CONTROL_DB",
+      "database_name": "d1-fabric-control",
+      "database_id": "6de606c9-9fed-40d8-8e90-9f2ec751eb74"
+    }
+  ]
 }
