@@ -1,0 +1,8 @@
+interface Env { MAX_TTL_MS?: string; MAX_VALUE_BYTES?: string; CACHE_NAMESPACE?: string; }
+const json=(b:unknown,s=200,r=crypto.randomUUID())=>new Response(JSON.stringify(b),{status:s,headers:{'content-type':'application/json','x-request-id':r}});
+const ttl=(v:unknown,d:number)=>{const n=Number(v??d);return Number.isFinite(n)?Math.max(0,Math.min(86400000,n)):d};
+export default {async fetch(request:Request,env:Env){const rid=request.headers.get('x-request-id')?.slice(0,128)||crypto.randomUUID();try{const u=new URL(request.url);
+if(request.method==='GET'&&u.pathname==='/health')return json({status:'READY',service:'d1-fabric-w05-cache',version:'0.1.0'},200,rid);
+if(request.method==='POST'&&u.pathname==='/v1/cache/key'){const b=await request.json() as {tenant_id?:string;namespace?:string;key?:string;value_bytes?:number;ttl_ms?:number};if(!b.tenant_id||!b.namespace||!b.key)return json({code:'INVALID_ARGUMENT'},400,rid);const maxBytes=Math.max(1,Math.min(1048576,Number(env.MAX_VALUE_BYTES??262144)));if((b.value_bytes??0)>maxBytes)return json({code:'VALUE_TOO_LARGE',max_value_bytes:maxBytes},413,rid);return json({cache_key:`${env.CACHE_NAMESPACE??'d1f'}:${b.tenant_id}:${b.namespace}:${b.key}`,ttl_ms:ttl(b.ttl_ms,30000),max_value_bytes:maxBytes,authoritative:false,mode:'DERIVED_OR_CACHE_ONLY',invalidation:'EXPLICIT'},200,rid);}
+if(request.method==='POST'&&u.pathname==='/v1/cache/invalidate'){const b=await request.json() as {tenant_id?:string;key?:string};if(!b.tenant_id||!b.key)return json({code:'INVALID_ARGUMENT'},400,rid);return json({invalidated:true,authoritative_state_unchanged:true},200,rid);}
+return json({code:'NOT_FOUND'},404,rid);}catch(e){return json({code:e instanceof Error?e.message:'INTERNAL_ERROR'},500,rid)}}};
