@@ -1,6 +1,6 @@
 # D1-Fabric AI Engineering Instructions
 
-**Authority:** D1-Fabric Engineering Constitution v3.0 + v3.1 + v3.2 Addenda  
+**Authority:** D1-Fabric Engineering Constitution v3.0 + v3.1 + v3.2 Addenda + Open-Source / Commercial Boundary Contract  
 **Project:** D1-Fabric  
 **Primary language:** TypeScript
 
@@ -21,10 +21,11 @@ Before modifying code, read the applicable:
 5. `D1-FABRIC-ARTIFACT-TYPE-CONTRACT.md`
 6. `D1-FABRIC-FIRST-PASS-VERIFICATION-PROTOCOL.md`
 7. `D1-FABRIC-WORLD-CLASS-SCALE-AND-RELIABILITY-GATE.md`
-8. applicable architecture and capability contracts
-9. applicable ADRs
+8. `D1-FABRIC-OPEN-SOURCE-COMMERCIAL-BOUNDARY.md`
+9. applicable architecture and capability contracts
+10. applicable ADRs
 
-Do not infer an architecture rule from chat history when an authoritative repository document exists.
+Do not infer an architecture or distribution rule from chat history when an authoritative repository document exists.
 
 ## Before Implementation
 
@@ -46,6 +47,8 @@ What is the concurrency boundary?
 What is the overload/backpressure behavior?
 What is the scaling boundary?
 What is the D1 I/O budget?
+What is the distribution target: OPEN / COMMERCIAL / MIXED?
+Does the implementation contain proprietary algorithms, heuristics, security-sensitive details, or IP risk?
 What evidence will prove completion?
 ```
 
@@ -90,6 +93,18 @@ Do not silently edit production/dashboard configuration when a versioned reposit
 
 Any configuration model must have one declared source of truth.
 
+## Commercial Boundary Rules
+
+`D1-FABRIC-OPEN-SOURCE-COMMERCIAL-BOUNDARY.md` is mandatory governance.
+
+- Every new capability MUST be classified as `OPEN`, `COMMERCIAL`, or `MIXED` before implementation is merged.
+- Public contracts, correctness semantics, interoperability and conformance requirements should remain open unless an approved decision says otherwise.
+- Proprietary optimization algorithms, production heuristics, advanced automation, commercial operational intelligence, secrets, customer data, and security-sensitive implementation details MUST NOT be published accidentally.
+- AI agents MUST NOT decide licensing, IP publication, or commercial boundaries by inference.
+- If the boundary is ambiguous, status is `BLOCKED` / `UNRESOLVED`; do not guess.
+- Commercial separation must not justify artificial module or Worker fragmentation.
+- Before release, verify that repository contents match the declared distribution boundary.
+
 ## Coding Rules
 
 - Use TypeScript for application logic unless explicitly approved otherwise.
@@ -101,6 +116,7 @@ Any configuration model must have one declared source of truth.
 - No unrelated refactors.
 - No silent contract changes.
 - Prefer structural fixes over patch-piling.
+- Never add a dependency or copied code without checking license compatibility.
 
 ## Verification Rules
 
@@ -137,6 +153,8 @@ Performance / Regression
  ↓
 Soak where applicable
  ↓
+Distribution Boundary Audit
+ ↓
 Independent Verification
  ↓
 Reproducible Evidence
@@ -156,7 +174,7 @@ A screenshot, successful single request, or source inspection is not scale proof
 
 ## Documentation Rules
 
-If a change affects architecture, contracts, invariants, commands, deployment, recovery, or verification, perform a documentation impact check.
+If a change affects architecture, contracts, invariants, commands, deployment, recovery, verification, or distribution boundaries, perform a documentation impact check.
 
 Update only the affected authoritative documents. Do not generate documentation churn.
 
@@ -166,7 +184,7 @@ Non-trivial architecture decisions belong in ADRs.
 
 A capability is not complete because code exists.
 
-It is complete only when the applicable contract, implementation, tests, runtime behavior, failure handling, performance evidence, regression evidence, documentation impact review, and independent verification are closed.
+It is complete only when the applicable contract, implementation, tests, runtime behavior, failure handling, performance evidence, regression evidence, distribution-boundary review, documentation impact review, and independent verification are closed.
 
 Use explicit status values only:
 
@@ -203,5 +221,7 @@ STOP immediately for:
 - ambiguous shard ownership
 - unproven recovery for a stateful critical capability
 - failed concurrency or overload gate
+- unresolved commercial/IP boundary
+- accidental exposure of proprietary or security-sensitive implementation
 
 Do not continue to the next capability until the current capability reaches its required PASS state.
