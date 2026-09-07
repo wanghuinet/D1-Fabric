@@ -1,6 +1,6 @@
 # D1-Fabric AI Engineering Instructions
 
-**Authority:** D1-Fabric Engineering Constitution v3.0 + v3.1 + v3.2 Addenda + Open-Source / Commercial Boundary Contract  
+**Authority:** D1-Fabric Engineering Constitution v3.0 + v3.1 + v3.2 Addenda + Open-Source / Commercial Boundary Contract + Platform Infrastructure Contract  
 **Project:** D1-Fabric  
 **Primary language:** TypeScript
 
@@ -9,6 +9,8 @@
 Build the minimum amount of correct code that provides complete, runnable, verifiable, maintainable, scalable, and deployable distributed-data capability.
 
 Do not optimize for code volume or number of tasks.
+
+D1-Fabric is a **general-purpose distributed data infrastructure layer for Cloudflare D1**, not a self-media database. Business domains such as content, APP marketplaces, finance, commerce, games, communities, and AI agents are application-layer schemas over the same infrastructure.
 
 ## Read Before Coding
 
@@ -22,8 +24,9 @@ Before modifying code, read the applicable:
 6. `D1-FABRIC-FIRST-PASS-VERIFICATION-PROTOCOL.md`
 7. `D1-FABRIC-WORLD-CLASS-SCALE-AND-RELIABILITY-GATE.md`
 8. `D1-FABRIC-OPEN-SOURCE-COMMERCIAL-BOUNDARY.md`
-9. applicable architecture and capability contracts
-10. applicable ADRs
+9. `D1-FABRIC-PLATFORM-INFRASTRUCTURE-CONTRACT.md`
+10. applicable architecture and capability contracts
+11. applicable ADRs
 
 Do not infer an architecture or distribution rule from chat history when an authoritative repository document exists.
 
@@ -49,6 +52,8 @@ What is the scaling boundary?
 What is the D1 I/O budget?
 What is the distribution target: OPEN / COMMERCIAL / MIXED?
 Does the implementation contain proprietary algorithms, heuristics, security-sensitive details, or IP risk?
+Does this change couple core infrastructure to a specific business domain?
+Can the same capability operate over materially different application schemas?
 What evidence will prove completion?
 ```
 
@@ -75,9 +80,15 @@ If an applicable invariant is UNPROVEN or FAILED, do not report PASS and do not 
 
 ## Architecture Rules
 
+- D1-Fabric core MUST remain business-domain neutral.
+- Do not hard-code self-media/content, APP-marketplace, finance, commerce, or other product concepts into core infrastructure contracts unless explicitly approved as a generic primitive.
+- Application schemas/entities belong above D1-Fabric.
+- Partition keys may represent user_id, app_id, stock_id, product_id, agent_id, content_id, tenant_id, etc.; the router must operate on generic partition identity and shard metadata.
+- Query/write engines optimize infrastructure execution characteristics, not business ranking or product semantics.
+- Domain adapters SHOULD be thin and MUST NOT duplicate core routing/shard/cache/query/write/recovery logic.
+- Do not create a Worker merely because a new application domain exists.
+- Worker count is determined by real capability, ownership, scaling, security, lifecycle, or failure boundaries.
 - Do not create a module merely to create a task boundary.
-- Do not create a Worker merely to create another Worker.
-- Prefer capability boundaries with real ownership, isolation, lifecycle, scaling, or operational value.
 - Keep control-plane metadata out of the mandatory hot path when correctness permits.
 - Prefer shard-local execution after deterministic routing.
 - Minimize D1 reads, writes, cross-shard coordination, network hops, serialization, and retries on hot paths.
@@ -117,6 +128,7 @@ Any configuration model must have one declared source of truth.
 - No silent contract changes.
 - Prefer structural fixes over patch-piling.
 - Never add a dependency or copied code without checking license compatibility.
+- If a new core feature requires domain-specific semantics, STOP and classify it as application-layer behavior or an explicitly approved generic infrastructure primitive before implementation.
 
 ## Verification Rules
 
@@ -174,7 +186,7 @@ A screenshot, successful single request, or source inspection is not scale proof
 
 ## Documentation Rules
 
-If a change affects architecture, contracts, invariants, commands, deployment, recovery, verification, or distribution boundaries, perform a documentation impact check.
+If a change affects architecture, contracts, invariants, commands, deployment, recovery, verification, distribution boundaries, or business-domain neutrality, perform a documentation impact check.
 
 Update only the affected authoritative documents. Do not generate documentation churn.
 
@@ -223,5 +235,6 @@ STOP immediately for:
 - failed concurrency or overload gate
 - unresolved commercial/IP boundary
 - accidental exposure of proprietary or security-sensitive implementation
+- unjustified coupling of core infrastructure to a specific business domain
 
 Do not continue to the next capability until the current capability reaches its required PASS state.
