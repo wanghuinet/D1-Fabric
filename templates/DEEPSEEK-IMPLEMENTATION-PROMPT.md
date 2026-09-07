@@ -1,8 +1,8 @@
-# DeepSeek Implementation Prompt — D1-Fabric 1.2
+# DeepSeek Implementation Prompt — D1-Fabric 1.3
 
 Use this repository as the only architecture authority.
 
-## 1. First classify the task
+## 1. Classify the task
 
 ```text
 T0 — Non-semantic
@@ -27,100 +27,92 @@ AGENTS.md
 D1-FABRIC-1.0-CONTRACT-BASELINE.md
 ```
 
-Then load only the contracts routed by `AGENTS.md` and the task classification. Do not preload historical reports, duplicate v2 documents, or unrelated gates.
+Then load only contracts routed by `AGENTS.md` and the task class. Do not preload historical reports, duplicate versions, or unrelated gates.
 
-## 3. Workflow
+## 3. Required artifacts
 
 T0:
-
 ```text
-SCOPED INSPECT
-→ CHANGE
-→ TARGETED CHECK
-→ COMMIT
+Scoped inspect → Change → Targeted check
 ```
 
 T1:
-
 ```text
-ROUTED CONTRACTS
-→ COMPACT SEMANTIC MAP
-→ SCOPED MANIFEST
-→ INSPECT IMPLEMENTATION/TESTS
-→ IMPLEMENT
-→ TARGETED VERIFY
-→ EVIDENCE
-→ COMMIT
+Routed contracts
+→ Compact Semantic Contract Map
+→ Module Boundary Card
+→ Scoped Change Manifest
+→ Implement
+→ Targeted Verify
+→ Diff Scope Gate
+→ Evidence
 ```
 
 T2:
-
 ```text
-ROUTED CONTRACTS
-→ RESOLVE CONTRACT
-→ SEMANTIC CONTRACT MAP
-→ EXECUTION PACKET
-→ FREEZE CHANGE MANIFEST
-→ INSPECT IMPLEMENTATION/TESTS
-→ IMPLEMENT SMALLEST COMPLETE CHANGE
-→ TARGETED VERIFY IMMEDIATELY
-→ CONTRACT-DRIVEN ADVERSARIAL VERIFY
-→ FULL APPLICABLE VERIFY
-→ EVIDENCE
-→ INDEPENDENT REVIEW
-→ STATUS
+Routed contracts
+→ Resolve Contract
+→ Semantic Contract Map
+→ Execution Packet
+→ Module Boundary Card
+→ Freeze Change Manifest
+→ Inspect implementation/tests
+→ Implement smallest complete change
+→ Targeted Verify immediately
+→ Diff Scope Gate
+→ Contract-driven adversarial verify
+→ Full applicable verify
+→ Evidence
+→ Capability Gate
+→ Status
 ```
 
-## 4. Semantic Contract Map
-
-For T1/T2 behavior changes, state:
+Templates:
 
 ```text
-capability
-contract/version
-semantic owner per concern
-authoritative state/state owner
-untrusted vs verified inputs
-routing identity
-epoch/fencing
-authorization/tenant boundary
-consistency/idempotency
-resource budgets
-failure/recovery obligations
-compatibility obligations
+templates/MODULE-BOUNDARY-CARD.md
+templates/EXECUTION-PACKET.md
+templates/CHANGE-MANIFEST.md
+templates/DIFF-SCOPE-GATE.md
+templates/CAPABILITY-GATE.md
+```
+
+## 4. Boundary before code
+
+Before T1/T2 coding, explicitly state:
+
+```text
+MUST do
+MUST NOT do
+semantic owner
+state read/write + authoritative owner
+allowed/forbidden dependencies
+interfaces/errors/side effects
+security/trust/tenant boundary
+resource/D1/network limits
+failure/recovery owner
 verification obligations
-forbidden behavior
 ```
 
-If authoritative contracts conflict, STOP. Do not invent a compromise.
+Do not silently move responsibility to another module.
 
-## 5. Scope and implementation
+## 5. Scope before code
 
-Implement only the approved capability and manifest.
+Freeze the Change Manifest. Implement only the approved capability.
 
-Do not silently add:
+Out-of-scope file, schema, dependency, public API, runtime behavior, or semantic-owner changes require a manifest revision with reason and verification.
 
-```text
-Workers
-queues
-caches
-coordinators
-dependencies
-persistent state
-retry layers
-network hops
-abstractions
-```
+## 6. Implementation
 
-unless the requirement, protected invariant, real boundary, measurable benefit, and verification method are explicit.
+Prefer existing verified primitives, one primary path, one semantic owner, minimum code, minimum D1 I/O, minimum network hops, minimum dependencies.
 
-Prefer existing verified primitives, one primary path, one semantic owner, minimal D1 I/O, minimal serialization, and minimal dependencies.
+Do not add Workers, queues, caches, coordinators, retry layers, persistent state, or abstractions unless requirement + invariant + real boundary + measurable benefit + verification are explicit.
 
-## 6. Verification
+## 7. Verification
 
 Compilation is not semantic proof.
 
-Derive verification from the routed contracts. For protected boundaries, independently test applicable negative paths:
+After each coherent boundary, verify immediately. For protected boundaries, independently derive negative tests from contracts:
 
 ```text
 wrong tenant
@@ -136,17 +128,30 @@ cache poisoning
 resource exhaustion
 ```
 
-For AI-governed changes additionally test invalid/expired/superseded candidates, resource-budget violation, rollback, and authority downgrade.
+AI-governed changes additionally cover invalid/expired/superseded candidates, resource-budget violation, rollback, and authority downgrade.
 
-Run only the applicable verification levels required by the task's risk.
+Run only applicable verification levels required by the task risk and record omissions.
 
-## 7. Evidence
+## 8. Gates
+
+Before completion:
+
+```text
+Actual diff
+→ Diff Scope Gate
+→ Contract / verification evidence
+→ Capability Gate for T2
+```
+
+Do not self-certify completion. `CAPABILITY_PASS` requires the gate's applicable obligations and evidence.
+
+## 9. Evidence
 
 Never claim implemented, verified, benchmarked, recovered, secure, or release-ready without actual evidence.
 
-Evidence MUST reference the exact evaluated commit and applicable contract version.
+Evidence MUST reference the exact evaluated commit, environment, commands, results, limitations, and contract version.
 
-## 8. Stop conditions
+## 10. Stop conditions
 
 STOP and report BLOCKED on:
 
@@ -158,11 +163,12 @@ cross-tenant leakage
 stale writer acceptance
 unbounded resource behavior
 unproven recovery
+scope drift
 semantic drift
 P0/P1 defect
-fabricated or mismatched evidence
+fabricated/mismatched evidence
 ```
 
-## 9. Final rule
+## 11. Final rule
 
-> **Load the minimum correct context. Implement the repository contract. Prove the semantics required by the change. Never redesign the architecture while coding.**
+> **Load the minimum correct context. Define the boundary. Freeze the scope. Implement the repository contract. Prove the diff and capability. Never redesign the architecture while coding.**
