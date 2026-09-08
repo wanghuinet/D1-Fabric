@@ -11,9 +11,6 @@ interface Env {
   SHARD_07?: D1Database;
   SHARD_08?: D1Database;
   ROUTER: Fetcher;
-  MAX_FANOUT?: string;
-  MAX_PARALLELISM?: string;
-  MAX_ROWS?: string;
 }
 
 function dbForShard(env: Env, shardId: number): D1Database | null {
@@ -93,10 +90,8 @@ export default {
         return ok({ entity: body.entity, data: row, shard_id: shardId }, rid);
       }
 
-      // Structured list query on a single shard. If a routing-key filter is
-      // provided, route to that shard; otherwise fan-out across shards via
-      // query/plan. For P0 we require an explicit routing filter to keep the
-      // query shard-local (bounded I/O).
+      // Structured list query on a single shard, requiring an explicit routing
+      // key so execution stays shard-local (bounded I/O).
       if (request.method === 'POST' && url.pathname === '/v1/query/list') {
         const body = await request.json() as {
           tenant_id?: string; entity?: string;
@@ -155,44 +150,12 @@ export default {
         return ok({ entity: body.entity, items: rows, limit, next_cursor: nextCursor, shard_id: shardId }, rid);
       }
 
-      // Raw SQL fan-out (admin/internal). Kept for cross-shard queries but
-      // restricted to SELECT only (Security §20, §21).
+      // Raw SQL fan-out has been removed (Security: tenant isolation).
+      // Arbitrary SELECT against shared shards cannot be safely tenant-scoped,
+      // so the raw-SQL execution endpoint is disabled. Structured tenant-scoped
+      // reads go through /v1/query/get and /v1/query/list.
       if (request.method === 'POST' && url.pathname === '/v1/query/plan') {
-        const body = await request.json() as { tenant_id?: string; sql?: string; shard_ids?: number[]; deadline_ms?: number; max_rows?: number };
-        if (!body.tenant_id || !body.sql) return fail('INVALID_ARGUMENT', rid, 400);
-        if (body.sql.length > 16000) return fail('PAYLOAD_TOO_LARGE', rid, 413);
-        const normalized = body.sql.trim().toUpperCase();
-        if (!normalized.startsWith('SELECT')) return fail('ONLY_SELECT_ALLOWED', rid, 400);
-        if (normalized.includes(';')) return fail('MULTI_STATEMENT_NOT_ALLOWED', rid, 400);
-        const shardIds = [...new Set((body.shard_ids ?? [0]).filter((id) => Number.isInteger(id) && id >= 0 && id <= 63))];
-        if (shardIds.length === 0) return fail('INVALID_SHARD_SET', rid, 400);
-        const maxFanout = bounded(env.MAX_FANOUT, 8, 64);
-        const maxParallelism = bounded(env.MAX_PARALLELISM, 4, 32);
-        const maxRows = bounded(body.max_rows ?? env.MAX_ROWS, 1000, 100000);
-        if (shardIds.length > maxFanout) return fail('FANOUT_BUDGET_EXCEEDED', rid, 429, undefined, false);
-        const missing = shardIds.find((id) => !dbForShard(env, id));
-        if (missing !== undefined) return fail('SHARD_NOT_READY', rid, 503);
-        const deadlineMs = Math.max(1, Math.min(10000, Number(body.deadline_ms ?? 10000)));
-        const started = Date.now();
-        const run = async (shardId: number) => {
-          if (Date.now() - started >= deadlineMs) throw new Error('TIMEOUT');
-          const db = dbForShard(env, shardId);
-          if (!db) throw new Error('SHARD_NOT_READY');
-          const result = await db.prepare(body.sql!).bind().all();
-          return { shard_id: shardId, results: result.results.slice(0, maxRows), success: true };
-        };
-        const results: Array<{ shard_id: number; results: unknown[]; success: boolean }> = [];
-        const parallelism = Math.min(maxParallelism, shardIds.length);
-        for (let i = 0; i < shardIds.length; i += parallelism) {
-          if (Date.now() - started >= deadlineMs) return fail('TIMEOUT', rid, 504);
-          const batch = shardIds.slice(i, i + parallelism);
-          const settled = await Promise.allSettled(batch.map(run));
-          for (const item of settled) {
-            if (item.status === 'rejected') return fail(item.reason instanceof Error && item.reason.message === 'TIMEOUT' ? 'TIMEOUT' : 'D1_READ_FAILED', rid, 502);
-            results.push(item.value);
-          }
-        }
-        return ok({ plan_id: crypto.randomUUID(), tenant_id: body.tenant_id, operation: 'READ', shards: shardIds, fanout: shardIds.length, parallelism, max_rows: maxRows, deadline_ms: deadlineMs, execution: 'D1_EXECUTED', results }, rid);
+        return fail('PLAN_QUERY_DISABLED', rid, 410, 'raw SQL fan-out removed for tenant isolation; use /v1/query/get or /v1/query/list');
       }
 
       return fail('NOT_FOUND', rid, 404);
