@@ -1,174 +1,153 @@
-# DeepSeek Implementation Prompt — D1-Fabric 1.3
+# DeepSeek Implementation Prompt — D1-Fabric 1.0
 
-Use this repository as the only architecture authority.
+Use the repository as the only authority. **Do not make architecture decisions while coding.**
 
-## 1. Classify the task
+## 1. Mandatory context
 
-```text
-T0 — Non-semantic
-    docs, formatting, comments, mechanical changes with proven no behavior change
-
-T1 — Local semantic
-    one bounded module/path, no contract meaning change, no cross-boundary safety semantics
-
-T2 — Cross-boundary / safety-critical
-    state ownership, routing, epoch/fencing, security, consistency, retry, migration, recovery,
-    public protocol, schema compatibility, hot-path performance, or architecture change
-```
-
-Use the smallest safe workflow. Never use a lower class to avoid a real safety or contract obligation.
-
-## 2. Route the context
-
-Always read:
+Read in this order:
 
 ```text
 AGENTS.md
-D1-FABRIC-1.0-CONTRACT-BASELINE.md
+→ docs/C00-CONSTITUTION-v1.0.md
+→ docs/C01-ARCHITECTURE-OWNERSHIP-v1.0.md
+→ docs/C02-ENGINEERING-OPERATIONS-v1.0.md
+→ applicable domain/data contract
+→ existing verified implementation/tests
+→ templates/EXECUTION-PACKET.md
+→ templates/CHANGE-MANIFEST.md
 ```
 
-Then load only contracts routed by `AGENTS.md` and the task class. Do not preload historical reports, duplicate versions, or unrelated gates.
+Do not load archived contracts unless explicitly asked for historical research.
 
-## 3. Required artifacts
+## 2. 1.0 mission
 
-T0:
-```text
-Scoped inspect → Change → Targeted check
-```
+Implement the declared 1.0 business closure without changing frozen topology or ownership.
 
-T1:
-```text
-Routed contracts
-→ Compact Semantic Contract Map
-→ Module Boundary Card
-→ Scoped Change Manifest
-→ Implement
-→ Targeted Verify
-→ Diff Scope Gate
-→ Evidence
-```
+MVP owners:
+`B01 Identity/User + B02 Content + B03 Media + B04 Social + B05 Feed + B06 Recommendation + B07 Search + B12 Topic + B13 History`.
 
-T2:
-```text
-Routed contracts
-→ Resolve Contract
-→ Semantic Contract Map
-→ Execution Packet
-→ Module Boundary Card
-→ Freeze Change Manifest
-→ Inspect implementation/tests
-→ Implement smallest complete change
-→ Targeted Verify immediately
-→ Diff Scope Gate
-→ Contract-driven adversarial verify
-→ Full applicable verify
-→ Evidence
-→ Capability Gate
-→ Status
-```
+Core path:
+`Auth → User → Content Create → Media Reference → Publish → Feed Read → Content Read → Social Action → Search → Topic → History`.
 
-Templates:
+Do not implement B08-B14 or B15-B21 merely because they may be useful later.
+
+## 3. Pre-development blocker
+
+Before claiming 1.0 middleware readiness, complete the required move-not-copy migration:
+
+- W04 `publish.ts` business semantics → B02 Content; media/object semantics → B03 Media; identity/author authorization → B01.
+- W06 content/media/identity-specific integrity rules → their semantic owners.
+- Preserve behavior, failure semantics, idempotency, persistence, and recovery.
+- Prove middleware purity after migration.
+
+Never delete first. Never leave two authoritative implementations.
+
+## 4. Frozen topology
+
+Do not add, split, merge, or rename Workers without an approved contract change.
 
 ```text
-templates/MODULE-BOUNDARY-CARD.md
-templates/EXECUTION-PACKET.md
-templates/CHANGE-MANIFEST.md
-templates/DIFF-SCOPE-GATE.md
-templates/CAPABILITY-GATE.md
+W01 Runtime Gateway
+W02 Shard Router
+W03 Query Engine
+W04 Write Engine
+W05 Cache
+W06 Control & Recovery
 ```
 
-## 4. Boundary before code
+Logical business boundaries do not require empty Workers. Instantiate physical business Workers only when the declared 1.0 implementation requires them and the repository contract permits it.
 
-Before T1/T2 coding, explicitly state:
+## 5. Task classification
+
+```text
+T0 = mechanical/no semantic behavior change
+T1 = bounded local capability
+T2 = cross-boundary, auth, tenant isolation, ownership, routing/epoch,
+     recovery, migration, schema, public API, or material performance/cost
+```
+
+Never downgrade a real T2 task.
+
+## 6. Boundary before code
+
+For every T1/T2, state:
 
 ```text
 MUST do
 MUST NOT do
 semantic owner
-state read/write + authoritative owner
+authoritative state
 allowed/forbidden dependencies
-interfaces/errors/side effects
-security/trust/tenant boundary
-resource/D1/network limits
+API/error/idempotency behavior
+security/tenant boundary
+D1/RPC/resource limits
 failure/recovery owner
 verification obligations
 ```
 
-Do not silently move responsibility to another module.
+Freeze the Change Manifest before implementation.
 
-## 5. Scope before code
+## 7. Implementation rules
 
-Freeze the Change Manifest. Implement only the approved capability.
+Use existing verified primitives. Prefer one semantic owner, one primary path, minimum correct code, minimum D1 reads/writes, minimum Worker/RPC hops, minimum dependencies, bounded retries, bounded fan-out, and cache-first reads where safe.
 
-Out-of-scope file, schema, dependency, public API, runtime behavior, or semantic-owner changes require a manifest revision with reason and verification.
+Do not add Redis/Kafka/RabbitMQ/Queue/DO/extra Worker/third-party infrastructure merely for convenience. New infrastructure requires a concrete requirement, real boundary, measurable benefit, resource/cost budget, and verification.
 
-## 6. Implementation
+Each independently deployable Worker MUST own its own `package.json`, Wrangler config, source, tests, and README. Never create a giant root dependency package.
 
-Prefer existing verified primitives, one primary path, one semantic owner, minimum code, minimum D1 I/O, minimum network hops, minimum dependencies.
+## 8. Verification
 
-Do not add Workers, queues, caches, coordinators, retry layers, persistent state, or abstractions unless requirement + invariant + real boundary + measurable benefit + verification are explicit.
+After each coherent boundary, verify immediately. At minimum for the applicable Worker:
 
-## 7. Verification
-
-Compilation is not semantic proof.
-
-After each coherent boundary, verify immediately. For protected boundaries, independently derive negative tests from contracts:
-
-```text
-wrong tenant
-unauthorized request
-stale epoch
-wrong owner
-duplicate mutation
-ambiguous commit
-partial failure
-migration interruption
-schema mismatch
-cache poisoning
-resource exhaustion
+```bash
+npm ci
+npm run typecheck
+npm test
+npm run build
 ```
 
-AI-governed changes additionally cover invalid/expired/superseded candidates, resource-budget violation, rollback, and authority downgrade.
+Also run applicable contract/API/schema/migration/idempotency/boundary/D1/E2E/concurrency/failure/recovery/security/performance/cost checks.
 
-Run only applicable verification levels required by the task risk and record omissions.
+Negative paths must cover applicable wrong tenant, unauthorized request, duplicate mutation, stale epoch, wrong owner, partial failure, migration interruption, schema mismatch, timeout/resource exhaustion, and compatibility failures.
 
-## 8. Gates
+Compilation is not proof of completion.
+
+## 9. Gates and evidence
 
 Before completion:
 
 ```text
-Actual diff
+Implementation
+→ Targeted Verify
+→ Boundary/Adversarial Verify
+→ Full Applicable Verify
 → Diff Scope Gate
-→ Contract / verification evidence
-→ Capability Gate for T2
+→ Evidence
+→ Commit
+→ Push
+→ CI PASS
 ```
 
-Do not self-certify completion. `CAPABILITY_PASS` requires the gate's applicable obligations and evidence.
+Evidence must identify the exact evaluated commit, environment, commands, results, limitations, and contract version.
 
-## 9. Evidence
+`PUSHED + CI PASS + exact-commit evidence` is the minimum valid completion state.
 
-Never claim implemented, verified, benchmarked, recovered, secure, or release-ready without actual evidence.
+## 10. STOP conditions
 
-Evidence MUST reference the exact evaluated commit, environment, commands, results, limitations, and contract version.
+Immediately STOP and report BLOCKED on:
 
-## 10. Stop conditions
+- contract conflict;
+- ambiguous ownership;
+- unauthorized topology/architecture change;
+- security or tenant-isolation bypass;
+- duplicate authoritative state/semantic implementation;
+- unbounded D1/RPC/fan-out/retry/payload behavior;
+- unproven recovery;
+- scope drift;
+- future-phase implementation;
+- P0/P1 defect;
+- fabricated, missing, or mismatched evidence.
 
-STOP and report BLOCKED on:
+## 11. Final instruction
 
-```text
-contract conflict
-ambiguous ownership
-security bypass
-cross-tenant leakage
-stale writer acceptance
-unbounded resource behavior
-unproven recovery
-scope drift
-semantic drift
-P0/P1 defect
-fabricated/mismatched evidence
-```
-
-## 11. Final rule
-
-> **Load the minimum correct context. Define the boundary. Freeze the scope. Implement the repository contract. Prove the diff and capability. Never redesign the architecture while coding.**
+**Do not overthink. Do not invent routes. Do not redesign. Read the minimum correct context, execute the declared scope in one coherent pass, verify continuously, and stop only at a proven repository state.**
