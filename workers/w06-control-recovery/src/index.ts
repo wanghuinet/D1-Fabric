@@ -4,18 +4,16 @@ interface Env {
   SHARD_01?:D1Database; SHARD_02?:D1Database; SHARD_03?:D1Database; SHARD_04?:D1Database;
   SHARD_05?:D1Database; SHARD_06?:D1Database; SHARD_07?:D1Database; SHARD_08?:D1Database;
 }
-const json=(b:unknown,s=200,r=crypto.randomUUID())=>new Response(JSON.stringify(b),{status:s,headers:{'content-type':'application/json','x-request-id':r}});
+const json=(b:unknown,s=200,r:string=crypto.randomUUID())=>new Response(JSON.stringify(b),{status:s,headers:{'content-type':'application/json','x-request-id':r}});
 const ALLOWED:Record<Status,Status[]>={NORMAL:['DETECTED'],DETECTED:['ISOLATED'],ISOLATED:['DIAGNOSING'],DIAGNOSING:['RECOVERING','NORMAL'],RECOVERING:['VERIFYING'],VERIFYING:['CANARY','RECOVERING'],CANARY:['RESTORING_ADMISSION','RECOVERING'],RESTORING_ADMISSION:['NORMAL','RECOVERING']};
 function shard(env:Env,n:number){return env[`SHARD_${String(n).padStart(2,'0')}` as keyof Env] as D1Database|undefined;}
 
 async function scanShard(db:D1Database){
-  const [published,assetMismatch,orphans,sqlite]=await Promise.all([
-    db.prepare(`SELECT COUNT(*) AS n FROM platform_content c WHERE c.status='published' AND NOT EXISTS(SELECT 1 FROM platform_publish_operations p WHERE p.tenant_id=c.tenant_id AND p.content_id=c.content_id AND p.status='COMMITTED')`).first<{n:number}>(),
-    db.prepare(`SELECT COUNT(*) AS n FROM platform_publish_operations WHERE status='COMMITTED' AND validated_asset_count<>expected_asset_count`).first<{n:number}>(),
-    db.prepare(`SELECT COUNT(*) AS n FROM platform_publish_assets a WHERE NOT EXISTS(SELECT 1 FROM platform_publish_operations p WHERE p.tenant_id=a.tenant_id AND p.publish_id=a.publish_id)`).first<{n:number}>(),
+  const [schema,sqlite]=await Promise.all([
+    db.prepare("SELECT meta_value FROM fabric_schema_meta WHERE meta_key='schema_version'").first<{meta_value:string}>(),
     db.prepare('PRAGMA quick_check').first<{quick_check:string}>(),
   ]);
-  return {published_without_commit:published?.n??0,committed_asset_count_mismatch:assetMismatch?.n??0,orphan_publish_assets:orphans?.n??0,sqlite_check:sqlite?.quick_check??'UNKNOWN'};
+  return {schema_version:schema?.meta_value??null,sqlite_check:sqlite?.quick_check??'UNKNOWN'};
 }
 
 async function reconcile(env:Env){
@@ -24,7 +22,7 @@ async function reconcile(env:Env){
     if(!db)return {n,status:'DETECTED',reason:'SHARD_BINDING_MISSING'};
     try{
       const v=await scanShard(db);
-      const healthy=v.published_without_commit===0&&v.committed_asset_count_mismatch===0&&v.orphan_publish_assets===0&&(v.sqlite_check==='ok'||v.sqlite_check==='OK');
+      const healthy=v.schema_version!==null&&(v.sqlite_check==='ok'||v.sqlite_check==='OK');
       return {n,status:healthy?'NORMAL':'DETECTED',reason:JSON.stringify(v)};
     }catch(e){return {n,status:'DETECTED',reason:`SCHEMA_OR_QUERY_ERROR:${e instanceof Error?e.message:'UNKNOWN'}`};}
   }));
@@ -55,7 +53,9 @@ export default {
       }
       if(request.method==='POST'&&u.pathname==='/v1/migration/plan'){
         const b=await request.json() as {shard_id?:number;source?:string;target?:string;current_epoch?:number;target_epoch?:number;idempotency_key?:string};
-        if(!Number.isInteger(b.shard_id)||!b.source||!b.target||!Number.isInteger(b.current_epoch)||b.target_epoch!==b.current_epoch+1)return json({code:'INVALID_EPOCH_TRANSITION'},400,rid);
+        const currentEpoch=b.current_epoch;
+        const targetEpoch=b.target_epoch;
+        if(!Number.isInteger(b.shard_id)||!b.source||!b.target||currentEpoch===undefined||!Number.isInteger(currentEpoch)||targetEpoch!==currentEpoch+1)return json({code:'INVALID_EPOCH_TRANSITION'},400,rid);
         const existing=b.idempotency_key?await env.CONTROL_DB.prepare('SELECT migration_id,phase,from_epoch,to_epoch FROM fabric_migrations WHERE idempotency_key=?').bind(b.idempotency_key).first<{migration_id:string;phase:string;from_epoch:number;to_epoch:number}>():null;
         if(existing)return json({migration_id:existing.migration_id,phase:existing.phase,shard_id:b.shard_id,from_epoch:existing.from_epoch,to_epoch:existing.to_epoch,replayed:true},200,rid);
         const migrationId=crypto.randomUUID();

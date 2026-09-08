@@ -1,7 +1,7 @@
 type ShardState = 'CREATING' | 'ACTIVE' | 'SPLITTING' | 'MERGING' | 'MIGRATING' | 'DRAINING' | 'RETIRED' | 'FAILED';
 interface ShardMeta { shardId: number; physical: string; owner: string; epoch: number; state: ShardState; }
 interface Env { SHARD_COUNT?: string; SHARD_MAP_JSON?: string; }
-const json = (body: unknown, status = 200, requestId = crypto.randomUUID()) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'x-request-id': requestId } });
+const json = (body: unknown, status = 200, requestId: string = crypto.randomUUID()) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'x-request-id': requestId } });
 function canonical(tenant: string, namespace: string, key: string): string { const part = (v: string) => `${v.length}:${v}`; return `${part(tenant)}|${part(namespace)}|${part(key)}`; }
 function fnv1a(input: string): number { let h = 0x811c9dc5; for (let i = 0; i < input.length; i++) { h ^= input.charCodeAt(i); h = Math.imul(h, 0x01000193); } return h >>> 0; }
 function loadShards(env: Env): ShardMeta[] {

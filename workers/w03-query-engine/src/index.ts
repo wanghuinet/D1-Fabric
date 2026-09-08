@@ -12,7 +12,7 @@ interface Env {
   MAX_ROWS?: string;
 }
 
-const json = (body: unknown, status = 200, requestId = crypto.randomUUID()) =>
+const json = (body: unknown, status = 200, requestId: string = crypto.randomUUID()) =>
   new Response(JSON.stringify(body), {
     status,
     headers: { 'content-type': 'application/json', 'x-request-id': requestId },
@@ -85,7 +85,7 @@ export default {
           return { shard_id: shardId, results: result.results.slice(0, maxRows), success: true };
         };
 
-        const results: Array<{ shard_id: number; results: unknown[]; success: true }> = [];
+        const results: Array<{ shard_id: number; results: unknown[]; success: boolean }> = [];
         const parallelism = Math.min(maxParallelism, shardIds.length);
         for (let i = 0; i < shardIds.length; i += parallelism) {
           if (Date.now() - started >= deadlineMs) return json({ code: 'TIMEOUT' }, 504, requestId);

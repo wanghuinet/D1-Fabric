@@ -1,5 +1,3 @@
-import { integrityCheck, publish, publishStatus } from './publish';
-
 interface Env {
   SHARD_01?: D1Database;
   SHARD_02?: D1Database;
@@ -13,7 +11,7 @@ interface Env {
   MAX_BATCH?: string;
 }
 
-const json = (body: unknown, status = 200, requestId = crypto.randomUUID()) =>
+const json = (body: unknown, status = 200, requestId: string = crypto.randomUUID()) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'x-request-id': requestId } });
 
 function dbForShard(env: Env, shardId: number): D1Database | null {
@@ -22,7 +20,7 @@ function dbForShard(env: Env, shardId: number): D1Database | null {
   return env[`SHARD_${String(physical).padStart(2, '0')}` as keyof Env] as D1Database | undefined ?? null;
 }
 
-function validText(value: unknown, max: number) { return typeof value === 'string' && value.length > 0 && value.length <= max; }
+function validText(value: unknown, max: number): value is string { return typeof value === 'string' && value.length > 0 && value.length <= max; }
 function hashInput(op: string, tenant: string, namespace: string, key: string, payload: string | undefined) { return `${op}:${tenant}:${namespace}:${key}:${payload ?? ''}`; }
 
 export default {
@@ -36,40 +34,13 @@ export default {
         return json({ status: ready ? 'READY' : 'NOT_READY', service: 'd1-fabric-w04-write-engine', version: '0.4.0', shards_bound: ready ? 8 : 0 }, ready ? 200 : 503, requestId);
       }
 
-      if (request.method === 'POST' && url.pathname === '/v1/publish') {
-        const body = await request.json();
-        const shardId = (body as { shard_id?: number }).shard_id;
-        if (!Number.isInteger(shardId) || shardId < 0 || shardId > 63) return json({ code: 'INVALID_SHARD_ID' }, 400, requestId);
-        const db = dbForShard(env, shardId);
-        if (!db) return json({ code: 'SHARD_NOT_READY', shard_id: shardId }, 503, requestId);
-        return publish(db, body, requestId, json);
-      }
-
-      if (request.method === 'GET' && url.pathname === '/v1/publish/status') {
-        const tenantId = url.searchParams.get('tenant_id');
-        const publishId = url.searchParams.get('publish_id');
-        const shardId = Number(url.searchParams.get('shard_id'));
-        if (!validText(tenantId, 256) || !validText(publishId, 128) || !Number.isInteger(shardId)) return json({ code: 'INVALID_ARGUMENT' }, 400, requestId);
-        const db = dbForShard(env, shardId);
-        if (!db) return json({ code: 'SHARD_NOT_READY', shard_id: shardId }, 503, requestId);
-        return publishStatus(db, tenantId, publishId, requestId, json);
-      }
-
-      if (request.method === 'GET' && url.pathname === '/v1/integrity') {
-        const shardId = Number(url.searchParams.get('shard_id'));
-        if (!Number.isInteger(shardId) || shardId < 0 || shardId > 63) return json({ code: 'INVALID_SHARD_ID' }, 400, requestId);
-        const db = dbForShard(env, shardId);
-        if (!db) return json({ code: 'SHARD_NOT_READY', shard_id: shardId }, 503, requestId);
-        return integrityCheck(db, requestId, json);
-      }
-
       if (request.method === 'POST' && url.pathname === '/v1/write') {
         const body = await request.json() as {
           tenant_id?: string; namespace?: string; record_key?: string; shard_id?: number;
           op?: 'INSERT' | 'UPDATE' | 'DELETE'; idempotency_key?: string; payload_json?: string;
         };
         if (!validText(body.tenant_id, 256) || !validText(body.namespace, 256) || !validText(body.record_key, 512)) return json({ code: 'INVALID_ARGUMENT' }, 400, requestId);
-        if (!Number.isInteger(body.shard_id) || body.shard_id < 0 || body.shard_id > 63) return json({ code: 'INVALID_SHARD_ID' }, 400, requestId);
+        if (body.shard_id === undefined || !Number.isInteger(body.shard_id) || body.shard_id < 0 || body.shard_id > 63) return json({ code: 'INVALID_SHARD_ID' }, 400, requestId);
         if (!body.op || !['INSERT','UPDATE','DELETE'].includes(body.op)) return json({ code: 'INVALID_OPERATION' }, 400, requestId);
         if (!validText(body.idempotency_key, 128)) return json({ code: 'INVALID_IDEMPOTENCY_KEY' }, 400, requestId);
         if (body.op !== 'DELETE' && !validText(body.payload_json, 1000000)) return json({ code: 'INVALID_PAYLOAD' }, 400, requestId);

@@ -2,5 +2,10 @@
   "name": "d1-fabric-w01-runtime-gateway",
   "main": "src/index.ts",
   "compatibility_date": "2026-09-07",
-  "workers_dev": true
+  "workers_dev": true,
+  "services": [
+    { "binding": "ROUTER", "service": "d1-fabric-w02-shard-router" },
+    { "binding": "QUERY", "service": "d1-fabric-w03-query-engine" },
+    { "binding": "WRITE", "service": "d1-fabric-w04-write-engine" }
+  ]
 }
