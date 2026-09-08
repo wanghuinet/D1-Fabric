@@ -36,6 +36,30 @@ Decision matrix:
 | Existing code conflicts with contract | STOP; report; follow approved remediation/change process |
 | A better/faster/more advanced idea appears | Do not implement; record only if the task explicitly requests proposals |
 
+### 3.1 Implementation thought budget
+
+When a task is contract-complete, DeepSeek MUST minimize reasoning that cannot change the implementation. It may inspect only the minimum repository context required to verify the declared contract, ownership, dependencies, and change manifest.
+
+The agent MUST NOT:
+
+- reopen an already frozen architecture decision;
+- compare alternative architectures when one is already contracted;
+- design speculative abstractions;
+- optimize code that is outside the frozen scope;
+- add compatibility layers for hypothetical future versions;
+- create future Workers, queues, databases, caches, or infrastructure;
+- perform opportunistic cleanup or refactoring;
+- turn a local implementation task into an architecture review.
+
+Preferred behavior:
+
+```text
+contract answer exists → execute
+implementation choice exists in manifest → execute
+multiple explicitly allowed choices → choose smallest safe one
+missing answer / conflict / failure → STOP
+```
+
 Forbidden speculative behavior includes: “顺便优化”, “未来可能需要”, “更先进的方案”, autonomous route redesign, unnecessary abstraction, premature extensibility, extra Worker creation, infrastructure substitution, and opportunistic refactoring.
 
 1.0 implementation is **low-autonomy execution**. Future architectural evolution is handled only through the versioned Contract Evolution Protocol; AI must not smuggle future evolution into 1.0 code.
@@ -92,11 +116,14 @@ The system MUST prefer:
 - fewer D1 rows written, especially redundant writes and unnecessary indexed-column write amplification;
 - fewer D1 rows read through selective predicates, correct indexes, narrow projections, and keyset/cursor pagination;
 - cache hits before authoritative D1 reads where staleness is contractually safe;
+- edge/cache termination before invoking dynamic Worker/D1 paths when the response is safely cacheable;
 - bounded batch/transaction writes instead of repeated single-row operations when semantics permit;
 - one bounded Worker/RPC path instead of synchronous cascades;
 - bounded fan-out, payload size, retries, and CPU work;
 - R2 for binary media and D1 for metadata/state rather than storing large blobs in D1;
 - measurement-driven optimization using actual D1 `rows_read`/`rows_written` and Worker request/CPU usage.
+
+The optimization target is **billable-work avoidance**, not merely faster execution. A faster query that scans the same large number of D1 rows is not considered cost-optimized.
 
 No agent may add a cache, queue, Durable Object, extra Worker, database, or third-party system solely because it might reduce cost. Any such infrastructure requires an explicit requirement, ownership boundary, measurable benefit, budget, and verification.
 
