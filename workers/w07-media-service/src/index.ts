@@ -1,5 +1,5 @@
 import { ok, fail, requestId } from '../../_shared/response';
-import { resolveShard } from '../../_shared/router';
+import { resolveShard, dbForPhysical } from '../../_shared/router';
 
 interface Env {
   SHARD_01?: D1Database;
@@ -16,12 +16,6 @@ interface Env {
 
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024; // 100 MB
 const ALLOWED_MEDIA_TYPES = new Set(['image', 'video', 'audio', 'document', 'other']);
-
-function dbForShard(env: Env, shardId: number): D1Database | null {
-  if (!Number.isInteger(shardId) || shardId < 0 || shardId > 63) return null;
-  const physical = (shardId % 8) + 1;
-  return env[`SHARD_${String(physical).padStart(2, '0')}` as keyof Env] as D1Database | undefined ?? null;
-}
 
 function detectMediaType(mime: string | null): string {
   if (!mime) return 'other';
@@ -61,14 +55,18 @@ export default {
 
         // Route media by content_id (colocated with content for publish validation).
         let shardId: number;
+        let db: D1Database | null = null;
         try {
           const route = await resolveShard(env.ROUTER, tenantId, 'content', contentId);
           shardId = route.shard_id;
+          db = dbForPhysical(env, route.physical);
         } catch (e) { return fail(e instanceof Error ? e.message : 'ROUTER_ERROR', rid, 503, undefined, true); }
 
         const r2Key = `${tenantId}/${contentId}/${mediaId}`;
         const arrayBuffer = await request.arrayBuffer();
         if (arrayBuffer.byteLength > MAX_UPLOAD_BYTES) return fail('PAYLOAD_TOO_LARGE', rid, 413);
+
+        if (!db) return fail('SHARD_NOT_READY', rid, 503, `shard ${shardId} not bound`);
 
         // R2 upload is outside the D1 ACID boundary (Content Schema §R2 boundary).
         // We upload first, then write the DB record. If DB write fails, the R2
@@ -77,12 +75,6 @@ export default {
           httpMetadata: { contentType: ct },
           customMetadata: { tenant_id: tenantId, media_id: mediaId, owner_id: ownerId },
         });
-
-        const db = dbForShard(env, shardId);
-        if (!db) {
-          // R2 object already uploaded; leave as orphan for reconciliation.
-          return fail('SHARD_NOT_READY', rid, 503, `shard ${shardId} not bound`);
-        }
 
         const byteSize = arrayBuffer.byteLength;
         await db.prepare(`INSERT OR REPLACE INTO platform_media(tenant_id,media_id,owner_id,content_id,media_type,object_key,r2_key,mime_type,byte_size,upload_status) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,'uploaded')`)
@@ -110,12 +102,11 @@ export default {
         const contentId = url.searchParams.get('content_id');
         if (!tenantId || !mediaId) return fail('INVALID_ARGUMENT', rid, 400);
         if (!contentId) return fail('CONTENT_ID_REQUIRED', rid, 400);
-        let shardId: number;
+        let db: D1Database | null = null;
         try {
           const route = await resolveShard(env.ROUTER, tenantId, 'content', contentId);
-          shardId = route.shard_id;
+          db = dbForPhysical(env, route.physical);
         } catch (e) { return fail(e instanceof Error ? e.message : 'ROUTER_ERROR', rid, 503, undefined, true); }
-        const db = dbForShard(env, shardId);
         if (!db) return fail('SHARD_NOT_READY', rid, 503);
         const row = await db.prepare('SELECT * FROM platform_media WHERE tenant_id=?1 AND media_id=?2 LIMIT 1').bind(tenantId, mediaId).first();
         if (!row) return fail('MEDIA_NOT_FOUND', rid, 404);

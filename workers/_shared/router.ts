@@ -13,6 +13,25 @@ export interface RouteResult {
   canonical_routing_identity: string;
 }
 
+// Map a W02 route result's `physical` shard identifier (e.g. "shard-01" or
+// "d1-fabric-shard-01") to the local D1 binding name (e.g. "SHARD_01").
+//
+// This is the single source of truth for physical-binding resolution. Workers
+// MUST NOT derive the physical shard from the logical shard id (e.g. shardId % 8);
+// they MUST resolve the binding from the `physical` field returned by W02.
+export function physicalBinding(physical: string): string | null {
+  const m = /(\d{1,2})\s*$/.exec((physical ?? '').trim());
+  if (!m) return null;
+  return `SHARD_${m[1].padStart(2, '0')}`;
+}
+
+// Resolve the physical D1 binding for a W02 route result's `physical` field.
+export function dbForPhysical(env: unknown, physical: string): D1Database | null {
+  const binding = physicalBinding(physical);
+  if (!binding) return null;
+  return ((env as { [key: string]: unknown })[binding] as D1Database | undefined) ?? null;
+}
+
 export async function resolveShard(
   router: Fetcher,
   tenantId: string,

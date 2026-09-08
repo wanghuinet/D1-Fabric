@@ -1,5 +1,5 @@
 import { ok, fail, requestId } from '../../_shared/response';
-import { resolveShard } from '../../_shared/router';
+import { resolveShard, dbForPhysical } from '../../_shared/router';
 
 interface Env {
   SHARD_01?: D1Database;
@@ -55,13 +55,11 @@ async function processEvent(env: Env, db: D1Database, ev: OutboxEvent): Promise<
     if (ev.event_type === 'follow.created') {
       // Cross-shard: update followee's fans_count on followee's shard.
       const followeeId = payload.followee_id as string;
-      let followeeShard: number;
+      let followeeDb: D1Database | null = null;
       try {
         const route = await resolveShard(env.ROUTER, ev.tenant_id, 'users', followeeId);
-        followeeShard = route.shard_id;
+        followeeDb = dbForPhysical(env, route.physical);
       } catch { return false; } // retry later
-      const physical = (followeeShard % 8) + 1;
-      const followeeDb = env[`SHARD_${String(physical).padStart(2, '0')}` as keyof Env] as D1Database | undefined;
       if (!followeeDb) return false;
       await followeeDb.prepare('UPDATE platform_users SET fans_count=fans_count+1 WHERE tenant_id=?1 AND user_id=?2').bind(ev.tenant_id, followeeId).run();
       await followeeDb.prepare('UPDATE platform_authors SET fans_count=fans_count+1 WHERE tenant_id=?1 AND author_id=?2').bind(ev.tenant_id, followeeId).run();

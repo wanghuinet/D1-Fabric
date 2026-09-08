@@ -1,5 +1,5 @@
 import { ok, fail, requestId } from '../../_shared/response';
-import { resolveShard } from '../../_shared/router';
+import { resolveShard, dbForPhysical } from '../../_shared/router';
 
 interface Env {
   SHARD_01?: D1Database;
@@ -11,12 +11,6 @@ interface Env {
   SHARD_07?: D1Database;
   SHARD_08?: D1Database;
   ROUTER: Fetcher;
-}
-
-function dbForShard(env: Env, shardId: number): D1Database | null {
-  if (!Number.isInteger(shardId) || shardId < 0 || shardId > 63) return null;
-  const physical = (shardId % 8) + 1;
-  return env[`SHARD_${String(physical).padStart(2, '0')}` as keyof Env] as D1Database | undefined ?? null;
 }
 
 function bounded(value: unknown, fallback: number, max: number) {
@@ -82,11 +76,12 @@ export default {
         const meta = ENTITY_MAP[body.entity];
         if (!meta) return fail('INVALID_ENTITY', rid, 400);
         let shardId: number;
+        let db: D1Database | null = null;
         try {
           const route = await resolveShard(env.ROUTER, body.tenant_id, meta.namespace ?? body.entity, body.id);
           shardId = route.shard_id;
+          db = dbForPhysical(env, route.physical);
         } catch (e) { return fail(e instanceof Error ? e.message : 'ROUTER_ERROR', rid, 503, undefined, true); }
-        const db = dbForShard(env, shardId);
         if (!db) return fail('SHARD_NOT_READY', rid, 503);
         const row = await db.prepare(`SELECT * FROM ${meta.table} WHERE tenant_id=?1 AND ${meta.routingField}=?2 LIMIT 1`).bind(body.tenant_id, body.id).first();
         if (!row) return fail('NOT_FOUND', rid, 404);
@@ -113,11 +108,12 @@ export default {
         }
         if (!body.routing_key) return fail('ROUTING_KEY_REQUIRED', rid, 400, 'list queries must provide routing_key for shard-local execution');
         let shardId: number;
+        let db: D1Database | null = null;
         try {
           const route = await resolveShard(env.ROUTER, body.tenant_id, meta.namespace ?? body.entity, body.routing_key);
           shardId = route.shard_id;
+          db = dbForPhysical(env, route.physical);
         } catch (e) { return fail(e instanceof Error ? e.message : 'ROUTER_ERROR', rid, 503, undefined, true); }
-        const db = dbForShard(env, shardId);
         if (!db) return fail('SHARD_NOT_READY', rid, 503);
 
         const limit = bounded(body.limit, 20, 100);

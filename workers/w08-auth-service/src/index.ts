@@ -1,5 +1,5 @@
 import { ok, fail, requestId } from '../../_shared/response';
-import { resolveShard } from '../../_shared/router';
+import { resolveShard, dbForPhysical } from '../../_shared/router';
 import { signToken, verifyToken, extractBearer, hashPassword, verifyPassword } from '../../_shared/auth';
 
 interface Env {
@@ -14,12 +14,6 @@ interface Env {
   ROUTER: Fetcher;
   JWT_SECRET: string;
   DEFAULT_TENANT_ID?: string;
-}
-
-function dbForShard(env: Env, shardId: number): D1Database | null {
-  if (!Number.isInteger(shardId) || shardId < 0 || shardId > 63) return null;
-  const physical = (shardId % 8) + 1;
-  return env[`SHARD_${String(physical).padStart(2, '0')}` as keyof Env] as D1Database | undefined ?? null;
 }
 
 function sha256Hex(input: string): Promise<string> {
@@ -59,12 +53,11 @@ export default {
 
         const userId = crypto.randomUUID();
         // Users routed by user_id. Authors colocated with users.
-        let shardId: number;
+        let db: D1Database | null = null;
         try {
           const route = await resolveShard(env.ROUTER, tenantId, 'users', userId);
-          shardId = route.shard_id;
+          db = dbForPhysical(env, route.physical);
         } catch (e) { return fail(e instanceof Error ? e.message : 'ROUTER_ERROR', rid, 503, undefined, true); }
-        const db = dbForShard(env, shardId);
         if (!db) return fail('SHARD_NOT_READY', rid, 503);
 
         try {
@@ -102,13 +95,13 @@ export default {
           .filter((db): db is D1Database => !!db);
 
         let userRow: { user_id: string; password_hash: string; display_name: string } | null = null;
-        let userShardId = 0;
+        let userDb: D1Database | null = null;
         for (let i = 0; i < dbs.length; i++) {
           const db = dbs[i];
           const where = phoneHash ? 'phone_hash=?2' : 'email_hash=?2';
           const param = phoneHash ?? emailHash;
           const row = await db.prepare(`SELECT user_id,password_hash,display_name FROM platform_users WHERE tenant_id=?1 AND ${where} LIMIT 1`).bind(tenantId, param).first<{ user_id: string; password_hash: string; display_name: string }>();
-          if (row) { userRow = row; userShardId = i + 1; break; }
+          if (row) { userRow = row; userDb = db; break; }
         }
         if (!userRow) return fail('INVALID_CREDENTIALS', rid, 401);
 
@@ -121,7 +114,7 @@ export default {
         const tokenRaw = crypto.randomUUID();
         const tokenHash = await sha256Hex(tokenRaw);
         const expiresAt = new Date(Date.now() + SESSION_TTL_SECONDS * 1000).toISOString();
-        const db = dbForShard(env, userShardId);
+        const db = userDb;
         if (!db) return fail('SHARD_NOT_READY', rid, 503);
         await db.prepare('INSERT INTO platform_user_sessions(tenant_id,session_id,user_id,device_id,token_hash,expires_at) VALUES(?1,?2,?3,?4,?5,?6)')
           .bind(tenantId, sessionId, userRow.user_id, body.device_id ?? 'unknown', tokenHash, expiresAt)
@@ -150,12 +143,11 @@ export default {
         if (!token) return fail('UNAUTHORIZED', rid, 401);
         const payload = await verifyToken(token, env.JWT_SECRET);
         if (!payload) return fail('INVALID_TOKEN', rid, 401);
-        let shardId: number;
+        let db: D1Database | null = null;
         try {
           const route = await resolveShard(env.ROUTER, payload.tenant_id, 'users', payload.user_id);
-          shardId = route.shard_id;
+          db = dbForPhysical(env, route.physical);
         } catch (e) { return fail(e instanceof Error ? e.message : 'ROUTER_ERROR', rid, 503, undefined, true); }
-        const db = dbForShard(env, shardId);
         if (!db) return fail('SHARD_NOT_READY', rid, 503);
         await db.prepare('UPDATE platform_user_sessions SET revoked_at=CURRENT_TIMESTAMP WHERE tenant_id=?1 AND session_id=?2').bind(payload.tenant_id, payload.session_id).run();
         return ok({ logged_out: true }, rid);

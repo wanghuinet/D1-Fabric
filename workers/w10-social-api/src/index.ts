@@ -1,5 +1,5 @@
 import { ok, fail, requestId } from '../../_shared/response';
-import { resolveShard } from '../../_shared/router';
+import { resolveShard, dbForPhysical } from '../../_shared/router';
 
 interface Env {
   SHARD_01?: D1Database;
@@ -11,12 +11,6 @@ interface Env {
   SHARD_07?: D1Database;
   SHARD_08?: D1Database;
   ROUTER: Fetcher;
-}
-
-function dbForShard(env: Env, shardId: number): D1Database | null {
-  if (!Number.isInteger(shardId) || shardId < 0 || shardId > 63) return null;
-  const physical = (shardId % 8) + 1;
-  return env[`SHARD_${String(physical).padStart(2, '0')}` as keyof Env] as D1Database | undefined ?? null;
 }
 
 const text = (v: unknown, max: number) => typeof v === 'string' && v.length > 0 && v.length <= max;
@@ -43,11 +37,12 @@ export default {
         if (!text(body.body_text, 5000)) return fail('INVALID_BODY', rid, 400);
 
         let shardId: number;
+        let db: D1Database | null = null;
         try {
           const route = await resolveShard(env.ROUTER, body.tenant_id!, 'content', body.content_id!);
           shardId = route.shard_id;
+          db = dbForPhysical(env, route.physical);
         } catch (e) { return fail(e instanceof Error ? e.message : 'ROUTER_ERROR', rid, 503, undefined, true); }
-        const db = dbForShard(env, shardId);
         if (!db) return fail('SHARD_NOT_READY', rid, 503);
 
         // Idempotency
@@ -79,12 +74,11 @@ export default {
         const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit') ?? 20)));
         const cursor = url.searchParams.get('cursor');
         if (!tenantId || !contentId) return fail('INVALID_ARGUMENT', rid, 400);
-        let shardId: number;
+        let db: D1Database | null = null;
         try {
           const route = await resolveShard(env.ROUTER, tenantId!, 'content', contentId!);
-          shardId = route.shard_id;
+          db = dbForPhysical(env, route.physical);
         } catch (e) { return fail(e instanceof Error ? e.message : 'ROUTER_ERROR', rid, 503, undefined, true); }
-        const db = dbForShard(env, shardId);
         if (!db) return fail('SHARD_NOT_READY', rid, 503);
         const where = ['tenant_id=?1', 'content_id=?2', "parent_comment_id IS NULL", 'status=?3'];
         const binds: unknown[] = [tenantId, contentId, 'published'];
@@ -116,12 +110,11 @@ export default {
           return fail('INVALID_ARGUMENT', rid, 400);
         if (!body.reaction_type || !['like', 'bookmark', 'dislike'].includes(body.reaction_type)) return fail('INVALID_REACTION_TYPE', rid, 400);
 
-        let shardId: number;
+        let db: D1Database | null = null;
         try {
           const route = await resolveShard(env.ROUTER, body.tenant_id!, 'content', body.content_id!);
-          shardId = route.shard_id;
+          db = dbForPhysical(env, route.physical);
         } catch (e) { return fail(e instanceof Error ? e.message : 'ROUTER_ERROR', rid, 503, undefined, true); }
-        const db = dbForShard(env, shardId);
         if (!db) return fail('SHARD_NOT_READY', rid, 503);
 
         const existing = await db.prepare("SELECT status FROM platform_reactions WHERE tenant_id=?1 AND content_id=?2 AND user_id=?3 AND reaction_type=?4 LIMIT 1").bind(body.tenant_id, body.content_id, body.user_id, body.reaction_type).first<{ status: string }>();
@@ -146,12 +139,11 @@ export default {
         const userId = url.searchParams.get('user_id');
         const reactionType = url.searchParams.get('reaction_type');
         if (!tenantId || !contentId || !userId || !reactionType) return fail('INVALID_ARGUMENT', rid, 400);
-        let shardId: number;
+        let db: D1Database | null = null;
         try {
           const route = await resolveShard(env.ROUTER, tenantId!, 'content', contentId!);
-          shardId = route.shard_id;
+          db = dbForPhysical(env, route.physical);
         } catch (e) { return fail(e instanceof Error ? e.message : 'ROUTER_ERROR', rid, 503, undefined, true); }
-        const db = dbForShard(env, shardId);
         if (!db) return fail('SHARD_NOT_READY', rid, 503);
         const counterField = reactionType === 'like' ? 'like_count' : reactionType === 'dislike' ? 'dislike_count' : null;
         const statements: D1PreparedStatement[] = [
@@ -175,12 +167,11 @@ export default {
         if (body.follower_id === body.followee_id) return fail('CANNOT_FOLLOW_SELF', rid, 400);
 
         // Route by follower_id (follow list is follower-centric)
-        let shardId: number;
+        let db: D1Database | null = null;
         try {
           const route = await resolveShard(env.ROUTER, body.tenant_id!, 'follows', body.follower_id!);
-          shardId = route.shard_id;
+          db = dbForPhysical(env, route.physical);
         } catch (e) { return fail(e instanceof Error ? e.message : 'ROUTER_ERROR', rid, 503, undefined, true); }
-        const db = dbForShard(env, shardId);
         if (!db) return fail('SHARD_NOT_READY', rid, 503);
 
         const existing = await db.prepare("SELECT status FROM platform_follows WHERE tenant_id=?1 AND follower_id=?2 AND followee_id=?3 LIMIT 1").bind(body.tenant_id, body.follower_id, body.followee_id).first<{ status: string }>();
@@ -204,12 +195,11 @@ export default {
         const followerId = url.searchParams.get('follower_id');
         const followeeId = url.searchParams.get('followee_id');
         if (!tenantId || !followerId || !followeeId) return fail('INVALID_ARGUMENT', rid, 400);
-        let shardId: number;
+        let db: D1Database | null = null;
         try {
           const route = await resolveShard(env.ROUTER, tenantId!, 'follows', followerId!);
-          shardId = route.shard_id;
+          db = dbForPhysical(env, route.physical);
         } catch (e) { return fail(e instanceof Error ? e.message : 'ROUTER_ERROR', rid, 503, undefined, true); }
-        const db = dbForShard(env, shardId);
         if (!db) return fail('SHARD_NOT_READY', rid, 503);
         await db.batch([
           db.prepare("UPDATE platform_follows SET status='removed' WHERE tenant_id=?1 AND follower_id=?2 AND followee_id=?3").bind(tenantId, followerId, followeeId),
