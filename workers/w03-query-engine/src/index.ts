@@ -26,13 +26,16 @@ function bounded(value: unknown, fallback: number, max: number) {
 
 // Allowed entity → table + primary routing key field. Hot-path rule: feed
 // queries never SELECT body_json.
-const ENTITY_MAP: Record<string, { table: string; routingField: string; listColumns: string }> = {
+// `namespace` overrides the namespace used when resolving the shard via W02 so
+// the read path matches the write path's routing identity (canonical
+// namespace + key). Defaults to the entity name when unspecified.
+const ENTITY_MAP: Record<string, { table: string; routingField: string; listColumns: string; namespace?: string }> = {
   content: { table: 'platform_content', routingField: 'content_id', listColumns: 'content_id,author_id,content_type,title,summary,cover_url,status,visibility,publish_at,like_count,comment_count,share_count,tags_json' },
   users: { table: 'platform_users', routingField: 'user_id', listColumns: 'user_id,display_name,avatar_media_id,bio,locale,region,status,is_creator,fans_count,following_count,created_at' },
-  authors: { table: 'platform_authors', routingField: 'author_id', listColumns: 'author_id,user_id,creator_type,author_name,avatar_media_id,verification_status,quality_score,status,fans_count,content_count,description,category,created_at' },
+  authors: { table: 'platform_authors', routingField: 'author_id', namespace: 'users', listColumns: 'author_id,user_id,creator_type,author_name,avatar_media_id,verification_status,quality_score,status,fans_count,content_count,description,category,created_at' },
   comments: { table: 'platform_comments', routingField: 'comment_id', listColumns: 'comment_id,content_id,user_id,parent_comment_id,root_comment_id,body_text,status,like_count,reply_count,created_at' },
   media: { table: 'platform_media', routingField: 'media_id', listColumns: 'media_id,owner_id,content_id,media_type,mime_type,byte_size,width,height,duration_ms,cdn_url,upload_status,created_at' },
-  reactions: { table: 'platform_reactions', routingField: 'content_id', listColumns: 'content_id,user_id,reaction_type,status,created_at' },
+  reactions: { table: 'platform_reactions', routingField: 'content_id', namespace: 'content', listColumns: 'content_id,user_id,reaction_type,status,created_at' },
   follows: { table: 'platform_follows', routingField: 'follower_id', listColumns: 'follower_id,followee_id,status,created_at' },
 };
 
@@ -80,7 +83,7 @@ export default {
         if (!meta) return fail('INVALID_ENTITY', rid, 400);
         let shardId: number;
         try {
-          const route = await resolveShard(env.ROUTER, body.tenant_id, body.entity, body.id);
+          const route = await resolveShard(env.ROUTER, body.tenant_id, meta.namespace ?? body.entity, body.id);
           shardId = route.shard_id;
         } catch (e) { return fail(e instanceof Error ? e.message : 'ROUTER_ERROR', rid, 503, undefined, true); }
         const db = dbForShard(env, shardId);
@@ -111,7 +114,7 @@ export default {
         if (!body.routing_key) return fail('ROUTING_KEY_REQUIRED', rid, 400, 'list queries must provide routing_key for shard-local execution');
         let shardId: number;
         try {
-          const route = await resolveShard(env.ROUTER, body.tenant_id, body.entity, body.routing_key);
+          const route = await resolveShard(env.ROUTER, body.tenant_id, meta.namespace ?? body.entity, body.routing_key);
           shardId = route.shard_id;
         } catch (e) { return fail(e instanceof Error ? e.message : 'ROUTER_ERROR', rid, 503, undefined, true); }
         const db = dbForShard(env, shardId);

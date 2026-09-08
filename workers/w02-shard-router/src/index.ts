@@ -6,8 +6,10 @@ function canonical(tenant: string, namespace: string, key: string): string { con
 function fnv1a(input: string): number { let h = 0x811c9dc5; for (let i = 0; i < input.length; i++) { h ^= input.charCodeAt(i); h = Math.imul(h, 0x01000193); } return h >>> 0; }
 function loadShards(env: Env): ShardMeta[] {
   if (env.SHARD_MAP_JSON) { const parsed = JSON.parse(env.SHARD_MAP_JSON) as ShardMeta[]; if (!Array.isArray(parsed) || parsed.length === 0) throw new Error('INVALID_SHARD_MAP'); return parsed; }
-  const count = Math.max(1, Math.min(4096, Number(env.SHARD_COUNT ?? 16)));
-  return Array.from({ length: count }, (_, shardId) => ({ shardId, physical: `D1-${shardId}`, owner: 'unassigned', epoch: 1, state: 'ACTIVE' }));
+  // Default topology MUST match the control plane seed: 64 logical shards
+  // deterministically striped across 8 physical D1s (control schema 0001).
+  const count = Math.max(1, Math.min(4096, Number(env.SHARD_COUNT ?? 64)));
+  return Array.from({ length: count }, (_, shardId) => ({ shardId, physical: `shard-${String((shardId % 8) + 1).padStart(2, '0')}`, owner: `shard-${String((shardId % 8) + 1).padStart(2, '0')}`, epoch: 1, state: 'ACTIVE' }));
 }
 export default { async fetch(request: Request, env: Env): Promise<Response> {
   const rid = request.headers.get('x-request-id')?.slice(0, 128) || crypto.randomUUID();
