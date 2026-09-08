@@ -2,5 +2,16 @@
   "name": "d1-fabric-w01-runtime-gateway",
   "main": "src/index.ts",
   "compatibility_date": "2026-09-07",
-  "workers_dev": true
+  "workers_dev": true,
+  "services": [
+    { "binding": "W02_ROUTER", "service": "d1-fabric-w02-shard-router" },
+    { "binding": "W03_QUERY", "service": "d1-fabric-w03-query-engine" },
+    { "binding": "W04_WRITE", "service": "d1-fabric-w04-write-engine" },
+    { "binding": "W05_CACHE", "service": "d1-fabric-w05-cache" },
+    { "binding": "W06_CONTROL", "service": "d1-fabric-w06-control-recovery" },
+    { "binding": "W07_MEDIA", "service": "d1-fabric-w07-media-service" },
+    { "binding": "W08_AUTH", "service": "d1-fabric-w08-auth-service" },
+    { "binding": "W09_CONTENT", "service": "d1-fabric-w09-content-api" },
+    { "binding": "W10_SOCIAL", "service": "d1-fabric-w10-social-api" }
+  ]
 }
