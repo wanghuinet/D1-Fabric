@@ -1,5 +1,5 @@
 {
-  "name": "d1-fabric-w03-query-engine",
+  "name": "d1-fabric-w07-media-service",
   "main": "src/index.ts",
   "compatibility_date": "2026-09-07",
   "workers_dev": true,
@@ -15,5 +15,8 @@
     { "binding": "SHARD_06", "database_name": "d1-fabric-shard-06", "database_id": "a4abacd7-d76b-45fd-a391-4c6fac39b55f" },
     { "binding": "SHARD_07", "database_name": "d1-fabric-shard-07", "database_id": "33759570-43c5-4d57-83e8-30ad1380d5f3" },
     { "binding": "SHARD_08", "database_name": "d1-fabric-shard-08", "database_id": "f6f8554f-fb1f-47ed-b669-8aa34bc4071d" }
+  ],
+  "r2_buckets": [
+    { "binding": "MEDIA_BUCKET", "bucket_name": "d1-fabric-media" }
   ]
 }

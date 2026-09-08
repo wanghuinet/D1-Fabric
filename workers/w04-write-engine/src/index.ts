@@ -1,4 +1,6 @@
 import { integrityCheck, publish, publishStatus } from './publish';
+import { ok, fail, requestId } from '../../_shared/response';
+import { resolveShard } from '../../_shared/router';
 
 interface Env {
   SHARD_01?: D1Database;
@@ -9,12 +11,11 @@ interface Env {
   SHARD_06?: D1Database;
   SHARD_07?: D1Database;
   SHARD_08?: D1Database;
-  MAX_RETRIES?: string;
-  MAX_BATCH?: string;
+  ROUTER: Fetcher;
 }
 
-const json = (body: unknown, status = 200, requestId = crypto.randomUUID()) =>
-  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'x-request-id': requestId } });
+const json = (body: unknown, status = 200, rid = crypto.randomUUID()) =>
+  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'x-request-id': rid } });
 
 function dbForShard(env: Env, shardId: number): D1Database | null {
   if (!Number.isInteger(shardId) || shardId < 0 || shardId > 63) return null;
@@ -27,65 +28,92 @@ function hashInput(op: string, tenant: string, namespace: string, key: string, p
 
 export default {
   async fetch(request: Request, env: Env) {
-    const requestId = request.headers.get('x-request-id')?.slice(0, 128) || crypto.randomUUID();
+    const rid = requestId(request);
     try {
       const url = new URL(request.url);
 
       if (request.method === 'GET' && url.pathname === '/health') {
         const ready = [1,2,3,4,5,6,7,8].every((n) => !!env[`SHARD_${String(n).padStart(2, '0')}` as keyof Env]);
-        return json({ status: ready ? 'READY' : 'NOT_READY', service: 'd1-fabric-w04-write-engine', version: '0.4.0', shards_bound: ready ? 8 : 0 }, ready ? 200 : 503, requestId);
+        return ok({ status: ready ? 'READY' : 'NOT_READY', service: 'd1-fabric-w04-write-engine', version: '0.5.0', shards_bound: ready ? 8 : 0 }, rid, ready ? 200 : 503);
       }
 
+      // Publish: route by content_id so content + publish op + assets + outbox land on one shard.
       if (request.method === 'POST' && url.pathname === '/v1/publish') {
-        const body = await request.json();
-        const shardId = (body as { shard_id?: number }).shard_id;
-        if (!Number.isInteger(shardId) || shardId < 0 || shardId > 63) return json({ code: 'INVALID_SHARD_ID' }, 400, requestId);
-        const db = dbForShard(env, shardId);
-        if (!db) return json({ code: 'SHARD_NOT_READY', shard_id: shardId }, 503, requestId);
-        return publish(db, body, requestId, json);
+        const body = await request.json() as {
+          tenant_id?: string; publish_id?: string; idempotency_key?: string; content_id?: string;
+          author_id?: string; content_type?: string; title?: string | null; summary?: string | null;
+          body_json?: string | null; cover_media_id?: string | null; body_ref?: string | null;
+          language?: string | null; region?: string | null; category_id?: string | null;
+          visibility?: 'public' | 'followers' | 'private'; assets?: unknown[];
+        };
+        if (!validText(body.tenant_id, 256) || !validText(body.content_id, 128)) return fail('INVALID_ARGUMENT', rid, 400, 'tenant_id and content_id are required');
+        try {
+          const route = await resolveShard(env.ROUTER, body.tenant_id!, 'content', body.content_id!);
+          const db = dbForShard(env, route.shard_id);
+          if (!db) return fail('SHARD_NOT_READY', rid, 503, `shard ${route.shard_id} not bound`);
+          return publish(db, body as Parameters<typeof publish>[1], rid, json);
+        } catch (e) {
+          const code = e instanceof Error ? e.message : 'ROUTER_ERROR';
+          return fail(code, rid, code === 'STALE_ROUTING_EPOCH' ? 409 : 503, undefined, true);
+        }
       }
 
       if (request.method === 'GET' && url.pathname === '/v1/publish/status') {
         const tenantId = url.searchParams.get('tenant_id');
         const publishId = url.searchParams.get('publish_id');
-        const shardId = Number(url.searchParams.get('shard_id'));
-        if (!validText(tenantId, 256) || !validText(publishId, 128) || !Number.isInteger(shardId)) return json({ code: 'INVALID_ARGUMENT' }, 400, requestId);
-        const db = dbForShard(env, shardId);
-        if (!db) return json({ code: 'SHARD_NOT_READY', shard_id: shardId }, 503, requestId);
-        return publishStatus(db, tenantId, publishId, requestId, json);
+        if (!validText(tenantId, 256) || !validText(publishId, 128)) return fail('INVALID_ARGUMENT', rid, 400);
+        // publish_id is unique per tenant; route by tenant + publish_id namespace.
+        try {
+          const route = await resolveShard(env.ROUTER, tenantId!, 'publish', publishId!);
+          const db = dbForShard(env, route.shard_id);
+          if (!db) return fail('SHARD_NOT_READY', rid, 503);
+          return publishStatus(db, tenantId!, publishId!, rid, json);
+        } catch (e) {
+          return fail(e instanceof Error ? e.message : 'ROUTER_ERROR', rid, 503, undefined, true);
+        }
       }
 
       if (request.method === 'GET' && url.pathname === '/v1/integrity') {
-        const shardId = Number(url.searchParams.get('shard_id'));
-        if (!Number.isInteger(shardId) || shardId < 0 || shardId > 63) return json({ code: 'INVALID_SHARD_ID' }, 400, requestId);
+        const tenantId = url.searchParams.get('tenant_id');
+        const shardParam = url.searchParams.get('shard_id');
+        // Admin path: allow explicit shard_id for integrity scans; otherwise scan shard 0.
+        const shardId = shardParam ? Number(shardParam) : 0;
+        if (!Number.isInteger(shardId) || shardId < 0 || shardId > 63) return fail('INVALID_SHARD_ID', rid, 400);
         const db = dbForShard(env, shardId);
-        if (!db) return json({ code: 'SHARD_NOT_READY', shard_id: shardId }, 503, requestId);
-        return integrityCheck(db, requestId, json);
+        if (!db) return fail('SHARD_NOT_READY', rid, 503);
+        return integrityCheck(db, rid, json);
       }
 
       if (request.method === 'POST' && url.pathname === '/v1/write') {
         const body = await request.json() as {
-          tenant_id?: string; namespace?: string; record_key?: string; shard_id?: number;
+          tenant_id?: string; namespace?: string; record_key?: string;
           op?: 'INSERT' | 'UPDATE' | 'DELETE'; idempotency_key?: string; payload_json?: string;
         };
-        if (!validText(body.tenant_id, 256) || !validText(body.namespace, 256) || !validText(body.record_key, 512)) return json({ code: 'INVALID_ARGUMENT' }, 400, requestId);
-        if (!Number.isInteger(body.shard_id) || body.shard_id < 0 || body.shard_id > 63) return json({ code: 'INVALID_SHARD_ID' }, 400, requestId);
-        if (!body.op || !['INSERT','UPDATE','DELETE'].includes(body.op)) return json({ code: 'INVALID_OPERATION' }, 400, requestId);
-        if (!validText(body.idempotency_key, 128)) return json({ code: 'INVALID_IDEMPOTENCY_KEY' }, 400, requestId);
-        if (body.op !== 'DELETE' && !validText(body.payload_json, 1000000)) return json({ code: 'INVALID_PAYLOAD' }, 400, requestId);
-        const db = dbForShard(env, body.shard_id);
-        if (!db) return json({ code: 'SHARD_NOT_READY', shard_id: body.shard_id }, 503, requestId);
-        const requestHash = hashInput(body.op, body.tenant_id, body.namespace, body.record_key, body.payload_json);
+        if (!validText(body.tenant_id, 256) || !validText(body.namespace, 256) || !validText(body.record_key, 512)) return fail('INVALID_ARGUMENT', rid, 400);
+        if (!body.op || !['INSERT','UPDATE','DELETE'].includes(body.op)) return fail('INVALID_OPERATION', rid, 400);
+        if (!validText(body.idempotency_key, 128)) return fail('INVALID_IDEMPOTENCY_KEY', rid, 400);
+        if (body.op !== 'DELETE' && !validText(body.payload_json, 1000000)) return fail('INVALID_PAYLOAD', rid, 400);
+        // Route via W02; client-supplied shard_id is intentionally ignored.
+        let shardId: number;
+        try {
+          const route = await resolveShard(env.ROUTER, body.tenant_id!, body.namespace!, body.record_key!);
+          shardId = route.shard_id;
+        } catch (e) {
+          return fail(e instanceof Error ? e.message : 'ROUTER_ERROR', rid, 503, undefined, true);
+        }
+        const db = dbForShard(env, shardId);
+        if (!db) return fail('SHARD_NOT_READY', rid, 503, `shard ${shardId} not bound`);
+        const requestHash = hashInput(body.op as string, body.tenant_id!, body.namespace!, body.record_key!, body.payload_json);
         const existing = await db.prepare('SELECT operation,request_hash,status,result_json FROM fabric_idempotency WHERE tenant_id=?1 AND idempotency_key=?2 LIMIT 1').bind(body.tenant_id, body.idempotency_key).first<{operation:string;request_hash:string;status:string;result_json:string|null}>();
         if (existing) {
-          if (existing.request_hash !== requestHash || existing.operation !== body.op) return json({ code: 'IDEMPOTENCY_KEY_REUSE_CONFLICT' }, 409, requestId);
-          if (existing.status === 'COMMITTED') return json({ accepted:true, replay:true, shard_id:body.shard_id, result:existing.result_json ? JSON.parse(existing.result_json) : null }, 200, requestId);
-          if (existing.status === 'IN_PROGRESS') return json({ code: 'WRITE_IN_PROGRESS' }, 409, requestId);
+          if (existing.request_hash !== requestHash || existing.operation !== body.op) return fail('IDEMPOTENCY_KEY_REUSE_CONFLICT', rid, 409);
+          if (existing.status === 'COMMITTED') return ok({ accepted:true, replay:true, shard_id:shardId, result:existing.result_json ? JSON.parse(existing.result_json) : null }, rid, 200);
+          if (existing.status === 'IN_PROGRESS') return fail('WRITE_IN_PROGRESS', rid, 409);
         }
         try {
           let result: Record<string, unknown>;
           if (body.op === 'INSERT') {
-            result = { operation:body.op, tenant_id:body.tenant_id, namespace:body.namespace, record_key:body.record_key, shard_id:body.shard_id };
+            result = { operation:body.op, tenant_id:body.tenant_id, namespace:body.namespace, record_key:body.record_key, shard_id:shardId };
             await db.batch([
               db.prepare("INSERT INTO fabric_idempotency(tenant_id,idempotency_key,operation,request_hash,status) VALUES(?1,?2,?3,?4,'IN_PROGRESS')").bind(body.tenant_id,body.idempotency_key,body.op,requestHash),
               db.prepare('INSERT INTO fabric_records(namespace,record_key,tenant_id,payload_json,version) VALUES(?1,?2,?3,?4,1)').bind(body.namespace,body.record_key,body.tenant_id,body.payload_json!),
@@ -93,8 +121,8 @@ export default {
             ]);
           } else {
             const current = await db.prepare('SELECT version FROM fabric_records WHERE namespace=?1 AND record_key=?2 AND tenant_id=?3 LIMIT 1').bind(body.namespace,body.record_key,body.tenant_id).first<{version:number}>();
-            if (!current) return json({ code:'NOT_FOUND' },404,requestId);
-            result = { operation:body.op,tenant_id:body.tenant_id,namespace:body.namespace,record_key:body.record_key,shard_id:body.shard_id,previous_version:current.version };
+            if (!current) return fail('NOT_FOUND', rid, 404);
+            result = { operation:body.op,tenant_id:body.tenant_id,namespace:body.namespace,record_key:body.record_key,shard_id:shardId,previous_version:current.version };
             await db.batch([
               db.prepare("INSERT INTO fabric_idempotency(tenant_id,idempotency_key,operation,request_hash,status) VALUES(?1,?2,?3,?4,'IN_PROGRESS')").bind(body.tenant_id,body.idempotency_key,body.op,requestHash),
               body.op === 'UPDATE'
@@ -103,20 +131,20 @@ export default {
               db.prepare("UPDATE fabric_idempotency SET status='COMMITTED',result_json=?1,updated_at=CURRENT_TIMESTAMP WHERE tenant_id=?2 AND idempotency_key=?3 AND status='IN_PROGRESS'").bind(JSON.stringify(result),body.tenant_id,body.idempotency_key),
             ]);
           }
-          return json({ accepted:true,replay:false,result },200,requestId);
+          return ok({ accepted:true,replay:false,result }, rid, 200);
         } catch (error) {
           const message = error instanceof Error ? error.message : 'INTERNAL_ERROR';
-          if (message.includes('UNIQUE constraint failed: fabric_records')) return json({ code:'ALREADY_EXISTS' },409,requestId);
-          if (message.includes('UNIQUE constraint failed: fabric_idempotency')) return json({ code:'WRITE_RACE' },409,requestId);
+          if (message.includes('UNIQUE constraint failed: fabric_records')) return fail('ALREADY_EXISTS', rid, 409);
+          if (message.includes('UNIQUE constraint failed: fabric_idempotency')) return fail('WRITE_RACE', rid, 409);
           throw error;
         }
       }
 
-      if (request.method === 'POST' && url.pathname === '/v1/write/plan') return json({ code:'USE_V1_WRITE' },410,requestId);
-      return json({ code:'NOT_FOUND' },404,requestId);
+      if (request.method === 'POST' && url.pathname === '/v1/write/plan') return fail('USE_V1_WRITE', rid, 410);
+      return fail('NOT_FOUND', rid, 404);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'INTERNAL_ERROR';
-      return json({ code:message === 'D1_ERROR' ? 'D1_WRITE_FAILED' : 'INTERNAL_ERROR' },500,requestId);
+      return fail(message === 'D1_ERROR' ? 'D1_WRITE_FAILED' : 'INTERNAL_ERROR', rid, 500);
     }
   },
 };

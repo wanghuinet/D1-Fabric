@@ -55,7 +55,7 @@ export default {
       }
       if(request.method==='POST'&&u.pathname==='/v1/migration/plan'){
         const b=await request.json() as {shard_id?:number;source?:string;target?:string;current_epoch?:number;target_epoch?:number;idempotency_key?:string};
-        if(!Number.isInteger(b.shard_id)||!b.source||!b.target||!Number.isInteger(b.current_epoch)||b.target_epoch!==b.current_epoch+1)return json({code:'INVALID_EPOCH_TRANSITION'},400,rid);
+        if(!Number.isInteger(b.shard_id)||!b.source||!b.target||!Number.isInteger(b.current_epoch)||b.target_epoch!==b.current_epoch!+1)return json({code:'INVALID_EPOCH_TRANSITION'},400,rid);
         const existing=b.idempotency_key?await env.CONTROL_DB.prepare('SELECT migration_id,phase,from_epoch,to_epoch FROM fabric_migrations WHERE idempotency_key=?').bind(b.idempotency_key).first<{migration_id:string;phase:string;from_epoch:number;to_epoch:number}>():null;
         if(existing)return json({migration_id:existing.migration_id,phase:existing.phase,shard_id:b.shard_id,from_epoch:existing.from_epoch,to_epoch:existing.to_epoch,replayed:true},200,rid);
         const migrationId=crypto.randomUUID();
