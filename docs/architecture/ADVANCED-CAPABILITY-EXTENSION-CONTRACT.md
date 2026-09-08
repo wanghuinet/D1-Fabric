@@ -1,7 +1,7 @@
 # D1-Fabric Advanced Capability Extension Contract
 
 **Status:** ACTIVE DESIGN GUARDRAIL
-**Version:** 1.0
+**Version:** 1.1
 **Authority:** D1-Fabric architecture contracts
 **Scope:** Future extensibility only; this document does not authorize implementation of advanced features during P0/P1.
 
@@ -17,7 +17,7 @@ Future capabilities MUST integrate through existing contracts, control-plane met
 
 ---
 
-## 1. Core Stability Rule
+## 1. Core Stability and Functional Purity Rule
 
 The six-Worker core remains fixed:
 
@@ -34,6 +34,87 @@ No advanced capability may require a new Worker unless a future architecture rev
 
 The default evolution mechanism is to extend an existing Worker or add a separately deployable optional capability without changing the existing core contracts.
 
+### 1.1 Middleware Worker Purity — HARD RULE
+
+The D1-Fabric middleware Workers MUST contain **only middleware/infrastructure functionality**.
+
+No middleware Worker may contain application/business functionality belonging to the product layer.
+
+This is a hard architectural boundary, not a style preference.
+
+Forbidden inside W01–W06:
+
+```text
+user-facing business workflows
+content product rules
+feed/recommendation business logic
+creator/admin product workflows
+social-product semantics
+notification product workflows
+search product ranking logic
+AI product behavior
+advertising/business monetization logic
+UI-specific behavior
+application-specific orchestration that is not required by the middleware contract
+```
+
+Examples:
+
+```text
+W03 MUST NOT implement “article page business logic”.
+W04 MUST NOT implement “like button business rules”.
+W05 MUST NOT become the authoritative content model.
+W06 MUST NOT contain creator/admin workflows.
+W02 MUST NOT contain feed/recommendation logic.
+W01 MUST NOT become a product controller.
+```
+
+Product/business functionality MUST live in an upper application/domain layer (for example a future Domain/API Worker) and consume D1-Fabric through stable contracts.
+
+The middleware MUST expose data, execution, placement, cache, control, integrity, and observability primitives; it MUST NOT become the application itself.
+
+### 1.2 Anti-Contamination Rule
+
+A change MUST NOT be added to a middleware Worker merely because it is convenient to implement there.
+
+Before adding code to W01–W06, the implementation MUST satisfy at least one of these roles:
+
+```text
+runtime ingress/dispatch
+placement/routing
+query execution
+write execution
+cache acceleration
+control/recovery
+integrity/telemetry required by those roles
+```
+
+If it does not satisfy one of these roles, it belongs outside the middleware core.
+
+### 1.3 Business API Separation
+
+Future application/domain APIs SHOULD use a separate independently deployable boundary when their behavior is product-specific.
+
+Preferred layering:
+
+```text
+Client / Admin
+      ↓
+Application / Domain API layer
+      ↓
+D1-Fabric middleware
+      ↓
+D1
+```
+
+This separation allows product features to evolve without contaminating or repeatedly rewriting the middleware core.
+
+Advanced application features MAY be implemented as separate Workers when their traffic, scaling, release cadence, security boundary, or ownership justifies an independent deployment boundary.
+
+---
+
+## 2. Advanced Capability Boundary
+
 Advanced features MUST NOT:
 
 - create a second placement authority;
@@ -41,11 +122,12 @@ Advanced features MUST NOT:
 - make W05 authoritative for business data;
 - move control-plane ownership into the data plane;
 - require business schemas to duplicate authoritative facts;
-- break existing API envelopes, routing identity, idempotency, or CAS semantics.
+- break existing API envelopes, routing identity, idempotency, or CAS semantics;
+- place application/business logic into W01–W06 merely to avoid creating the proper upper-layer boundary.
 
 ---
 
-## 2. Scaling Extension Point
+## 3. Scaling Extension Point
 
 The system MUST preserve the separation:
 
@@ -132,7 +214,7 @@ No future scaling feature may bypass fencing, verification, or epoch advancement
 
 ---
 
-## 3. Observability Extension Point
+## 4. Observability Extension Point
 
 Every runtime Worker SHOULD emit the same minimal telemetry vocabulary so a future graphical control plane can observe the complete request path without modifying business logic.
 
@@ -183,7 +265,7 @@ The dashboard MUST consume telemetry; it MUST NOT require core Workers to be rew
 
 ---
 
-## 4. Capacity and High-Concurrency Detection
+## 5. Capacity and High-Concurrency Detection
 
 The runtime contract SHOULD expose enough bounded execution metadata to allow future automated detection of pressure conditions.
 
@@ -218,7 +300,7 @@ It MUST NOT alter routing directly from the dashboard. Placement changes remain 
 
 ---
 
-## 5. Data Integrity and Repair Extension Point
+## 6. Data Integrity and Repair Extension Point
 
 D1-Fabric MUST distinguish authoritative facts from derived state.
 
@@ -282,7 +364,7 @@ No automatic repair may silently rewrite authoritative business facts.
 
 ---
 
-## 6. Anti-Redundancy Rule
+## 7. Anti-Redundancy Rule
 
 The schema MUST prefer a single authoritative representation of each business fact.
 
@@ -317,7 +399,7 @@ A denormalized value is acceptable only when its derivation and repair path are 
 
 ---
 
-## 7. Event / Intelligence Extension Point
+## 8. Event / Intelligence Extension Point
 
 Future recommendation, analytics, anti-abuse, search, and AI capabilities MUST consume stable event and content contracts rather than embedding their logic into W03/W04.
 
@@ -376,9 +458,9 @@ The recommendation or AI layer MUST remain a consumer of stable contracts.
 
 ---
 
-## 8. Content and Business API Compatibility
+## 9. Content and Business API Compatibility
 
-Future front-end and admin capabilities SHOULD be able to share the same content-domain contracts.
+Future front-end and admin capabilities SHOULD be implemented in an application/domain layer and SHOULD share the same content-domain contracts.
 
 The data layer SHOULD support the same core content abstraction for:
 
@@ -403,7 +485,7 @@ The underlying placement key MUST continue to follow access-pattern affinity rat
 
 ---
 
-## 9. Cache Extension Point
+## 10. Cache Extension Point
 
 W05 remains non-authoritative.
 
@@ -425,7 +507,7 @@ A cache miss, cache loss, or cache rebuild MUST NOT require a business migration
 
 ---
 
-## 10. API Stability Rule
+## 11. API Stability Rule
 
 Future advanced capabilities MUST prefer additive APIs.
 
@@ -443,7 +525,7 @@ Deprecation MUST be explicit and versioned; breaking changes MUST NOT be introdu
 
 ---
 
-## 11. “Few Lines to Scale” Design Requirement
+## 12. “Few Lines to Scale” Design Requirement
 
 The architecture SHOULD make the common scale-out path primarily configuration/control-plane work:
 
@@ -465,7 +547,7 @@ Business logic MUST NOT be rewritten for ordinary physical shard growth.
 
 ---
 
-## 12. Graphical Operations Center Extension Point
+## 13. Graphical Operations Center Extension Point
 
 A future graphical operations center MAY expose:
 
@@ -491,7 +573,7 @@ It MUST NOT become an alternative source of routing truth.
 
 ---
 
-## 13. Future Automation Safety
+## 14. Future Automation Safety
 
 Any future automatic scaler, migration controller, repair controller, or AI optimizer MUST satisfy:
 
@@ -520,7 +602,7 @@ No automation may directly bypass W02/W06 authority.
 
 ---
 
-## 14. Implementation Boundary
+## 15. Implementation Boundary
 
 This document reserves integration points only.
 
@@ -540,23 +622,27 @@ advanced cache orchestration
 
 Those capabilities require their own implementation stage and verification evidence.
 
+Application/business features are also explicitly outside W01–W06. They require an application/domain boundary and MUST NOT be inserted into middleware Workers.
+
 ---
 
-## 15. Completion Invariant
+## 16. Completion Invariant
 
 As advanced capabilities are added, these invariants MUST remain true:
 
 ```text
+W01 = middleware runtime gateway only
 W02 = unique placement authority
-W03 = query execution
-W04 = write execution
+W03 = query execution only
+W04 = write execution only
 W05 = non-authoritative cache
 W06 = control/recovery authority
+W01–W06 = middleware code only
 D1 = authoritative durable data
 Derived state = rebuildable/repairable
-Business APIs = placement-independent
+Business APIs = placement-independent and outside middleware core
 Physical scale = control-plane driven
 Observability = contract driven
 ```
 
-The objective is to allow D1-Fabric to evolve from the initial 64-logical/8-physical seed topology into larger deployments without forcing repeated rewrites of the core data path.
+The objective is to allow D1-Fabric to evolve from the initial 64-logical/8-physical seed topology into larger deployments without forcing repeated rewrites of the core data path or contaminating the middleware with product-specific logic.
