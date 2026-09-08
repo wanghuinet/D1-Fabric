@@ -82,6 +82,65 @@ Hot queries MUST be checked with query-plan evidence where applicable. Avoid `SC
 
 If a response is safely cacheable, prefer edge/cache termination before dynamic Worker and D1 execution. W05 remains the generic application-cache owner, but not every cacheable response should be forced through W05. Cache correctness, invalidation, TTL, and staleness limits must be explicit.
 
+### 4.5 B-layer READ execution-cost gate
+
+Every Business Worker READ issued through W03 MUST satisfy the following before it is considered production-ready:
+
+1. The query has an explicit bounded result contract, normally an SQL `LIMIT` for hot-path list/result queries.
+2. The query uses a selective predicate and an appropriate index where an indexed lookup/range is expected.
+3. The business owner defines pagination, ordering, projection, and intended global result size.
+4. `SELECT *` on hot paths is forbidden unless explicitly justified and measured.
+5. Response-side `slice()` is never accepted as evidence that D1 `rows_read` is bounded.
+6. Query-plan evidence is required for material hot queries; a justified `SCAN` must be documented.
+
+The purpose is to prevent a query from reading an unbounded amount of D1 data and only truncating the response afterward.
+
+### 4.6 Global rows budget across fan-out
+
+`maxRows`/`MAX_ROWS` is a **request-global budget**, not a per-shard allowance.
+
+For N selected shards:
+
+```text
+GLOBAL_ROWS_RETURNED ≤ GLOBAL_MAX_ROWS
+```
+
+The verification MUST include an N-shard case. A test that passes for one shard but returns `MAX_ROWS × N` under fan-out is FAIL.
+
+Per-shard limits MAY be lower for execution safety, but MUST NOT be used to multiply the global result budget. The B-layer owner remains responsible for query semantics and pagination; W03 remains responsible for the generic global resource boundary.
+
+### 4.7 Middleware safety guardrail
+
+W03 MAY reject an unbounded/unsafe READ when the active generic query contract requires bounded execution. It MUST NOT silently invent a LIMIT, filter, index, ordering rule, or business pagination behavior.
+
+If bounded execution cannot be established from the active contract, the safe result is **reject/STOP**, not execute an unbounded query.
+
+### 4.8 Middleware 1.0 cost verification record
+
+Middleware 1.0 completed the static billable-work budget review for W01-W06. The declared envelopes are:
+
+| Hot path | Worker invocations | Internal hops | D1 statements | rows_written | fan-out | retries |
+|---|---:|---:|---:|---:|---:|---:|
+| READ | 3 | 2 | 1/shard, ≤8 | 0 | ≤8 | 0 |
+| WRITE-INSERT | 3 | 2 | 4 | ≤3 | 1 | 0 |
+| WRITE-UPDATE/DELETE | 3 | 2 | 5 | ≤3 | 1 | 0 |
+| W05 cache | 1 | 0 | 0 | 0 | 0 | 0 |
+| W06 reconcile | 1 | 0 | 24 | ≤8 | 8 | 0 |
+
+READ `rows_read` remains query-dependent and therefore MUST NOT be described as bounded merely because W03 truncates returned rows. B-layer query contracts and query-plan evidence are required to establish the D1 read bound.
+
+### 4.9 Verification limitations
+
+W01, W02, W05, and W06 typecheck/build/smoke verification passed in the Middleware 1.0 evidence set. W03/W04 typecheck and build passed; their local D1 smoke test was blocked by the Node 24 + Miniflare D1 simulation environment hanging after `[wrangler] Ready` and the smoke client subsequently failing with a libuv assertion. This is recorded as an environment limitation, not reclassified as a code defect without contradictory evidence.
+
+The W03/W04 D1 API shape (`prepare().bind().all()` and related existing primitives) had prior successful verification in a usable D1 environment. Any future smoke rerun MUST record the exact runtime/tooling environment rather than changing production code solely to accommodate the failing local simulator.
+
+### 4.10 Middleware freeze rule after 1.0
+
+The W01-W06 logical topology is frozen after Middleware 1.0 closure. H1/H2 do **not** authorize a new Worker, Worker split, cache hop, queue, coordinator, or architecture redesign.
+
+H1/H2 are carried forward as mandatory B-layer query-contract requirements plus generic W03 safety enforcement. They are not a reason to reopen Worker ownership unless a future measured requirement proves a real boundary failure.
+
 ## 5. Worker packaging
 
 Each independently deployable Worker must own:
