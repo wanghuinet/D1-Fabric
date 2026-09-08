@@ -31,6 +31,8 @@ T1/T2 require a Change Manifest declaring task, owner, allowed files, API/schema
 
 Prefer existing verified primitives, one semantic owner, one primary path, minimum code, minimum D1 I/O, minimum Worker/RPC hops, minimum dependencies, and bounded resources. Do not add Workers, queues, caches, coordinators, persistent state, or third-party infrastructure without requirement + real boundary + measurable benefit + budget + verification.
 
+AI implementation is low-autonomy: once the contract and Change Manifest define the answer, do not reopen architecture or invent alternatives. A genuine gap or conflict is STOP, not an invitation to design.
+
 ## 4. Resource/cost law
 
 For material capabilities declare applicable limits for D1 reads/writes, fan-out/parallelism, rows/payload, Worker/RPC hops, cache behavior, retries/deadlines, storage operations, and async side effects. Cache-first reads and bounded batch/transaction writes are preferred where correct. No claim of low cost is valid without measurements.
@@ -38,6 +40,47 @@ For material capabilities declare applicable limits for D1 reads/writes, fan-out
 Optimization target:
 
 `security/isolation → correctness/state ownership → consistency/recovery → resource bounds → availability → performance → cost → code minimization`.
+
+### 4.1 Billable-work budget
+
+Every hot-path capability MUST have a measurable budget before implementation:
+
+```text
+D1 statements/request
+D1 rows_read/request
+D1 rows_written/request
+Worker invocations/request
+Worker CPU/request
+shard fan-out/request
+retries/request
+payload/request
+cache hit target
+```
+
+Verification MUST compare expected bounds with actual D1 `rows_read`/`rows_written`, Worker request/CPU usage, latency, and cache-hit behavior. A faster implementation that performs the same or more billable work is not a cost optimization.
+
+### 4.2 Traffic-growth rule
+
+Do not design cost as `users × database work`. The preferred scaling behavior is:
+
+```text
+traffic ↑
+→ cache/work reuse ↑
+→ backend work per request ↓ or remains bounded
+→ D1 rows/request ↓ or remains bounded
+→ writes/user action remain bounded
+→ billable backend work grows sublinearly where workload/cacheability permits
+```
+
+Do not assume read replicas or more shards reduce D1 billing by themselves. They improve distribution/capacity characteristics; billable D1 usage remains tied to measured row reads/writes.
+
+### 4.3 Query/index discipline
+
+Hot queries MUST be checked with query-plan evidence where applicable. Avoid `SCAN` when an indexed `SEARCH` is possible. Indexes are not free: they can reduce rows read but can add write amplification, so every material index must have a measured reason to exist.
+
+### 4.4 Edge/cache discipline
+
+If a response is safely cacheable, prefer edge/cache termination before dynamic Worker and D1 execution. W05 remains the generic application-cache owner, but not every cacheable response should be forced through W05. Cache correctness, invalidation, TTL, and staleness limits must be explicit.
 
 ## 5. Worker packaging
 
