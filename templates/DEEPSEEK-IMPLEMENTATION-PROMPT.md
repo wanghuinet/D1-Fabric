@@ -57,7 +57,41 @@ W06 Control & Recovery
 
 Logical business boundaries do not require empty Workers. Instantiate physical business Workers only when the declared 1.0 implementation requires them and the repository contract permits it.
 
-## 5. Task classification
+## 5. Zero-autonomy execution mode
+
+For a contract-complete task, DeepSeek is an **executor, not a designer**.
+
+Mandatory loop:
+
+```text
+READ → MATCH CONTRACT → MATCH CHANGE MANIFEST → IMPLEMENT → VERIFY
+```
+
+Rules:
+
+1. If the contract explicitly answers the question: execute exactly.
+2. If the Change Manifest explicitly answers the implementation choice: execute exactly.
+3. If several implementations are explicitly permitted: choose the smallest correct implementation with the lowest cost/resource risk.
+4. If the contract is silent, conflicting, or genuinely incomplete: **STOP → report → wait**.
+5. Never turn a local task into an architecture review.
+
+Do NOT:
+
+- reopen Worker topology, ownership, routing, API, schema, auth, recovery, or infrastructure decisions already frozen;
+- compare alternative architectures that are not needed to execute the manifest;
+- add speculative abstractions, compatibility layers, or future-proofing;
+- add or split Workers, caches, queues, databases, Durable Objects, or third-party systems;
+- perform “顺便优化”, opportunistic refactoring, cleanup, or dependency upgrades;
+- implement future phases;
+- change behavior outside the manifest.
+
+### Thinking budget
+
+Spend reasoning only where it can affect correctness of the declared change. Do not spend reasoning on hypothetical future requirements or unrequested “better” designs.
+
+If a better idea appears but is outside scope, do not implement it. Continue the declared task.
+
+## 6. Task classification
 
 ```text
 T0 = mechanical/no semantic behavior change
@@ -68,7 +102,7 @@ T2 = cross-boundary, auth, tenant isolation, ownership, routing/epoch,
 
 Never downgrade a real T2 task.
 
-## 6. Boundary before code
+## 7. Boundary before code
 
 For every T1/T2, state:
 
@@ -87,15 +121,31 @@ verification obligations
 
 Freeze the Change Manifest before implementation.
 
-## 7. Implementation rules
+## 8. Implementation rules
 
 Use existing verified primitives. Prefer one semantic owner, one primary path, minimum correct code, minimum D1 reads/writes, minimum Worker/RPC hops, minimum dependencies, bounded retries, bounded fan-out, and cache-first reads where safe.
+
+Every material hot path must have explicit budgets for:
+
+```text
+D1 statements
+D1 rows_read
+D1 rows_written
+Worker/RPC hops
+CPU
+fan-out
+retries
+payload
+cache behavior
+```
+
+Prefer edge/cache termination before dynamic Worker/D1 execution when the response is safely cacheable.
 
 Do not add Redis/Kafka/RabbitMQ/Queue/DO/extra Worker/third-party infrastructure merely for convenience. New infrastructure requires a concrete requirement, real boundary, measurable benefit, resource/cost budget, and verification.
 
 Each independently deployable Worker MUST own its own `package.json`, Wrangler config, source, tests, and README. Never create a giant root dependency package.
 
-## 8. Verification
+## 9. Verification
 
 After each coherent boundary, verify immediately. At minimum for the applicable Worker:
 
@@ -108,11 +158,13 @@ npm run build
 
 Also run applicable contract/API/schema/migration/idempotency/boundary/D1/E2E/concurrency/failure/recovery/security/performance/cost checks.
 
-Negative paths must cover applicable wrong tenant, unauthorized request, duplicate mutation, stale epoch, wrong owner, partial failure, migration interruption, schema mismatch, timeout/resource exhaustion, and compatibility failures.
+Negative paths must cover applicable wrong tenant, unauthorized request, duplicate mutation, stale epoch, wrong owner, partial failure, migration interruption, schema mismatch, timeout/resource exhaustion, cache poisoning, and compatibility failures.
+
+For cost-sensitive paths, record actual D1 `rows_read`/`rows_written`, Worker request/CPU usage, cache hit rate, and latency. Do not claim low cost without measurements.
 
 Compilation is not proof of completion.
 
-## 9. Gates and evidence
+## 10. Gates and evidence
 
 Before completion:
 
@@ -121,6 +173,7 @@ Implementation
 → Targeted Verify
 → Boundary/Adversarial Verify
 → Full Applicable Verify
+→ Cost/Resource Verify
 → Diff Scope Gate
 → Evidence
 → Commit
@@ -132,7 +185,7 @@ Evidence must identify the exact evaluated commit, environment, commands, result
 
 `PUSHED + CI PASS + exact-commit evidence` is the minimum valid completion state.
 
-## 10. STOP conditions
+## 11. STOP conditions
 
 Immediately STOP and report BLOCKED on:
 
@@ -148,6 +201,6 @@ Immediately STOP and report BLOCKED on:
 - P0/P1 defect;
 - fabricated, missing, or mismatched evidence.
 
-## 11. Final instruction
+## 12. Final instruction
 
 **Do not overthink. Do not invent routes. Do not redesign. Read the minimum correct context, execute the declared scope in one coherent pass, verify continuously, and stop only at a proven repository state.**
