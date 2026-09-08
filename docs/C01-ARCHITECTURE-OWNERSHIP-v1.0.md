@@ -61,16 +61,17 @@ D1-Fabric is the generic data-access plane, not a business owner. Business Worke
 
 ## 8. Hot-path cost architecture
 
-The data plane is optimized for **billable work avoided**, not merely request latency.
+The data plane is optimized for **billable work avoided**, not merely request latency. D1 billing is driven by rows read/written and storage; Workers billing includes requests and CPU time, while Cloudflare currently does not charge for D1/Workers egress. citeturn0search0turn0search1
 
 ### 8.1 Read path
 
 ```text
 request
+→ edge/cache termination where safely possible
 → bounded routing
-→ cache lookup where safe
+→ W05 cache lookup where applicable
 → indexed narrow query on cache miss
-→ return projection
+→ return minimal projection
 ```
 
 Rules:
@@ -81,7 +82,9 @@ Rules:
 - Cache stable/high-read, low-write results where staleness is contractually safe.
 - Do not perform duplicate D1 reads to reconstruct data already available in the request context, cache, or prior query result.
 - Do not synchronously fan out to many shards unless the API contract requires it and the fan-out has an explicit bound.
-- Measure `rows_read` for representative hot queries; a query returning few rows is not cheap if it scans many rows.
+- Measure `rows_read` for representative hot queries; a query returning few rows is not cheap if it scans many rows. Correct indexes can materially reduce rows read. citeturn0search6
+- Do not assume D1 read replication lowers billing; replicated reads are still billed by rows read/written. citeturn0search8
+- Public/immutable/high-cacheability responses should terminate at the edge/cache whenever the business contract permits, avoiding unnecessary dynamic Worker and D1 execution.
 
 ### 8.2 Write path
 
@@ -98,9 +101,10 @@ Rules:
 - Do not write unchanged values.
 - Do not maintain duplicate authoritative counters/state unless explicitly required by the data contract.
 - Batch related mutations when atomicity permits.
-- Avoid unnecessary indexes on write-hot tables; every maintained index can add write amplification. Indexes must have measured read/cost benefit.
+- Avoid unnecessary indexes on write-hot tables; every maintained index can add write amplification. Indexes must have measured read/cost benefit. citeturn0search6
 - Idempotency records must be bounded and purpose-specific; never create permanent write amplification without a retention/cleanup contract.
 - Do not synchronously write analytics, recommendations, notifications, or other secondary business state on the critical path unless explicitly required by the active contract.
+- Prefer state transitions that change one authoritative row over multi-table duplicate bookkeeping when the domain contract permits.
 
 ### 8.3 Cache architecture
 
@@ -108,29 +112,48 @@ W05 is the generic cache owner. Cache keys, TTL/staleness rules, invalidation se
 
 Cache is an optimization, never the authoritative business state. A cache miss MUST remain correct. Cache invalidation MUST NOT require business logic inside W05.
 
+The system should distinguish **edge-cacheable**, **W05-cacheable**, and **D1-authoritative** data. Do not force every read through W05 when the response can safely be served directly by Cloudflare's edge cache.
+
 ### 8.4 Worker/RPC path
 
-Use Service Bindings/RPC for internal Worker communication rather than public HTTP hops. Service bindings avoid additional request fees under the current Workers Standard pricing model, but each invocation still contributes to the request's resource/subrequest limits and CPU work; therefore unnecessary hops remain forbidden.
+Use Service Bindings/RPC for internal Worker communication rather than public HTTP hops. Under current Workers Standard pricing, inbound Worker requests are billed while subrequests made from a Worker are not separately billed as Worker requests; however, each extra invocation still consumes resource limits and CPU, so unnecessary hops remain forbidden. citeturn0search1
 
 The hot path should normally be a bounded chain, not a cascade. No request may perform unbounded Worker invocation, shard fan-out, retry, or recursive service calls.
 
-### 8.5 Cost-control invariant
+### 8.5 Cost budget per endpoint
 
-For every hot-path endpoint, the implementation must be able to state:
+Every material hot-path endpoint MUST declare a cost envelope before implementation:
 
 ```text
-max D1 reads
+max D1 statements
 max D1 rows read
-max D1 writes
 max D1 rows written
 max shard fan-out
 max Worker/RPC hops
 max retries
-max payload
-cache policy
+max request/response payload
+cache class + TTL/staleness rule
 ```
 
-If these bounds cannot be stated, the hot path is not release-ready.
+A benchmark MUST record actual `rows_read`, `rows_written`, Worker CPU, request count, latency, cache hit rate, and relevant storage/operation metrics. D1 exposes row metrics specifically for this purpose. citeturn0search0turn0search11
+
+### 8.6 Bill-minimization scaling law
+
+When traffic grows, scaling MUST preferentially increase **cache hits and work reuse** rather than proportionally increasing authoritative D1 work.
+
+Target direction:
+
+```text
+more users
+→ more edge/cache hits
+→ fewer dynamic executions per user request
+→ fewer D1 rows read per dynamic request
+→ fewer D1 rows written per mutation
+→ bounded Worker CPU/RPC work
+→ sublinear growth of billable backend work
+```
+
+The architecture MUST NOT claim that sharding alone lowers cost. Sharding is for capacity/isolation/routing; cost reduction comes from avoiding reads/writes, scans, duplicate state, unnecessary fan-out, and unnecessary execution.
 
 ## 9. API/side-effect boundary
 
