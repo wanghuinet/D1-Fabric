@@ -4,7 +4,7 @@ interface Env {
   SHARD_01?:D1Database; SHARD_02?:D1Database; SHARD_03?:D1Database; SHARD_04?:D1Database;
   SHARD_05?:D1Database; SHARD_06?:D1Database; SHARD_07?:D1Database; SHARD_08?:D1Database;
 }
-const json=(b:unknown,s=200,r=crypto.randomUUID())=>new Response(JSON.stringify(b),{status:s,headers:{'content-type':'application/json','x-request-id':r}});
+const json=(b:unknown,s=200,r:string=crypto.randomUUID())=>new Response(JSON.stringify(b),{status:s,headers:{'content-type':'application/json','x-request-id':r}});
 const ALLOWED:Record<Status,Status[]>={NORMAL:['DETECTED'],DETECTED:['ISOLATED'],ISOLATED:['DIAGNOSING'],DIAGNOSING:['RECOVERING','NORMAL'],RECOVERING:['VERIFYING'],VERIFYING:['CANARY','RECOVERING'],CANARY:['RESTORING_ADMISSION','RECOVERING'],RESTORING_ADMISSION:['NORMAL','RECOVERING']};
 function shard(env:Env,n:number){return env[`SHARD_${String(n).padStart(2,'0')}` as keyof Env] as D1Database|undefined;}
 

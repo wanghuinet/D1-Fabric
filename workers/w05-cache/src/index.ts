@@ -1,5 +1,5 @@
 interface Env { MAX_TTL_MS?: string; MAX_VALUE_BYTES?: string; CACHE_NAMESPACE?: string; }
-const json=(b:unknown,s=200,r=crypto.randomUUID())=>new Response(JSON.stringify(b),{status:s,headers:{'content-type':'application/json','x-request-id':r}});
+const json=(b:unknown,s=200,r:string=crypto.randomUUID())=>new Response(JSON.stringify(b),{status:s,headers:{'content-type':'application/json','x-request-id':r}});
 const ttl=(v:unknown,d:number)=>{const n=Number(v??d);return Number.isFinite(n)?Math.max(0,Math.min(86400000,n)):d};
 export default {async fetch(request:Request,env:Env){const rid=request.headers.get('x-request-id')?.slice(0,128)||crypto.randomUUID();try{const u=new URL(request.url);
 if(request.method==='GET'&&u.pathname==='/health')return json({status:'READY',service:'d1-fabric-w05-cache',version:'0.1.0'},200,rid);

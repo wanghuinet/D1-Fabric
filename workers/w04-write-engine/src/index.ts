@@ -14,7 +14,7 @@ interface Env {
   ROUTER: Fetcher;
 }
 
-const json = (body: unknown, status = 200, rid = crypto.randomUUID()) =>
+const json = (body: unknown, status = 200, rid: string = crypto.randomUUID()) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'x-request-id': rid } });
 
 function dbForShard(env: Env, shardId: number): D1Database | null {
