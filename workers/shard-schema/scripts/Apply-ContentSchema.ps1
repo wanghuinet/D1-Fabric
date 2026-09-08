@@ -15,8 +15,8 @@ $Databases = @(
   'd1-fabric-shard-08'
 )
 
-Write-Host 'D1-Fabric Content Platform Schema V1' -ForegroundColor Cyan
-Write-Host 'Migration chain: 0002 + 0003'
+Write-Host 'D1-Fabric Content Platform Schema V2' -ForegroundColor Cyan
+Write-Host 'Migration chain: 0001 .. 0012'
 Write-Host 'Target: all configured physical shards'
 Write-Host ''
 
@@ -75,7 +75,25 @@ $expected = @(
   'platform_publish_operations',
   'platform_publish_assets',
   'platform_publish_failures',
-  'platform_schema_meta'
+  'platform_schema_meta',
+  'platform_user_sessions',
+  'platform_user_devices',
+  'platform_oauth_bindings',
+  'platform_categories',
+  'platform_tags',
+  'platform_topics',
+  'platform_drafts',
+  'platform_content_versions',
+  'platform_comment_reactions',
+  'platform_notifications',
+  'platform_notification_settings',
+  'platform_search_index',
+  'platform_search_history',
+  'platform_outbox',
+  'platform_impressions',
+  'platform_content_completions',
+  'platform_user_interests',
+  'platform_reports'
 )
 
 $sql = "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'platform_%' ORDER BY name;"
@@ -97,6 +115,6 @@ foreach ($db in $Databases) {
 }
 
 Write-Host ''
-Write-Host 'Schema V1 deployment completed and verified on all 8 shards.' -ForegroundColor Green
-Write-Host 'Publication atomicity and idempotency tables are present.' -ForegroundColor Green
-Write-Host 'No destructive ALTER/DROP operation is performed by this migration.' -ForegroundColor Green
+Write-Host 'Schema V2 deployment completed and verified on all 8 shards.' -ForegroundColor Green
+Write-Host 'Publication atomicity, idempotency, auth, search, outbox, and analytics tables are present.' -ForegroundColor Green
+Write-Host 'No destructive ALTER/DROP operation is performed by this migration chain.' -ForegroundColor Green
