@@ -1,4 +1,4 @@
-import { integrityCheck, publish, publishStatus } from './publish';
+import { fingerprint, integrityCheck, publish, publishStatus } from './publish';
 import type { PublishBody } from './publish';
 
 type Router = { fetch(input: string | URL | Request, init?: RequestInit): Promise<Response> };
@@ -21,7 +21,6 @@ const json = (body: unknown, status = 200, requestId: string = crypto.randomUUID
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'x-request-id': requestId } });
 
 function validText(value: unknown, max: number) { return typeof value === 'string' && value.length > 0 && value.length <= max; }
-function hashInput(op: string, tenant: string, namespace: string, key: string, payload: string | undefined) { return `${op}:${tenant}:${namespace}:${key}:${payload ?? ''}`; }
 
 const PHYSICAL_RE = /shard-(\d{2})$/;
 
@@ -121,7 +120,7 @@ export default {
         if (body.op === 'UPDATE' && (!Number.isInteger(body.expected_version) || body.expected_version! < 1)) return json({ code: 'INVALID_EXPECTED_VERSION' }, 400, requestId);
         const { db, err } = await resolveDb(env, body.shard_id!);
         if (!db) return json({ code: err, shard_id: body.shard_id }, err === 'INVALID_SHARD_ID' ? 400 : 503, requestId);
-        const requestHash = hashInput(body.op, body.tenant_id!, body.namespace!, body.record_key!, body.payload_json);
+        const requestHash = await fingerprint({ op: body.op, tenant_id: body.tenant_id, namespace: body.namespace, record_key: body.record_key, payload: body.payload_json ?? null });
         const existing = await db.prepare('SELECT operation,request_hash,status,result_json FROM fabric_idempotency WHERE tenant_id=?1 AND idempotency_key=?2 LIMIT 1').bind(body.tenant_id, body.idempotency_key).first<{operation:string;request_hash:string;status:string;result_json:string|null}>();
         if (existing) {
           if (existing.request_hash !== requestHash || existing.operation !== body.op) return json({ code: 'IDEMPOTENCY_KEY_REUSE_CONFLICT' }, 409, requestId);
