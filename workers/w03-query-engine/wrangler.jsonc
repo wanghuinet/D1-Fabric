@@ -3,6 +3,9 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-09-07",
   "workers_dev": true,
+  "services": [
+    { "binding": "ROUTER", "service": "d1-fabric-w02-shard-router" }
+  ],
   "d1_databases": [
     { "binding": "SHARD_01", "database_name": "d1-fabric-shard-01", "database_id": "c495aacc-8298-48a7-b405-98718e1757af" },
     { "binding": "SHARD_02", "database_name": "d1-fabric-shard-02", "database_id": "98c29497-d06c-4211-8f70-10c6125ae839" },
