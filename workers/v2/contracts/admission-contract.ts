@@ -1,3 +1,5 @@
+import type { ResourceBudget } from "./resilience-contract";
+
 export interface AdmissionDemand {
   fanout: number;
   concurrency: number;
@@ -8,18 +10,12 @@ export interface AdmissionDemand {
   retries: number;
 }
 
-export interface AdmissionLimits {
-  maxFanout: number;
-  maxConcurrency: number;
-  maxStatements: number;
-  maxRowsRead: number;
-  maxRowsWrite: number;
-  deadlineMs: number;
-  maxRetries: number;
-}
+/** Admission limits are the authoritative operation resource budget. */
+export type AdmissionLimits = ResourceBudget;
 
 export type AdmissionRejectCode =
   | "INVALID_DEMAND"
+  | "INVALID_LIMITS"
   | "FANOUT_EXCEEDED"
   | "CONCURRENCY_EXCEEDED"
   | "STATEMENTS_EXCEEDED"
@@ -55,16 +51,21 @@ export function validateAdmissionLimits(limits: AdmissionLimits): void {
   if (!positiveSafeInt(limits.maxStatements)) throw new Error("invalid maxStatements");
   if (!nonNegativeSafeInt(limits.maxRowsRead)) throw new Error("invalid maxRowsRead");
   if (!nonNegativeSafeInt(limits.maxRowsWrite)) throw new Error("invalid maxRowsWrite");
-  if (!positiveSafeInt(limits.deadlineMs)) throw new Error("invalid deadlineMs");
   if (!nonNegativeSafeInt(limits.maxRetries)) throw new Error("invalid maxRetries");
+  if (!positiveSafeInt(limits.deadlineMs)) throw new Error("invalid deadlineMs");
 }
 
 export function admit(demand: AdmissionDemand, limits: AdmissionLimits): AdmissionDecision {
   try {
     validateAdmissionDemand(demand);
-    validateAdmissionLimits(limits);
   } catch {
     return { admitted: false, code: "INVALID_DEMAND" };
+  }
+
+  try {
+    validateAdmissionLimits(limits);
+  } catch {
+    return { admitted: false, code: "INVALID_LIMITS" };
   }
 
   if (demand.fanout > limits.maxFanout) return { admitted: false, code: "FANOUT_EXCEEDED" };
