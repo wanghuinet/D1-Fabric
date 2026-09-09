@@ -1,4 +1,7 @@
 type Status='NORMAL'|'DETECTED'|'ISOLATED'|'DIAGNOSING'|'RECOVERING'|'VERIFYING'|'CANARY'|'RESTORING_ADMISSION';
+// Authoritative shard contract. 64 logical shards -> 8 physical D1: physical = (logical % 8) + 1.
+const LOGICAL_SHARD_COUNT = 64;
+const PHYSICAL_SHARD_COUNT = 8;
 interface Env {
   CONTROL_DB:D1Database; CONTROL_VERSION?:string;
   SHARD_01?:D1Database; SHARD_02?:D1Database; SHARD_03?:D1Database; SHARD_04?:D1Database;
@@ -17,7 +20,7 @@ async function scanShard(db:D1Database){
 }
 
 async function reconcile(env:Env){
-  const checks=await Promise.all(Array.from({length:8},async(_,i)=>{
+  const checks=await Promise.all(Array.from({length:PHYSICAL_SHARD_COUNT},async(_,i)=>{
     const n=i+1,db=shard(env,n);
     if(!db)return {n,status:'DETECTED',reason:'SHARD_BINDING_MISSING'};
     try{
@@ -64,9 +67,9 @@ export default {
       }
       if(request.method==='GET'&&u.pathname==='/v1/shards'){
         const rows=await env.CONTROL_DB.prepare('SELECT shard_id,physical_db,owner,epoch,state,logical_shard_count FROM fabric_shards ORDER BY shard_id').all();
-        return json({logical_shard_count:64,items:rows.results},200,rid);
+        return json({logical_shard_count:LOGICAL_SHARD_COUNT,items:rows.results},200,rid);
       }
       return json({code:'NOT_FOUND'},404,rid);
-    }catch(e){return json({code:e instanceof Error?e.message:'INTERNAL_ERROR'},500,rid)}
+    }catch{return json({code:'INTERNAL_ERROR'},500,rid)}
   }
 };

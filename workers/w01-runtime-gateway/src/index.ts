@@ -32,6 +32,17 @@ const DEFAULT_BUDGET = {
   maxMemoryMb: 16,
 };
 
+// Hard global caps enforced at the gateway. Downstream workers apply their own
+// stricter bounds; these are the ceiling W01 will accept from callers.
+const MAX_ROWS_GLOBAL = 1000;
+const MAX_DEADLINE_MS = 10000;
+
+function clampInt(value: unknown, fallback: number, min: number, max: number): number {
+  const n = Number(value);
+  if (!Number.isFinite(n) || !Number.isInteger(n)) return fallback;
+  return Math.max(min, Math.min(max, n));
+}
+
 function requestId(request: Request): string {
   const supplied = request.headers.get('x-request-id');
   return supplied && supplied.length <= 128 ? supplied : crypto.randomUUID();
@@ -46,7 +57,7 @@ function json(body: unknown, status: number, rid: string): Response {
 
 function deadline(request: Request): number {
   const value = Number(request.headers.get('x-d1f-deadline-ms') ?? DEFAULT_BUDGET.deadlineMs);
-  return Number.isFinite(value) ? Math.max(1, Math.min(10000, value)) : DEFAULT_BUDGET.deadlineMs;
+  return Number.isFinite(value) ? Math.max(1, Math.min(MAX_DEADLINE_MS, value)) : DEFAULT_BUDGET.deadlineMs;
 }
 
 function validText(value: unknown, max: number): value is string {
@@ -70,7 +81,25 @@ export default {
         return json({ status: 'READY', service: 'd1-fabric-w01-runtime-gateway', version: env.VERSION ?? '0.1.0', request_id: rid }, 200, rid);
       }
       if (request.method === 'GET' && url.pathname === '/v1/runtime') {
-        return json({ status: 'READY', service: 'd1-fabric-w01-runtime-gateway', version: env.VERSION ?? '0.1.0', budget: { ...DEFAULT_BUDGET, deadlineMs: deadline(request) }, capabilities: { d1: false, routing: true, query: true, write: true, cache: false, ai: false } }, 200, rid);
+        return json({
+          status: 'READY',
+          service: 'd1-fabric-w01-runtime-gateway',
+          version: env.VERSION ?? '0.1.0',
+          budget: { ...DEFAULT_BUDGET, deadlineMs: deadline(request) },
+          // W01 enforces payload size, request validation, and routing.
+          // Row/parallelism/fanout budgets are enforced by W03 (READ) and
+          // idempotency/atomicity by W04 (WRITE); W01 only propagates them.
+          enforcement: {
+            payload_bytes: 'w01',
+            deadline_ms: 'w01',
+            max_rows: 'w03',
+            fanout: 'w03',
+            parallelism: 'w03',
+            idempotency: 'w04',
+            retries: 'none',
+          },
+          capabilities: { d1: false, routing: true, query: true, write: true, cache: false, ai: false },
+        }, 200, rid);
       }
       if (request.method === 'POST' && url.pathname === '/v1/execute') {
         const raw = await request.text();
@@ -82,6 +111,11 @@ export default {
         if (!validText(body.namespace, 256)) return json({ code: 'INVALID_ARGUMENT', field: 'namespace' }, 400, rid);
         if (!validText(body.routing_key, 512)) return json({ code: 'INVALID_ARGUMENT', field: 'routing_key' }, 400, rid);
         if (body.operation !== 'READ' && body.operation !== 'WRITE') return json({ code: 'INVALID_OPERATION' }, 400, rid);
+
+        // Budget input validation: clamp user-supplied values to global ceilings
+        // before propagating downstream. W01 does not measure rows_read/written.
+        const deadlineMs = clampInt(body.deadline_ms, deadline(request), 1, MAX_DEADLINE_MS);
+        const maxRows = body.max_rows !== undefined ? clampInt(body.max_rows, MAX_ROWS_GLOBAL, 1, MAX_ROWS_GLOBAL) : undefined;
 
         // Route once through W02 (authoritative routing source).
         const routeResp = await env.ROUTER.fetch('https://router.internal/v1/route', {
@@ -108,8 +142,8 @@ export default {
               tenant_id: body.tenant_id,
               sql: body.sql,
               shard_ids: [route.shard_id],
-              deadline_ms: Number.isInteger(body.deadline_ms) ? body.deadline_ms : deadline(request),
-              max_rows: Number.isInteger(body.max_rows) ? body.max_rows : undefined,
+              deadline_ms: deadlineMs,
+              max_rows: maxRows,
             }),
           });
         }
@@ -133,8 +167,8 @@ export default {
         });
       }
       return json({ code: 'NOT_FOUND' }, 404, rid);
-    } catch (error) {
-      return json({ code: error instanceof Error ? error.message : 'INTERNAL_ERROR' }, 500, rid);
+    } catch {
+      return json({ code: 'INTERNAL_ERROR' }, 500, rid);
     }
   },
 };

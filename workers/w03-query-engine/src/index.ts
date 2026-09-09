@@ -1,3 +1,10 @@
+// Authoritative shard contract. 64 logical shards -> 8 physical D1: physical = (logical % 8) + 1.
+const LOGICAL_SHARD_COUNT = 64;
+const PHYSICAL_SHARD_COUNT = 8;
+// Hard global cap on rows returned per request. The response can never exceed this,
+// and per-shard D1 reads are bounded by ceil(globalMaxRows / fanout), not maxRows * fanout.
+const MAX_ROWS_GLOBAL = 1000;
+
 interface Env {
   SHARD_01?: D1Database;
   SHARD_02?: D1Database;
@@ -24,8 +31,8 @@ function bounded(value: unknown, fallback: number, max: number) {
 }
 
 function dbForShard(env: Env, shardId: number): D1Database | null {
-  if (!Number.isInteger(shardId) || shardId < 0 || shardId > 63) return null;
-  const physical = (shardId % 8) + 1;
+  if (!Number.isInteger(shardId) || shardId < 0 || shardId >= LOGICAL_SHARD_COUNT) return null;
+  const physical = (shardId % PHYSICAL_SHARD_COUNT) + 1;
   return env[`SHARD_${String(physical).padStart(2, '0')}` as keyof Env] as D1Database | undefined ?? null;
 }
 
@@ -36,6 +43,18 @@ function rejectUnsafeRead(sql: string) {
   return null;
 }
 
+// Business owns LIMIT semantics. W03 only appends a LIMIT when the business query
+// omits one, so D1 stops early instead of scanning unbounded rows. When a LIMIT is
+// already present, W03 trusts it and caps the response at the global budget.
+function hasLimitClause(sql: string): boolean {
+  return /\bLIMIT\b/i.test(sql);
+}
+
+function boundedQuery(sql: string, perShardLimit: number): string {
+  if (hasLimitClause(sql)) return sql;
+  return `${sql.trim()} LIMIT ${perShardLimit}`;
+}
+
 export default {
   async fetch(request: Request, env: Env) {
     const requestId = request.headers.get('x-request-id')?.slice(0, 128) || crypto.randomUUID();
@@ -43,12 +62,12 @@ export default {
       const url = new URL(request.url);
 
       if (request.method === 'GET' && url.pathname === '/health') {
-        const ready = [1, 2, 3, 4, 5, 6, 7, 8].every((n) => !!env[`SHARD_${String(n).padStart(2, '0')}` as keyof Env]);
+        const ready = Array.from({ length: PHYSICAL_SHARD_COUNT }, (_, i) => i + 1).every((n) => !!env[`SHARD_${String(n).padStart(2, '0')}` as keyof Env]);
         return json({
           status: ready ? 'READY' : 'NOT_READY',
           service: 'd1-fabric-w03-query-engine',
           version: '0.2.0',
-          shards_bound: ready ? 8 : 0,
+          shards_bound: ready ? PHYSICAL_SHARD_COUNT : 0,
         }, ready ? 200 : 503, requestId);
       }
 
@@ -65,24 +84,28 @@ export default {
         const unsafe = rejectUnsafeRead(body.sql);
         if (unsafe) return json({ code: unsafe }, 400, requestId);
 
-        const shardIds = [...new Set((body.shard_ids ?? [0]).filter((id) => Number.isInteger(id) && id >= 0 && id <= 63))];
+        const shardIds = [...new Set((body.shard_ids ?? [0]).filter((id) => Number.isInteger(id) && id >= 0 && id < LOGICAL_SHARD_COUNT))];
         if (shardIds.length === 0) return json({ code: 'INVALID_SHARD_SET' }, 400, requestId);
         const maxFanout = bounded(env.MAX_FANOUT, 8, 64);
         const maxParallelism = bounded(env.MAX_PARALLELISM, 4, 32);
-        const maxRows = bounded(body.max_rows ?? env.MAX_ROWS, 1000, 100000);
+        // Global row budget: never exceeds MAX_ROWS_GLOBAL, regardless of fanout.
+        const globalMaxRows = Math.min(bounded(body.max_rows ?? env.MAX_ROWS, 1000, 100000), MAX_ROWS_GLOBAL);
         if (shardIds.length > maxFanout) return json({ code: 'FANOUT_BUDGET_EXCEEDED', max_fanout: maxFanout }, 429, requestId);
 
         const missing = shardIds.find((id) => !dbForShard(env, id));
         if (missing !== undefined) return json({ code: 'SHARD_NOT_READY', shard_id: missing }, 503, requestId);
 
+        // Per-shard D1 read budget so total D1 reads scale with globalMaxRows, not fanout.
+        const perShardLimit = Math.ceil(globalMaxRows / shardIds.length);
+        const execSql = boundedQuery(body.sql, perShardLimit);
         const deadlineMs = Math.max(1, Math.min(10000, Number(body.deadline_ms ?? 10000)));
         const started = Date.now();
         const run = async (shardId: number) => {
           if (Date.now() - started >= deadlineMs) throw new Error('TIMEOUT');
           const db = dbForShard(env, shardId);
           if (!db) throw new Error('SHARD_NOT_READY');
-          const result = await db.prepare(body.sql!).bind().all();
-          return { shard_id: shardId, results: result.results.slice(0, maxRows), success: true };
+          const result = await db.prepare(execSql).bind().all();
+          return { shard_id: shardId, results: result.results, success: true };
         };
 
         const results: Array<{ shard_id: number; results: unknown[]; success: boolean }> = [];
@@ -99,6 +122,16 @@ export default {
           }
         }
 
+        // Global cap: total rows across all shards must not exceed globalMaxRows.
+        const allRows: unknown[] = [];
+        for (const r of results) {
+          for (const row of r.results) {
+            if (allRows.length >= globalMaxRows) break;
+            allRows.push(row);
+          }
+        }
+        const truncated = results.some((r) => r.results.length > 0) && allRows.length >= globalMaxRows;
+
         return json({
           plan_id: crypto.randomUUID(),
           tenant_id: body.tenant_id,
@@ -106,16 +139,20 @@ export default {
           shards: shardIds,
           fanout: shardIds.length,
           parallelism,
-          max_rows: maxRows,
+          max_rows: globalMaxRows,
+          per_shard_limit: perShardLimit,
+          total_rows: allRows.length,
+          truncated,
           deadline_ms: deadlineMs,
           execution: 'D1_EXECUTED',
           results,
+          rows: allRows,
         }, 200, requestId);
       }
 
       return json({ code: 'NOT_FOUND' }, 404, requestId);
-    } catch (error) {
-      return json({ code: error instanceof Error ? error.message : 'INTERNAL_ERROR' }, 500, requestId);
+    } catch {
+      return json({ code: 'INTERNAL_ERROR' }, 500, requestId);
     }
   },
 };

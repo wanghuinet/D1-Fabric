@@ -1,13 +1,16 @@
 type ShardState = 'CREATING' | 'ACTIVE' | 'SPLITTING' | 'MERGING' | 'MIGRATING' | 'DRAINING' | 'RETIRED' | 'FAILED';
 interface ShardMeta { shardId: number; physical: string; owner: string; epoch: number; state: ShardState; }
-interface Env { SHARD_COUNT?: string; SHARD_MAP_JSON?: string; }
+// Authoritative shard contract. Single source of truth across W02/W03/W04/W06.
+// 64 logical shards mapped to 8 physical D1 databases via: physical = (logical % 8) + 1.
+const LOGICAL_SHARD_COUNT = 64;
+const PHYSICAL_SHARD_COUNT = 8;
+interface Env { SHARD_MAP_JSON?: string; }
 const json = (body: unknown, status = 200, requestId: string = crypto.randomUUID()) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'x-request-id': requestId } });
 function canonical(tenant: string, namespace: string, key: string): string { const part = (v: string) => `${v.length}:${v}`; return `${part(tenant)}|${part(namespace)}|${part(key)}`; }
 function fnv1a(input: string): number { let h = 0x811c9dc5; for (let i = 0; i < input.length; i++) { h ^= input.charCodeAt(i); h = Math.imul(h, 0x01000193); } return h >>> 0; }
 function loadShards(env: Env): ShardMeta[] {
   if (env.SHARD_MAP_JSON) { const parsed = JSON.parse(env.SHARD_MAP_JSON) as ShardMeta[]; if (!Array.isArray(parsed) || parsed.length === 0) throw new Error('INVALID_SHARD_MAP'); return parsed; }
-  const count = Math.max(1, Math.min(4096, Number(env.SHARD_COUNT ?? 16)));
-  return Array.from({ length: count }, (_, shardId) => ({ shardId, physical: `D1-${shardId}`, owner: 'unassigned', epoch: 1, state: 'ACTIVE' }));
+  return Array.from({ length: LOGICAL_SHARD_COUNT }, (_, shardId) => ({ shardId, physical: `D1-${(shardId % PHYSICAL_SHARD_COUNT) + 1}`, owner: 'unassigned', epoch: 1, state: 'ACTIVE' }));
 }
 export default { async fetch(request: Request, env: Env): Promise<Response> {
   const rid = request.headers.get('x-request-id')?.slice(0, 128) || crypto.randomUUID();
@@ -24,5 +27,5 @@ export default { async fetch(request: Request, env: Env): Promise<Response> {
       return json({ shard_id: shard.shardId, physical: shard.physical, owner: shard.owner, epoch: shard.epoch, state: shard.state, canonical_routing_identity: identity }, 200, rid);
     }
     return json({ code: 'NOT_FOUND' }, 404, rid);
-  } catch (e) { return json({ code: e instanceof Error ? e.message : 'INTERNAL_ERROR' }, 500, rid); }
+  } catch { return json({ code: 'INTERNAL_ERROR' }, 500, rid); }
 } };

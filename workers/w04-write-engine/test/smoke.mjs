@@ -1,6 +1,11 @@
 const base=(process.argv[2]??'http://127.0.0.1:8787').replace(/\/$/,'');
 async function req(path,init,code){const r=await fetch(base+path,init);const b=await r.json();if(r.status!==code)throw new Error(`${path}: ${r.status} ${JSON.stringify(b)}`);return b;}
 await req('/health',undefined,200);
+
+// Shard contract: logical shard id must be in 0..63; 64 is invalid.
+await req('/v1/write',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({tenant_id:'smoke-tenant',namespace:'smoke',record_key:'x',shard_id:64,op:'INSERT',idempotency_key:'x',payload_json:'{}'})},400);
+await req('/v1/write',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({tenant_id:'smoke-tenant',namespace:'smoke',record_key:'x',shard_id:-1,op:'INSERT',idempotency_key:'x',payload_json:'{}'})},400);
+
 const key=`smoke-${Date.now()}`;
 const payload=JSON.stringify({smoke:true,value:1});
 const w=await req('/v1/write',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({tenant_id:'smoke-tenant',namespace:'smoke',record_key:key,shard_id:1,op:'INSERT',idempotency_key:key,payload_json:payload})},200);

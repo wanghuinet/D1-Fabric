@@ -1,6 +1,8 @@
 interface Env {
   MAX_TTL_MS?: string;
   MAX_VALUE_BYTES?: string;
+  MAX_ENTRIES?: string;
+  MAX_TOTAL_BYTES?: string;
   CACHE_NAMESPACE?: string;
 }
 
@@ -15,6 +17,7 @@ interface CacheRequest {
 
 interface CacheEntry {
   value: string;
+  size: number;
   expiresAt: number;
 }
 
@@ -39,15 +42,40 @@ function maxTtl(env: Env): number {
   return Math.max(0, Math.min(86400000, Number(env.MAX_TTL_MS ?? 86400000)));
 }
 
+function maxEntries(env: Env): number {
+  return Math.max(1, Math.min(1000000, Number(env.MAX_ENTRIES ?? 10000)));
+}
+
+function maxTotalBytes(env: Env): number {
+  return Math.max(1, Math.min(268435456, Number(env.MAX_TOTAL_BYTES ?? 16777216)));
+}
+
 // Cache key is tenant-scoped so tenant isolation holds at the key level.
 function cacheKey(env: Env, tenantId: string, namespace: string, key: string): string {
   return `${env.CACHE_NAMESPACE ?? 'd1f'}:${tenantId}:${namespace}:${key}`;
 }
 
 // In-memory, TTL-bounded store. Ephemeral and non-authoritative by design:
-// a miss (or isolate recycle) is always correct. Growth is bounded by TTL expiry
-// and the per-value size limit; no new infrastructure is added.
+// a miss (or isolate recycle) is always correct. Growth is bounded by TTL expiry,
+// MAX_ENTRIES, and MAX_TOTAL_BYTES with FIFO eviction (Map insertion order).
 const store = new Map<string, CacheEntry>();
+let totalBytes = 0;
+
+function entryBytes(key: string, value: string): number {
+  return key.length + new TextEncoder().encode(value).byteLength;
+}
+
+// Evict oldest entries (FIFO) until both entry count and total bytes are within budget.
+function evict(env: Env) {
+  const entryLimit = maxEntries(env);
+  const byteLimit = maxTotalBytes(env);
+  while ((store.size > entryLimit || totalBytes > byteLimit) && store.size > 0) {
+    const oldestKey = store.keys().next().value as string;
+    const entry = store.get(oldestKey);
+    if (entry) totalBytes -= entry.size;
+    store.delete(oldestKey);
+  }
+}
 
 export default {
   async fetch(request: Request, env: Env) {
@@ -73,12 +101,18 @@ export default {
         if (!validText(b.tenant_id, 256) || !validText(b.namespace, 256) || !validText(b.key, 512)) return json({ code: 'INVALID_ARGUMENT' }, 400, rid);
         if (typeof b.value !== 'string') return json({ code: 'INVALID_ARGUMENT', field: 'value' }, 400, rid);
         const limit = maxBytes(env);
-        if (new TextEncoder().encode(b.value).byteLength > limit) return json({ code: 'VALUE_TOO_LARGE', max_value_bytes: limit }, 413, rid);
+        const valueBytes = new TextEncoder().encode(b.value).byteLength;
+        if (valueBytes > limit) return json({ code: 'VALUE_TOO_LARGE', max_value_bytes: limit }, 413, rid);
         const ttlMs = ttl(b.ttl_ms, 30000, maxTtl(env));
         const ck = cacheKey(env, b.tenant_id, b.namespace, b.key);
         if (ttlMs <= 0) return json({ stored: false, cache_key: ck, ttl_ms: 0, reason: 'TTL_TOO_SHORT' }, 200, rid);
-        store.set(ck, { value: b.value, expiresAt: Date.now() + ttlMs });
-        return json({ stored: true, cache_key: ck, ttl_ms: ttlMs, authoritative: false }, 200, rid);
+        const size = entryBytes(ck, b.value);
+        const existing = store.get(ck);
+        if (existing) totalBytes -= existing.size;
+        store.set(ck, { value: b.value, size, expiresAt: Date.now() + ttlMs });
+        totalBytes += size;
+        evict(env);
+        return json({ stored: true, cache_key: ck, ttl_ms: ttlMs, entries: store.size, total_bytes: totalBytes, authoritative: false }, 200, rid);
       }
 
       if (request.method === 'POST' && url.pathname === '/v1/cache/get') {
@@ -87,7 +121,7 @@ export default {
         const ck = cacheKey(env, b.tenant_id, b.namespace, b.key);
         const entry = store.get(ck);
         if (!entry || entry.expiresAt <= Date.now()) {
-          if (entry) store.delete(ck);
+          if (entry) { totalBytes -= entry.size; store.delete(ck); }
           return json({ hit: false, cache_key: ck, authoritative: false }, 200, rid);
         }
         return json({ hit: true, cache_key: ck, value: entry.value, authoritative: false }, 200, rid);
@@ -97,12 +131,15 @@ export default {
         const b = await request.json() as CacheRequest;
         if (!validText(b.tenant_id, 256) || !validText(b.namespace, 256) || !validText(b.key, 512)) return json({ code: 'INVALID_ARGUMENT' }, 400, rid);
         const ck = cacheKey(env, b.tenant_id, b.namespace, b.key);
-        return json({ invalidated: store.delete(ck), authoritative_state_unchanged: true }, 200, rid);
+        const existing = store.get(ck);
+        const deleted = store.delete(ck);
+        if (deleted && existing) totalBytes -= existing.size;
+        return json({ invalidated: deleted, authoritative_state_unchanged: true }, 200, rid);
       }
 
       return json({ code: 'NOT_FOUND' }, 404, rid);
-    } catch (e) {
-      return json({ code: e instanceof Error ? e.message : 'INTERNAL_ERROR' }, 500, rid);
+    } catch {
+      return json({ code: 'INTERNAL_ERROR' }, 500, rid);
     }
   },
 };

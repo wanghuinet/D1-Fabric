@@ -1,3 +1,7 @@
+// Authoritative shard contract. 64 logical shards -> 8 physical D1: physical = (logical % 8) + 1.
+const LOGICAL_SHARD_COUNT = 64;
+const PHYSICAL_SHARD_COUNT = 8;
+
 interface Env {
   SHARD_01?: D1Database;
   SHARD_02?: D1Database;
@@ -15,8 +19,8 @@ const json = (body: unknown, status = 200, requestId: string = crypto.randomUUID
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'x-request-id': requestId } });
 
 function dbForShard(env: Env, shardId: number): D1Database | null {
-  if (!Number.isInteger(shardId) || shardId < 0 || shardId > 63) return null;
-  const physical = (shardId % 8) + 1;
+  if (!Number.isInteger(shardId) || shardId < 0 || shardId >= LOGICAL_SHARD_COUNT) return null;
+  const physical = (shardId % PHYSICAL_SHARD_COUNT) + 1;
   return env[`SHARD_${String(physical).padStart(2, '0')}` as keyof Env] as D1Database | undefined ?? null;
 }
 
@@ -30,8 +34,8 @@ export default {
       const url = new URL(request.url);
 
       if (request.method === 'GET' && url.pathname === '/health') {
-        const ready = [1,2,3,4,5,6,7,8].every((n) => !!env[`SHARD_${String(n).padStart(2, '0')}` as keyof Env]);
-        return json({ status: ready ? 'READY' : 'NOT_READY', service: 'd1-fabric-w04-write-engine', version: '0.4.0', shards_bound: ready ? 8 : 0 }, ready ? 200 : 503, requestId);
+        const ready = Array.from({ length: PHYSICAL_SHARD_COUNT }, (_, i) => i + 1).every((n) => !!env[`SHARD_${String(n).padStart(2, '0')}` as keyof Env]);
+        return json({ status: ready ? 'READY' : 'NOT_READY', service: 'd1-fabric-w04-write-engine', version: '0.4.0', shards_bound: ready ? PHYSICAL_SHARD_COUNT : 0 }, ready ? 200 : 503, requestId);
       }
 
       if (request.method === 'POST' && url.pathname === '/v1/write') {
@@ -40,7 +44,7 @@ export default {
           op?: 'INSERT' | 'UPDATE' | 'DELETE'; idempotency_key?: string; payload_json?: string;
         };
         if (!validText(body.tenant_id, 256) || !validText(body.namespace, 256) || !validText(body.record_key, 512)) return json({ code: 'INVALID_ARGUMENT' }, 400, requestId);
-        if (body.shard_id === undefined || !Number.isInteger(body.shard_id) || body.shard_id < 0 || body.shard_id > 63) return json({ code: 'INVALID_SHARD_ID' }, 400, requestId);
+        if (body.shard_id === undefined || !Number.isInteger(body.shard_id) || body.shard_id < 0 || body.shard_id >= LOGICAL_SHARD_COUNT) return json({ code: 'INVALID_SHARD_ID' }, 400, requestId);
         if (!body.op || !['INSERT','UPDATE','DELETE'].includes(body.op)) return json({ code: 'INVALID_OPERATION' }, 400, requestId);
         if (!validText(body.idempotency_key, 128)) return json({ code: 'INVALID_IDEMPOTENCY_KEY' }, 400, requestId);
         if (body.op !== 'DELETE' && !validText(body.payload_json, 1000000)) return json({ code: 'INVALID_PAYLOAD' }, 400, requestId);
@@ -83,7 +87,6 @@ export default {
         }
       }
 
-      if (request.method === 'POST' && url.pathname === '/v1/write/plan') return json({ code:'USE_V1_WRITE' },410,requestId);
       return json({ code:'NOT_FOUND' },404,requestId);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'INTERNAL_ERROR';
