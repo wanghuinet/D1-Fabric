@@ -236,6 +236,72 @@ These are recorded as **B-layer contract follow-up items**, not reasons to reope
 
 Hot paths must be bounded. No unbounded fan-out or synchronous side-effect cascade. Non-critical side effects may use an event contract when real infrastructure exists and the requirement is proven; no speculative queue/event Worker.
 
+## 10.1 Business-layer interface reservation boundary
+
+The middleware MUST expose stable **capability interfaces** that allow future Business Workers to connect without placing business semantics inside W01-W06. These are interfaces/adapters, not implementations of the future business domains.
+
+| Reserved interface | Business owner(s) | Middleware boundary | Current policy |
+|---|---|---|---|
+| Object/Media interface | B03 Media, B02 Content | R2 object put/get/head/delete, signed/direct-upload authorization boundary, metadata handoff | Keep generic interface; no media business rules in middleware |
+| Async Event/Queue interface | B06/B09/B10/B11/B07 and future domains | enqueue event/job, bounded retry/dead-letter semantics, delivery metadata | Keep generic; event meaning/schema belongs to B layer |
+| Realtime Adapter interface | B16 Realtime, future live/chat/collaboration domains | Durable Objects/WebSocket/session transport adapter boundary | Reserve only; do not create live-room business logic in W01-W06 |
+| Media Processing Adapter | B03 Media, future video/live domains | submit processing job, receive status/result references | Reserve only; FFmpeg/HLS/DASH/transcoding policy stays outside middleware |
+| Search Provider Adapter | B07 Search | index/upsert/delete/query provider boundary | Reserve only; search ranking/query meaning stays in B07 |
+| Identity Provider Adapter | B01 Identity/User | external identity/provider identity mapping boundary | Keep generic provider mapping; business account policy stays in B01 |
+| Webhook/Event Delivery Adapter | B09/B11/B07 and future integrations | outbound event delivery, retry/status boundary | Reserve only; webhook meaning/subscription policy belongs to business |
+| Observability interface | all business domains | request/trace IDs, metrics, latency, RPC/D1/cache/cost evidence | Mandatory generic telemetry; no business analytics semantics |
+
+### 10.1.1 Hard separation rule
+
+```text
+Business Worker
+  ↓ business contract
+Stable Middleware Capability Interface
+  ↓ generic execution
+W01-W06
+  ↓
+Cloudflare / D1 / R2 / KV / Queue / future adapter infrastructure
+```
+
+The reverse dependency is forbidden:
+
+```text
+W01-W06 → Content/Feed/Social/Search/Topic/History/Live/Creator business meaning
+```
+
+Middleware interfaces MUST be generic enough that B01-B21 can use them without requiring middleware knowledge of tables such as posts, comments, follows, topics, campaigns, pages, translations, memberships, orders, rooms, or messages.
+
+### 10.1.2 Realtime reservation
+
+Realtime is intentionally an extension point, not a current middleware business feature. When B16 or another domain later needs live rooms, chat, presence, multiplayer state, collaborative editing, or WebSockets, the business Worker owns room/member/message semantics while a Realtime Adapter owns transport/session primitives. Durable Objects may be introduced only when the concrete workload and contract justify them.
+
+### 10.1.3 Media reservation
+
+R2 remains the authoritative object store. B03 owns media identity, ownership, lifecycle, visibility, attachment semantics, processing policy, and derived-media meaning. Middleware may provide generic object operations and upload/download boundaries. Video transcoding, FFmpeg, HLS/DASH packaging, thumbnails, subtitles, and P2P/distribution policy are external processing/distribution concerns and MUST NOT enter W01-W06.
+
+### 10.1.4 Search reservation
+
+B07 owns search semantics, fields, filters, ranking, relevance, pagination, and indexing policy. W01-W06 MUST NOT contain search-specific indexes, tokenization, ranking, or provider-specific business behavior. A future provider adapter may connect B07 to an external search engine without changing D1-Fabric ownership.
+
+### 10.1.5 Identity and mini-program reservation
+
+B01 owns the canonical user account. External identities (for example web, Apple, Google, WeChat/mini-program or other providers) must map through a generic identity-provider interface and a `user_identities`-style domain model; provider IDs MUST NOT become the primary user ID. Mini-program clients share `/api/v1/*` and do not receive a separate backend or database merely because they are a different client.
+
+### 10.1.6 Event semantics reservation
+
+Queue/Event infrastructure transports business events; it does not define them. Event names, payload schemas, producer/consumer ownership, ordering requirements, idempotency meaning, retention, and privacy rules belong to the relevant Business contract. Analytics, recommendation, notification, moderation, indexing, and other secondary work should consume events asynchronously where the active contract permits, rather than creating synchronous hot-path cascades.
+
+### 10.1.7 Interface evolution rule
+
+A reserved interface is not permission to add infrastructure speculatively. Before implementation, the business owner MUST provide:
+
+```text
+use case → contract → payload/DTO → cost envelope
+→ failure/idempotency semantics → owner → tests → measured evidence
+```
+
+Adding a new adapter, changing a capability signature, or changing Worker topology is an architecture/contract change and follows Section 14.
+
 ## 11. 1.0 business scope
 
 MVP closure:
