@@ -1,6 +1,6 @@
 # D1-Fabric AI Engineering Instructions
 
-**Version:** 7.0
+**Version:** 7.1
 **Status:** ACTIVE
 **Role:** AI唯一入口 / Router。
 
@@ -14,12 +14,13 @@ The repository is the source of truth. Chat is never an authority.
 AGENTS.md                                      ← AI唯一入口 / Router
 docs/C00-CONSTITUTION-v1.0.md                 ← 总宪法 / AI权限 / 合同优先级
 docs/C01-ARCHITECTURE-OWNERSHIP-v1.0.md      ← 架构 / Worker / Owner / 数据与API边界
-docs/C02-ENGINEERING-OPERATIONS-v1.0.md       ← 开发 / 验证 / 成本 / 性能 / 部署 / 证据
+docs/C02-ENGINEERING-OPERATIONS-v1.0.md      ← 开发 / 验证 / 成本 / 性能 / 部署 / 证据
 docs/PRODUCT-PLATFORM-ROADMAP-CONTRACT-v1.0.md← 产品/平台路线图与迭代决策合同
 docs/API-CONTRACT-v1.1-DEVELOPER-PLATFORM.md  ← v1.1公开API/第三方开发者合同
 docs/API-IMPLEMENTATION-CONTRACT-v1.1.md      ← v1.1实现级冻结合同
 docs/D1-FABRIC-2.0-BLUEPRINT.md               ← 2.0架构基线与微创新规则
 docs/D1-FABRIC-3.0-CONTRACT-v1.0.md           ← 3.0执行合同 / 双向一致性 / 扩展接口 / Push-Verify Gate
+docs/D1-FABRIC-3.0-API-RESILIENCE-CONTRACT-v1.0.md ← 3.0 API能力完整性 / 超级App反推 / 极限流量与攻击韧性合同
 docs/api/v1.1/                                 ← v1.1 OpenAPI/DTO/RPC/migration evidence set
 ```
 
@@ -39,6 +40,7 @@ AGENTS.md
 → API-IMPLEMENTATION-CONTRACT when implementing v1.1
 → D1-FABRIC-2.0-BLUEPRINT when reviewing the 2.0 baseline
 → D1-FABRIC-3.0-CONTRACT-v1.0 when implementing/reviewing 3.0
+→ D1-FABRIC-3.0-API-RESILIENCE-CONTRACT-v1.0 when API capability, traffic, quota, abuse, resilience, or capacity is relevant
 → applicable domain/data contract
 → existing verified implementation/tests
 → Change Manifest / Execution Packet
@@ -98,6 +100,10 @@ No novelty-for-novelty features.
 - Cache HIT terminates database execution when `cacheTermination=true`.
 - AI-generated data operations are validated against the same Data Contract used by runtime.
 - No middleware Worker contains business semantics.
+- API admission, rate/quota, payload, pagination, fanout, retry, concurrency, and downstream work remain bounded.
+- D1 overload must not become retry amplification.
+- One noisy tenant/request/object must not obtain unbounded global resource access.
+- Saturation acceptance is bounded degradation, not an infinite-throughput promise.
 
 ## 7. Scope discipline
 
@@ -163,6 +169,11 @@ failure/concurrency/idempotency
 regression
 Architecture → Contract mapping
 Contract → Architecture mapping
+API capability completeness
+extreme-traffic/adversarial matrix
+noisy-neighbor isolation
+D1 overload containment
+backpressure/degradation
 ```
 
 Verification may perform only contract-preserving refactoring. It may not add product/business functionality or change architecture under the label of refactoring.
