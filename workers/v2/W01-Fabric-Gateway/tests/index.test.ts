@@ -38,6 +38,35 @@ test("malformed JSON is rejected", async () => {
   assert.deepEqual(await response.json(), { error: "INVALID_REQUEST" });
 });
 
+test("missing budget is rejected", async () => {
+  const body = { ...valid } as Record<string, unknown>;
+  delete body.budget;
+  const response = await worker.fetch(
+    new Request("https://example.invalid/", {
+      method: "POST",
+      body: JSON.stringify(body),
+      headers: { "content-type": "application/json" },
+    }),
+  );
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), { error: "INVALID_BUDGET" });
+});
+
+test("payload above 1 MiB is rejected before JSON parsing", async () => {
+  const response = await worker.fetch(
+    new Request("https://example.invalid/", {
+      method: "POST",
+      body: "x",
+      headers: {
+        "content-type": "application/json",
+        "content-length": "1048577",
+      },
+    }),
+  );
+  assert.equal(response.status, 413);
+  assert.deepEqual(await response.json(), { error: "PAYLOAD_TOO_LARGE" });
+});
+
 test("valid request returns a topology-neutral validation envelope", async () => {
   const response = await worker.fetch(
     new Request("https://example.invalid/", {
