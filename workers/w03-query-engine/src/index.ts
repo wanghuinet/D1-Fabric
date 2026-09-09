@@ -36,23 +36,50 @@ function dbForShard(env: Env, shardId: number): D1Database | null {
   return env[`SHARD_${String(physical).padStart(2, '0')}` as keyof Env] as D1Database | undefined ?? null;
 }
 
-function rejectUnsafeRead(sql: string) {
-  const normalized = sql.trim().toUpperCase();
+// Reject any statement that is not a single read-only SELECT.
+function rejectUnsafeRead(sql: string): string | null {
+  const trimmed = sql.trim();
+  if (trimmed.includes(';')) {
+    // Allow trailing semicolon only if the rest is empty.
+    const beforeSemicolon = trimmed.slice(0, trimmed.lastIndexOf(';')).trim();
+    const afterSemicolon = trimmed.slice(trimmed.lastIndexOf(';') + 1).trim();
+    if (afterSemicolon !== '') return 'MULTI_STATEMENT_NOT_ALLOWED';
+    if (beforeSemicolon.includes(';')) return 'MULTI_STATEMENT_NOT_ALLOWED';
+  }
+  const normalized = trimmed.toUpperCase();
   if (!normalized.startsWith('SELECT')) return 'ONLY_SELECT_ALLOWED';
-  if (normalized.includes(';')) return 'MULTI_STATEMENT_NOT_ALLOWED';
+  // Block write/DDL/pragma keywords anywhere after SELECT.
+  const writeKeywords = ['INSERT ', 'UPDATE ', 'DELETE ', 'DROP ', 'ALTER ', 'CREATE ', 'PRAGMA ', 'ATTACH ', 'DETACH '];
+  for (const kw of writeKeywords) {
+    if (normalized.includes(kw)) return 'UNSUPPORTED_STATEMENT';
+  }
   return null;
 }
 
-// Business owns LIMIT semantics. W03 only appends a LIMIT when the business query
-// omits one, so D1 stops early instead of scanning unbounded rows. When a LIMIT is
-// already present, W03 trusts it and caps the response at the global budget.
-function hasLimitClause(sql: string): boolean {
-  return /\bLIMIT\b/i.test(sql);
+// Extract the numeric LIMIT value from a SELECT statement.
+// Returns null if no LIMIT clause is present.
+function extractLimitValue(sql: string): number | null {
+  const match = sql.match(/\bLIMIT\s+(\d+)\s*;?\s*$/i);
+  if (!match) return null;
+  const n = parseInt(match[1], 10);
+  return Number.isFinite(n) ? n : null;
 }
 
-function boundedQuery(sql: string, perShardLimit: number): string {
-  if (hasLimitClause(sql)) return sql;
-  return `${sql.trim()} LIMIT ${perShardLimit}`;
+// Enforce execution-level row budget: the D1 query must never read more rows
+// than perShardLimit, regardless of what LIMIT the business SQL specifies.
+function enforceLimit(sql: string, perShardLimit: number): string {
+  const trimmed = sql.trim().replace(/;$/, '').trim();
+  const existingLimit = extractLimitValue(trimmed);
+  if (existingLimit === null) {
+    // No LIMIT: append one.
+    return `${trimmed} LIMIT ${perShardLimit}`;
+  }
+  if (existingLimit <= perShardLimit) {
+    // Business LIMIT is within budget: trust it.
+    return trimmed;
+  }
+  // Business LIMIT exceeds budget: replace with perShardLimit.
+  return trimmed.replace(/\bLIMIT\s+\d+\s*$/i, `LIMIT ${perShardLimit}`);
 }
 
 export default {
@@ -66,7 +93,7 @@ export default {
         return json({
           status: ready ? 'READY' : 'NOT_READY',
           service: 'd1-fabric-w03-query-engine',
-          version: '0.2.0',
+          version: '0.3.0',
           shards_bound: ready ? PHYSICAL_SHARD_COUNT : 0,
         }, ready ? 200 : 503, requestId);
       }
@@ -78,6 +105,7 @@ export default {
           shard_ids?: number[];
           deadline_ms?: number;
           max_rows?: number;
+          params?: (string | number | null)[];
         };
         if (!body.tenant_id || !body.sql) return json({ code: 'INVALID_ARGUMENT' }, 400, requestId);
         if (body.sql.length > 16000) return json({ code: 'PAYLOAD_TOO_LARGE' }, 413, requestId);
@@ -97,14 +125,16 @@ export default {
 
         // Per-shard D1 read budget so total D1 reads scale with globalMaxRows, not fanout.
         const perShardLimit = Math.ceil(globalMaxRows / shardIds.length);
-        const execSql = boundedQuery(body.sql, perShardLimit);
+        const execSql = enforceLimit(body.sql, perShardLimit);
+        const params = body.params ?? [];
         const deadlineMs = Math.max(1, Math.min(10000, Number(body.deadline_ms ?? 10000)));
         const started = Date.now();
         const run = async (shardId: number) => {
           if (Date.now() - started >= deadlineMs) throw new Error('TIMEOUT');
           const db = dbForShard(env, shardId);
           if (!db) throw new Error('SHARD_NOT_READY');
-          const result = await db.prepare(execSql).bind().all();
+          const stmt = db.prepare(execSql);
+          const result = params.length > 0 ? await stmt.bind(...params).all() : await stmt.bind().all();
           return { shard_id: shardId, results: result.results, success: true };
         };
 
