@@ -1,8 +1,8 @@
 # D1-Fabric AI Engineering Instructions
 
-**Version:** 3.1
+**Version:** 4.0
 **Status:** ACTIVE
-**Role:** AI唯一入口 / Router；不重复定义领域合同。
+**Role:** AI唯一入口 / Router。
 
 ## 1. Repository authority
 
@@ -15,9 +15,12 @@ AGENTS.md                                  ← AI唯一入口 / Router
  docs/C00-CONSTITUTION-v1.0.md             ← 总宪法 / AI权限 / 合同优先级
  docs/C01-ARCHITECTURE-OWNERSHIP-v1.0.md   ← 架构 / Worker / Owner / 数据与API边界
  docs/C02-ENGINEERING-OPERATIONS-v1.0.md   ← 开发 / 验证 / 成本 / 性能 / 部署 / 证据
+ docs/CURRENT-ITERATION-CONTRACT-v1.1-v1.9.md ← 当前产品迭代总合同
+ docs/API-CONTRACT-v1.1-DEVELOPER-PLATFORM.md ← v1.1公开API/第三方开发者合同
+ docs/api/v1.1/                             ← v1.1 OpenAPI/DTO/RPC/migration evidence set
 ```
 
-Domain/data contracts remain active only for their declared domain (for example `workers/shard-schema/CONTENT-PLATFORM-SCHEMA-V1-CONTRACT.md`). Historical contracts under `archive/legacy/` have **NO ACTIVE AUTHORITY**.
+Historical documents under `archive/` have **NO ACTIVE AUTHORITY**.
 
 ## 2. Mandatory read order
 
@@ -28,6 +31,8 @@ AGENTS.md
 → C00
 → C01 when architecture/ownership/deployment/API/data boundaries are relevant
 → C02
+→ CURRENT-ITERATION-CONTRACT when product/version scope is relevant
+→ API-CONTRACT when API/data contract is relevant
 → applicable domain/data contract
 → existing verified implementation/tests
 → Change Manifest / Execution Packet
@@ -43,20 +48,20 @@ AI MUST NOT independently redesign architecture; add, split, or merge Workers; c
 
 Conflict or genuine architecture defect: **STOP → report → versioned proposal → approval → implement.**
 
-## 4. Frozen 1.0 topology pointer
+## 4. Current topology
 
-C01 is authoritative for topology. Current middleware is W01-W06: W01 Runtime Gateway; W02 Shard Router; W03 Query Engine; W04 Write Engine; W05 Cache; W06 Control & Recovery.
+C01 is authoritative for middleware topology. Current generic middleware is W01-W06: W01 Runtime Gateway; W02 Shard Router; W03 Query Engine; W04 Write Engine; W05 Cache; W06 Control & Recovery.
 
-Business ownership is B01-B14 for defined 1.0/V2 boundaries; B15-B21 are reserved logical boundaries only. No empty future Worker is created merely because a boundary is reserved.
+The active v1.1 business topology is defined by the current iteration/API contracts: W07 API/BFF; W08 Identity; W09 Content + Media + Topic; W10 Feed + Recommendation + History; W12 Social + Interaction; W13 Search. W11 is not a physical Worker in v1.1. Do not create future Workers merely because a logical boundary is reserved.
 
-Known pre-1.0 blocker: business semantics in W04 `publish.ts` and W06 content-specific integrity logic must be migrated according to C01 before the affected middleware is considered pure.
+Known pre-1.0 blocker remains: business semantics in W04 `publish.ts` and W06 content-specific integrity logic must be migrated according to C01 before affected middleware is considered pure.
 
 ## 5. Core engineering law
 
 ```text
 Contract → Owner → Data Contract → Schema/Index → Implementation
 → Targeted Test → Adversarial/Boundary Test → Cost/Performance Check
-→ Diff Scope Gate → Commit → Push → CI PASS → Evidence
+→ Security Check → Diff Scope Gate → Commit → Push → CI PASS → Evidence
 ```
 
 ## 6. Non-negotiable invariants
@@ -69,8 +74,11 @@ Contract → Owner → Data Contract → Schema/Index → Implementation
 - Partial failure must not corrupt committed state.
 - Recovery must restore invariants before normal admission.
 - Public compatibility cannot be silently changed.
-- Reserved business interfaces in C01 are extension boundaries, not permission to place business code in W01-W06.
-- Future Realtime, Media Processing, Search Provider, Identity Provider, and Webhook/Event capabilities must remain generic adapters until a versioned business contract activates them.
+- Public APIs never expose shard/physical D1/SQL/internal Worker details.
+- R2 is authoritative for binary media; D1 stores metadata/reference.
+- Content uses one canonical post model for text/image/video/mixed; do not create parallel Article/Gallery/Video business tables.
+- Comments and replies use one comments model with `parent_id`.
+- Duplicate likes/favorites/follows are prevented by authoritative constraints/idempotency.
 
 ## 7. Scope discipline
 
@@ -78,13 +86,11 @@ Every T1/T2 task requires a Change Manifest and Diff Scope Gate. No drive-by ref
 
 T0 = trivial mechanical; T1 = bounded local semantic; T2 = cross-boundary/security/state/routing/epoch/recovery/schema/public protocol/migration/material performance or cost. Never downgrade a real T2 task.
 
-## 8. 1.0 scope pointer
+## 8. Version authority
 
-MVP business closure is `B01 + B02 + B03 + B04 + B05 + B06 + B07 + B12 + B13`.
+`docs/CURRENT-ITERATION-CONTRACT-v1.1-v1.9.md` is the sole active product roadmap for v1.1-v1.9. `docs/API-CONTRACT-v1.1-DEVELOPER-PLATFORM.md` is the active public semantic API contract. Existing `docs/api/v1.1/` artifacts remain the implementation contract set until superseded by an explicitly versioned contract.
 
-Core path: `Auth → User → Content Create → Media Reference → Publish → Feed Read → Content Read → Social Action → Search → Topic → History`.
-
-B08/B09/B10/B11/B14 are V2; B15-B21 later.
+v1.1 must close the real loop: Auth/User → text/image/video/mixed content → media/R2 → publish → home/following/hot feed → detail → like/favorite/follow → comments/replies → search/topic/history primitives → Admin → public H5 → Android → approved third-party developer API.
 
 ## 9. Final rule
 
