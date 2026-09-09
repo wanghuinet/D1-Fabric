@@ -31,13 +31,13 @@ const payload: PayloadDemand = {
   largestFieldBytes: 500,
   arrayItems: 10,
   nestingDepth: 3,
+  responseItems: 20,
 };
 const batchLimits: BatchLimits = { maxBatchItems: 32, maxItemBytes: 1024 };
 const batch: BatchDemand = { itemCount: 8, largestItemBytes: 512 };
 const cursorLimits: CursorLimits = {
   maxCursorBytes: 128,
   maxPageSize: 50,
-  maxResponseItems: 50,
   expectedVersion: 2,
 };
 const cursor: CursorDemand = {
@@ -72,6 +72,8 @@ assert(evaluatePayload({ ...payload, headerBytes: payloadLimits.maxHeaderBytes +
 assert(evaluatePayload({ ...payload, largestFieldBytes: payloadLimits.maxFieldBytes + 1 }, payloadLimits).code === "FIELD_BYTES_EXCEEDED", "field overflow rejected");
 assert(evaluatePayload({ ...payload, arrayItems: payloadLimits.maxArrayItems + 1 }, payloadLimits).code === "ARRAY_ITEMS_EXCEEDED", "array overflow rejected");
 assert(evaluatePayload({ ...payload, nestingDepth: payloadLimits.maxNestingDepth + 1 }, payloadLimits).code === "NESTING_DEPTH_EXCEEDED", "nesting overflow rejected");
+assert(evaluatePayload({ ...payload, responseItems: payloadLimits.maxResponseItems }, payloadLimits).admitted === true, "response item ceiling admitted");
+assert(evaluatePayload({ ...payload, responseItems: payloadLimits.maxResponseItems + 1 }, payloadLimits).code === "RESPONSE_ITEMS_EXCEEDED", "response item overflow rejected");
 assert(evaluatePayload({ ...payload, requestBytes: -1 }, payloadLimits).code === "INVALID_PAYLOAD", "invalid payload rejected before limits");
 
 assert(evaluateBatch(batch, batchLimits).admitted === true, "valid batch admitted");
@@ -99,4 +101,4 @@ assertThrows(() => validateCursorDemand({ ...cursor, nowMs: 0 }), "invalid curso
 // Cursor is opaque: this contract bounds and versions it without exposing or interpreting physical shard IDs.
 assert(evaluateCursor(cursor, cursorLimits).admitted, "opaque cursor remains topology-neutral");
 
-console.log("PASS: 26 payload/batch/cursor contract assertions");
+console.log("PASS: payload/batch/cursor contract assertions");
