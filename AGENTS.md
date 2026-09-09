@@ -1,6 +1,6 @@
 # D1-Fabric AI Engineering Instructions
 
-**Version:** 5.1
+**Version:** 6.0
 **Status:** ACTIVE
 **Role:** AI唯一入口 / Router。
 
@@ -12,16 +12,17 @@ The repository is the source of truth. Chat is never an authority.
 
 ```text
 AGENTS.md                                      ← AI唯一入口 / Router
- docs/C00-CONSTITUTION-v1.0.md                 ← 总宪法 / AI权限 / 合同优先级
- docs/C01-ARCHITECTURE-OWNERSHIP-v1.0.md       ← 架构 / Worker / Owner / 数据与API边界
- docs/C02-ENGINEERING-OPERATIONS-v1.0.md       ← 开发 / 验证 / 成本 / 性能 / 部署 / 证据
- docs/PRODUCT-PLATFORM-ROADMAP-CONTRACT-v1.0.md← 产品/平台路线图与迭代决策合同
- docs/API-CONTRACT-v1.1-DEVELOPER-PLATFORM.md  ← v1.1公开API/第三方开发者合同
- docs/API-IMPLEMENTATION-CONTRACT-v1.1.md      ← v1.1实现级冻结合同
- docs/api/v1.1/                                 ← v1.1 OpenAPI/DTO/RPC/migration evidence set
+docs/C00-CONSTITUTION-v1.0.md                 ← 总宪法 / AI权限 / 合同优先级
+docs/C01-ARCHITECTURE-OWNERSHIP-v1.0.md      ← 架构 / Worker / Owner / 数据与API边界
+docs/C02-ENGINEERING-OPERATIONS-v1.0.md       ← 开发 / 验证 / 成本 / 性能 / 部署 / 证据
+docs/PRODUCT-PLATFORM-ROADMAP-CONTRACT-v1.0.md← 产品/平台路线图与迭代决策合同
+docs/API-CONTRACT-v1.1-DEVELOPER-PLATFORM.md  ← v1.1公开API/第三方开发者合同
+docs/API-IMPLEMENTATION-CONTRACT-v1.1.md      ← v1.1实现级冻结合同
+docs/D1-FABRIC-2.0-BLUEPRINT.md               ← 2.0架构基线与微创新规则
+docs/api/v1.1/                                 ← v1.1 OpenAPI/DTO/RPC/migration evidence set
 ```
 
-Historical documents under `archive/` have **NO ACTIVE AUTHORITY**.
+Historical documents under `archive/` have NO active authority. The former 1.0 middleware implementation is preserved under `workers/old1.0/` and is not the 2.0 implementation target.
 
 ## 2. Mandatory read order
 
@@ -35,6 +36,7 @@ AGENTS.md
 → PRODUCT-PLATFORM-ROADMAP-CONTRACT when product/version scope is relevant
 → API-CONTRACT when API/data contract is relevant
 → API-IMPLEMENTATION-CONTRACT when implementing v1.1
+→ D1-FABRIC-2.0-BLUEPRINT when implementing or reviewing 2.0
 → applicable domain/data contract
 → existing verified implementation/tests
 → Change Manifest / Execution Packet
@@ -44,32 +46,53 @@ Do NOT preload the repository or historical documents. Load the minimum context 
 
 ## 3. AI authority boundary
 
-AI agents are implementation agents, not architecture, product, database, security-policy, ownership, or scope authorities.
+AI agents are implementation agents, not architecture, product, database, security-policy, ownership, or scope authorities. For approved 2.0 work, AI implements the 2.0 blueprint and its acceptance gates; it may not invent additional architecture.
 
-AI MUST NOT independently redesign architecture; add, split, or merge Workers; create speculative infrastructure; change semantic ownership; invent competing protocol semantics; put business meaning into middleware; implement future-phase features; delete functionality to reduce code; or fabricate evidence.
+AI MUST NOT independently add, split, or merge Workers outside the approved 2.0 topology; create speculative infrastructure; change semantic ownership; invent competing protocol semantics; put business meaning into middleware; implement future-phase features; delete functionality to reduce code; or fabricate evidence.
 
-AI may not treat the roadmap as a fixed feature checklist. The roadmap is evidence-driven and may change through the documented change-control process. AI cannot approve such a change.
+Conflict or genuine architecture defect: STOP → report → versioned proposal → approval → implement.
 
-Conflict or genuine architecture defect: **STOP → report → versioned proposal → approval → implement.**
+## 4. Current topology and migration
 
-## 4. Current topology
+The verified 1.0 middleware topology was W01-W06: Runtime Gateway, Shard Router, Query Engine, Write Engine, Cache, Control & Recovery. These six implementations are preserved under `workers/old1.0/` for rollback, audit, and behavior comparison.
 
-C01 is authoritative for middleware topology. Current generic middleware is W01-W06: W01 Runtime Gateway; W02 Shard Router; W03 Query Engine; W04 Write Engine; W05 Cache; W06 Control & Recovery.
+The approved 2.0 middleware topology is four execution boundaries:
 
-The active v1.1 business topology is defined by the API/implementation contracts: W07 API/BFF; W08 Identity; W09 Content + Media + Topic; W10 Feed + Recommendation + History; W12 Social + Interaction; W13 Search. W11 is not a physical Worker in v1.1. Do not create future Workers merely because a logical boundary is reserved.
+- W01 Fabric Gateway
+- W02 Execution Fabric
+- W03 Write Fabric
+- W04 Control Plane
 
-Known pre-1.0 blocker remains: business semantics in W04 `publish.ts` and W06 content-specific integrity logic must be migrated according to C01 before affected middleware is considered pure.
+Cache is a capability of the read execution path, not a mandatory standalone network hop. Observability is emitted by the executing boundary, not a synchronous telemetry Worker.
 
-## 5. Core engineering law
+The v1.1 business topology remains W07 API/BFF; W08 Identity; W09 Content + Media + Topic; W10 Feed + Recommendation + History; W12 Social + Interaction; W13 Search. W11 is not a physical Worker in v1.1.
+
+Known pre-1.0 blocker: business semantics previously present in W04 `publish.ts` and W06 content-specific integrity logic must remain in the preserved 1.0 archive and must not be reintroduced into 2.0 middleware.
+
+## 5. 2.0 industrial-basis rule
+
+Every new 2.0 capability must identify:
 
 ```text
-User problem → outcome → capability → approved design
-→ contract freeze → implementation → targeted/adversarial qualification
-→ cost/performance → security → scope gate → commit → push → CI → evidence
-→ safe landing → measurement → next decision
+production-proven distributed-systems idea
+→ D1/Edge/Serverless adaptation
+→ small measurable Fabric innovation
+→ contract + adversarial evidence
 ```
 
-## 6. Non-negotiable invariants
+No novelty-for-novelty features. Do not claim that an established idea was invented by Fabric.
+
+## 6. 2.0 core engineering law
+
+```text
+User/system problem → outcome → capability
+→ industrial basis → approved Fabric adaptation
+→ contract freeze → implementation → adversarial qualification
+→ resource/cost/performance evidence → security → scope gate
+→ commit → push → CI → evidence → measurement
+```
+
+## 7. 2.0 non-negotiable invariants
 
 - One semantic concern has one owner.
 - One authoritative mutable state has one owner.
@@ -80,30 +103,25 @@ User problem → outcome → capability → approved design
 - Recovery must restore invariants before normal admission.
 - Public compatibility cannot be silently changed.
 - Public APIs never expose shard/physical D1/SQL/internal Worker details.
-- R2 is authoritative for binary media; D1 stores metadata/reference.
-- Content uses one canonical post model for text/image/video/mixed; do not create parallel Article/Gallery/Video business tables.
-- Comments and replies use one comments model with `parent_id`.
-- Duplicate likes/favorites/follows are prevented by authoritative constraints/idempotency.
+- Every execution has explicit fan-out, statement, row, write, retry and deadline budgets.
+- `sum(shard_rows_budget) <= global_rows_budget`.
+- `sum(shard_write_budget) <= global_write_budget`.
+- `sum(statement_budget) <= global_statement_budget`.
+- Cache HIT terminates database execution when `cacheTermination=true`.
+- AI-generated data operations are validated against the same Data Contract used by runtime.
+- No 2.0 middleware Worker contains business semantics.
 
-## 7. Scope discipline
+## 8. Scope discipline
 
 Every T1/T2 task requires a Change Manifest and Diff Scope Gate. No drive-by refactor, dependency, schema, API, Worker, or infrastructure change.
 
-T0 = trivial mechanical; T1 = bounded local semantic; T2 = cross-boundary/security/state/routing/epoch/recovery/schema/public protocol/migration/material performance or cost. Never downgrade a real T2 task.
+T0 = trivial mechanical; T1 = bounded local semantic; T2 = cross-boundary/security/state/routing/epoch/recovery/schema/public protocol/material performance or cost. Never downgrade a real T2 task.
 
-## 8. Roadmap authority
+## 9. Roadmap authority
 
-`docs/PRODUCT-PLATFORM-ROADMAP-CONTRACT-v1.0.md` is the sole active product/platform roadmap authority. It uses three planning horizons: current iteration fully specified, near-term capabilities directionally specified, and long-term capabilities strategic only.
+`docs/PRODUCT-PLATFORM-ROADMAP-CONTRACT-v1.0.md` remains the product/platform roadmap authority for the application. `docs/D1-FABRIC-2.0-BLUEPRINT.md` is the approved middleware architecture baseline for the 2.0 migration. Future capabilities remain evidence-driven and are not implementation promises until approved.
 
-The roadmap is evidence-driven. Future versions are not frozen implementation promises. Only the current approved iteration is execution-frozen.
-
-For v1.1, `docs/API-CONTRACT-v1.1-DEVELOPER-PLATFORM.md` defines public semantics, `docs/API-IMPLEMENTATION-CONTRACT-v1.1.md` freezes implementation behavior, and `docs/api/v1.1/` supplies OpenAPI/DTO/RPC/migration evidence.
-
-## 9. Design review gate
-
-Major changes to public API, schema, ownership, Worker topology, security boundaries, reliability model, or material cost model require an approved design before implementation. AI cannot approve its own design. True conflict: **STOP → proposal → review/approval → implement.**
-
-## 10. Current execution boundary
+## 10. v1.1 business boundary
 
 v1.1 closes the complete loop:
 
@@ -115,8 +133,8 @@ Auth/User → text/image/video/mixed content → R2 media
 → Android → approved third-party developer API
 ```
 
-Do not implement v1.2+ functionality merely because an interface could be useful.
+Do not implement v1.2+ business functionality merely because an interface could be useful.
 
 ## 11. Final rule
 
-> **Solve the declared user problem, load minimum correct context, obey the active contracts, implement only the current execution boundary, prove the result, and stop.**
+> Solve the declared system problem, use the minimum correct context, implement only the approved boundary, prefer proven industrial ideas plus small measurable adaptation, prove the result, and stop.
