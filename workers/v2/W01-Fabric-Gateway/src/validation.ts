@@ -12,6 +12,7 @@ export const W01_LIMITS = Object.freeze({
 const MAX_ID_LENGTH = 128;
 const MAX_VERSION_LENGTH = 32;
 const MAX_AUTH_SCOPE_LENGTH = 256;
+const OPERATION_TOKEN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 
 export type GatewayBudget = {
   fanout: number;
@@ -63,6 +64,14 @@ function requiredString(value: unknown, field: string, maxLength: number): strin
   return value;
 }
 
+function requiredToken(value: unknown, field: string, maxLength: number): string {
+  const result = requiredString(value, field, maxLength);
+  if (!OPERATION_TOKEN.test(result)) {
+    throw new ValidationError("INVALID_REQUEST", `${field} is invalid`);
+  }
+  return result;
+}
+
 function nonNegativeInteger(value: unknown, field: string): number {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
     throw new ValidationError("INVALID_BUDGET", `${field} is invalid`);
@@ -78,8 +87,8 @@ export function parseAndValidateBody(raw: unknown, nowMs: number): GatewayReques
   const requestId = requiredString(raw.requestId, "requestId", MAX_ID_LENGTH);
   const tenantId = requiredString(raw.tenantId, "tenantId", MAX_ID_LENGTH);
   const principalScope = requiredString(raw.principalScope, "principalScope", MAX_AUTH_SCOPE_LENGTH);
-  const operation = requiredString(raw.operation, "operation", MAX_ID_LENGTH);
-  const operationVersion = requiredString(raw.operationVersion, "operationVersion", MAX_VERSION_LENGTH);
+  const operation = requiredToken(raw.operation, "operation", MAX_ID_LENGTH);
+  const operationVersion = requiredToken(raw.operationVersion, "operationVersion", MAX_VERSION_LENGTH);
 
   const deadlineAt = raw.deadlineAt;
   if (typeof deadlineAt !== "number" || !Number.isSafeInteger(deadlineAt)) {
