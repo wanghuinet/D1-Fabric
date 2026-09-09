@@ -1,4 +1,4 @@
-name = "d1-fabric-w01-gateway"
+name = "w01-fabric-gateway"
 main = "src/index.ts"
-compatibility_date = "2026-09-10"
+compatibility_date = "2026-09-09"
 workers_dev = true
