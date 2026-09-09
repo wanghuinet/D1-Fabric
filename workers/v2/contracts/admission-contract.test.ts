@@ -40,16 +40,18 @@ validateAdmissionDemand(demand);
 validateAdmissionLimits(limits);
 assert(admit(demand, limits).admitted === true, "valid demand is admitted");
 
-for (const [field, expected] of [
-  ["fanout", "FANOUT_EXCEEDED"],
-  ["concurrency", "CONCURRENCY_EXCEEDED"],
-  ["statements", "STATEMENTS_EXCEEDED"],
-  ["rowsRead", "ROWS_READ_EXCEEDED"],
-  ["rowsWrite", "ROWS_WRITE_EXCEEDED"],
-  ["deadlineMs", "DEADLINE_EXCEEDED"],
-  ["retries", "RETRIES_EXCEEDED"],
-] as const) {
-  const candidate = { ...demand, [field]: limits[field] + 1 } as AdmissionDemand;
+const boundaries: ReadonlyArray<readonly [keyof AdmissionDemand, keyof AdmissionLimits, string]> = [
+  ["fanout", "maxFanout", "FANOUT_EXCEEDED"],
+  ["concurrency", "maxConcurrency", "CONCURRENCY_EXCEEDED"],
+  ["statements", "maxStatements", "STATEMENTS_EXCEEDED"],
+  ["rowsRead", "maxRowsRead", "ROWS_READ_EXCEEDED"],
+  ["rowsWrite", "maxRowsWrite", "ROWS_WRITE_EXCEEDED"],
+  ["deadlineMs", "deadlineMs", "DEADLINE_EXCEEDED"],
+  ["retries", "maxRetries", "RETRIES_EXCEEDED"],
+];
+
+for (const [field, limitField, expected] of boundaries) {
+  const candidate = { ...demand, [field]: limits[limitField] + 1 } as AdmissionDemand;
   assert(admit(candidate, limits).code === expected, `${field} boundary rejects deterministically`);
 }
 
