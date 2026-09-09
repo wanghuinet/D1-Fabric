@@ -1,6 +1,6 @@
 # D1-Fabric AI Engineering Instructions
 
-**Version:** 8.0
+**Version:** 9.0
 **Status:** ACTIVE / 3.0 MASTER-LOCKED
 **Role:** AI唯一入口 / Router。
 
@@ -137,13 +137,39 @@ P01-P16 are executable gates. Each phase must have a committed packet with allow
 
 A PASS must bind contract IDs, architecture IDs, changed files, tests, commit SHA, CI/result reference, and reproducible evidence.
 
-## 13. Scope discipline
+## 13. Mandatory post-task independent review gate
+
+Every completed 3.0 implementation task MUST stop for GPT review before the next task or phase begins.
+
+The required loop is:
+
+```text
+IMPLEMENT
+→ TEST
+→ SCOPE / ARCHITECTURE CHECK
+→ COMMIT
+→ PUSH TO GITHUB
+→ VERIFY EXACT PUSHED SHA
+→ GPT INDEPENDENT REVIEW
+→ FAIL? FIX ONLY THE IDENTIFIED CONTRACT-PRESERVING DEFECT
+→ TEST AGAIN
+→ COMMIT / PUSH
+→ GPT RE-REVIEW
+→ PASS + REPRODUCIBLE EVIDENCE
+→ ONLY THEN NEXT TASK
+```
+
+A passing implementation test is not sufficient. Review MUST inspect contract conformance, architecture ownership, correctness, failure behavior, security, resource budgets, regression risk, and evidence. A task without GPT review is `FAIL_REVIEW_GATE` and MUST NOT advance.
+
+The reviewer MUST treat the pushed GitHub SHA as the review input. Review is not a design rewrite and cannot silently expand scope.
+
+## 14. Scope discipline
 
 Every T1/T2 task requires a Change Manifest and Diff Scope Gate. No drive-by refactor, dependency, schema, API, Worker, or infrastructure change.
 
 Every changed file must be justified by the manifest.
 
-## 14. GPT 3.0 delivery law
+## 15. GPT 3.0 delivery law
 
 ```text
 Master Contract + Architecture
@@ -154,6 +180,7 @@ Master Contract + Architecture
 → PUSH TO GITHUB
 → exact commit SHA
 → independent verification of pushed SHA
+→ GPT review gate
 → contract-preserving fix only if required
 → final PASS / FAIL evidence
 → STOP
@@ -161,9 +188,9 @@ Master Contract + Architecture
 
 The pushed GitHub commit is the verification input. A local PASS is not delivery.
 
-GPT MUST NOT automatically continue to the next phase after a successful push.
+GPT MUST NOT automatically continue to the next task or phase after a successful review.
 
-## 15. Worker package/file rule
+## 16. Worker package/file rule
 
 Every independently deployable Worker retains its own package boundary:
 
@@ -179,7 +206,7 @@ Shared TypeScript contracts belong under `workers/v2/contracts/`.
 
 Worker runtime code is TypeScript. PowerShell is not a substitute for Worker runtime code. Dependencies must not be collapsed into a giant root package.
 
-## 16. Independent verification
+## 17. Independent verification
 
 Verification MUST inspect the exact pushed commit and independently check:
 
@@ -206,6 +233,6 @@ evidence reproducibility
 
 Verification may perform only contract-preserving refactoring. It may not add product/business functionality or change architecture.
 
-## 17. Final rule
+## 18. Final rule
 
-> Use the Master Contract as the only 3.0 semantic authority. Solve only the declared phase, implement the minimum correct boundary, prove all release-blocking invariants, push the verified commit, independently verify the pushed state, and stop.
+> Use the Master Contract as the only 3.0 semantic authority. Solve only the declared phase/task, implement the minimum correct boundary, prove all release-blocking invariants, push the verified commit, run the mandatory GPT review gate, record reproducible evidence, and stop.
