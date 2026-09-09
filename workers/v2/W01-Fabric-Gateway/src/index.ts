@@ -1,4 +1,4 @@
-import { parseAndValidateBody, ValidationError, W01_LIMITS } from "./validation";
+import { parseAndValidateBody, ValidationError, W01_LIMITS } from "./validation.ts";
 
 const JSON_HEADERS = Object.freeze({ "content-type": "application/json; charset=utf-8" });
 
