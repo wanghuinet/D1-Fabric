@@ -1,139 +1,171 @@
 # D1-Fabric AI Engineering Instructions
 
-**Version:** 7.1
-**Status:** ACTIVE
+**Version:** 8.0
+**Status:** ACTIVE / 3.0 MASTER-LOCKED
 **Role:** AI唯一入口 / Router。
 
 ## 1. Repository authority
 
 The repository is the source of truth. Chat is never an authority.
 
-### Active core contracts
-
-```text
-AGENTS.md                                      ← AI唯一入口 / Router
-docs/C00-CONSTITUTION-v1.0.md                 ← 总宪法 / AI权限 / 合同优先级
-docs/C01-ARCHITECTURE-OWNERSHIP-v1.0.md      ← 架构 / Worker / Owner / 数据与API边界
-docs/C02-ENGINEERING-OPERATIONS-v1.0.md      ← 开发 / 验证 / 成本 / 性能 / 部署 / 证据
-docs/PRODUCT-PLATFORM-ROADMAP-CONTRACT-v1.0.md← 产品/平台路线图与迭代决策合同
-docs/API-CONTRACT-v1.1-DEVELOPER-PLATFORM.md  ← v1.1公开API/第三方开发者合同
-docs/API-IMPLEMENTATION-CONTRACT-v1.1.md      ← v1.1实现级冻结合同
-docs/D1-FABRIC-2.0-BLUEPRINT.md               ← 2.0架构基线与微创新规则
-docs/D1-FABRIC-3.0-CONTRACT-v1.0.md           ← 3.0执行合同 / 双向一致性 / 扩展接口 / Push-Verify Gate
-docs/D1-FABRIC-3.0-API-RESILIENCE-CONTRACT-v1.0.md ← 3.0 API能力完整性 / 超级App反推 / 极限流量与攻击韧性合同
-docs/api/v1.1/                                 ← v1.1 OpenAPI/DTO/RPC/migration evidence set
-```
-
-Historical documents under `archive/` have NO active authority. The former 1.0 middleware implementation is preserved under `workers/old1.0/` and is not the 2.0/3.0 implementation target unless an explicit migration contract says otherwise.
-
-## 2. Mandatory read order
-
-For every non-trivial task:
+For 3.0, the single normative authority is:
 
 ```text
 AGENTS.md
-→ C00
-→ C01 when architecture/ownership/deployment/API/data boundaries are relevant
-→ C02
-→ PRODUCT-PLATFORM-ROADMAP-CONTRACT when product/version scope is relevant
-→ API-CONTRACT when API/data contract is relevant
-→ API-IMPLEMENTATION-CONTRACT when implementing v1.1
-→ D1-FABRIC-2.0-BLUEPRINT when reviewing the 2.0 baseline
-→ D1-FABRIC-3.0-CONTRACT-v1.0 when implementing/reviewing 3.0
-→ D1-FABRIC-3.0-API-RESILIENCE-CONTRACT-v1.0 when API capability, traffic, quota, abuse, resilience, or capacity is relevant
-→ applicable domain/data contract
-→ existing verified implementation/tests
-→ Change Manifest / Execution Packet
+→ docs/D1-FABRIC-3.0-MASTER-CONTRACT-v1.0.md
+→ applicable non-conflicting annex / phase packet
 ```
 
-Do NOT preload the repository or historical documents. Load the minimum context required by the task.
+`D1-FABRIC-3.0-FINAL-CONTRACT-v1.0.md` is a compatibility redirect and is NOT an independent authority. Other duplicated/legacy 3.0 contract documents cannot override the Master Contract.
+
+Historical documents under `archive/` and `workers/old1.0/` have no active 3.0 authority.
+
+## 2. Mandatory read order
+
+For every 3.0 task:
+
+```text
+AGENTS.md
+→ D1-FABRIC-3.0-MASTER-CONTRACT-v1.0.md
+→ applicable architecture/resilience annex
+→ exact phase packet
+→ minimum relevant source/tests
+→ Change Manifest
+```
+
+If any referenced active document is missing or contradictory, STOP. Never substitute a historical file by guess.
 
 ## 3. AI authority boundary
 
-AI agents are implementation agents, not architecture, product, database, security-policy, ownership, or scope authorities. For approved 3.0 work, AI implements the 3.0 contract and its acceptance gates; it may not invent additional architecture.
+GPT is the primary implementation and verification agent for the current 3.0 development cycle.
 
-AI MUST NOT independently add, split, or merge Workers outside the approved topology; create speculative infrastructure; change semantic ownership; invent competing protocol semantics; put business meaning into middleware; implement future-phase features; delete functionality to reduce code; or fabricate evidence.
+GPT is an implementation executor, not an authority to redesign architecture, product semantics, ownership, security policy, or scope.
 
-Conflict or genuine architecture defect: STOP → report exact conflict → versioned proposal → approval → implement.
+GPT MUST NOT independently add, split, or merge Workers; create speculative infrastructure; change semantic ownership; invent protocol semantics; put business meaning into middleware; implement future-phase features; weaken/delete tests; modify a contract merely to fit code; or fabricate evidence.
+
+Conflict or genuine architecture defect:
+
+```text
+STOP → record exact conflict → versioned proposal/change approval → implement
+```
 
 ## 4. Current runtime topology
 
-The approved execution boundaries remain:
+The approved execution boundaries are exactly:
 
 - W01 Fabric Gateway
 - W02 Execution Fabric
 - W03 Write Fabric
 - W04 Control Plane
 
-Cache is a capability of the read execution path, not a mandatory standalone network hop. Observability is emitted by the executing boundary, not a synchronous telemetry Worker.
+Cache is a read-path capability, not a mandatory standalone network hop. Observability is emitted by the executing boundary, not a synchronous telemetry Worker.
 
-No additional Worker is justified merely because a capability has a separate name. Worker topology changes require an explicit architecture change.
+No additional Worker is justified merely because a capability has a separate name.
 
-## 5. Industrial-basis rule
+## 5. Non-negotiable 3.0 locks
 
-Every new middleware capability must identify:
+All eight Master Contract hardening controls are release-blocking:
 
 ```text
-production-proven distributed-systems idea
-→ D1/Edge/Serverless adaptation
-→ small measurable Fabric innovation
-→ contract + adversarial evidence
+H01 Single Master Contract Authority
+H02 Budget Reservation / Consumption / Hard-Stop
+H03 Atomic Idempotency
+H04 Distributed Quota Guarantee Levels
+H05 Control-Plane Epoch + LKG Fencing
+H06 Cache / Cursor / Extension Security Binding
+H07 Numeric Capacity Envelope
+H08 Executable Phase Packets + Machine-Verifiable Evidence
 ```
 
-No novelty-for-novelty features.
+A failure in any H01-H08 means 3.0 is NOT production-ready.
 
-## 6. Non-negotiable invariants
+Additional invariants:
 
 - One semantic concern has one owner.
 - One authoritative mutable state has one owner.
 - Business owns meaning; middleware owns generic capability.
 - No unbounded D1 I/O, fan-out, retries, payloads, or synchronous side-effect cascades.
-- No mandatory global coordinator on the hot path without an approved contract.
+- No mandatory global coordinator on the hot path without explicit approval.
 - Partial failure must not corrupt committed state.
 - Recovery must restore invariants before normal admission.
-- Public compatibility cannot be silently changed.
+- Public compatibility cannot silently change.
 - Public APIs never expose shard/physical D1/SQL/internal Worker details.
-- Every execution has explicit fan-out, statement, row, write, retry and deadline budgets.
-- `sum(shard_rows_budget) <= global_rows_budget`.
-- `sum(shard_write_budget) <= global_write_budget`.
-- `sum(statement_budget) <= global_statement_budget`.
-- Cache HIT terminates database execution when `cacheTermination=true`.
-- AI-generated data operations are validated against the same Data Contract used by runtime.
+- Every execution has explicit resource budgets.
+- Cache HIT with terminal permission produces zero D1 execution.
+- AI-generated operations are validated against the same runtime contracts.
 - No middleware Worker contains business semantics.
-- API admission, rate/quota, payload, pagination, fanout, retry, concurrency, and downstream work remain bounded.
 - D1 overload must not become retry amplification.
-- One noisy tenant/request/object must not obtain unbounded global resource access.
-- Saturation acceptance is bounded degradation, not an infinite-throughput promise.
+- Noisy-neighbor behavior must remain within its declared quota guarantee.
+- Saturation acceptance is bounded degradation, never an infinite-throughput promise.
 
-## 7. Scope discipline
+## 6. Budget enforcement law
+
+Budget fields are not advisory.
+
+Every execution MUST enforce reservation, consumption, release and hard-stop semantics before downstream dispatch/retry. No downstream path may bypass the budget ledger.
+
+```text
+DECLARED → RESERVED → IN_FLIGHT → CONSUMED
+                         ↘ RELEASED
+```
+
+## 7. Idempotency law
+
+Retryable mutations require an idempotency contract. Single-shard exactly-once-effect mutations require idempotency state and authoritative mutation to share the same atomic D1 transaction boundary where applicable. Unknown timeout outcomes MUST NOT be blindly retried as fresh writes.
+
+Cross-shard retryable mutations require a separately approved contract.
+
+## 8. Quota / isolation law
+
+Every quota declares a guarantee level. Local counters MUST NOT be represented as global hard limits. Tenant/application/caller/object limits must declare scope and degradation semantics.
+
+## 9. Control epoch law
+
+Every execution uses one immutable control epoch. LKG use requires validation, non-expiry, and no revocation/fencing. Stale or retired write routes are rejected, never guessed.
+
+## 10. Security state-binding law
+
+Cache keys and cursors must bind the minimum required tenant, authorization scope, operation, and contract/query version. Cursor integrity and bounded lifetime are mandatory. Extension metadata is data, never executable authority.
+
+## 11. Capacity law
+
+A capacity claim is invalid without a numeric baseline including RPS, burst, concurrency, duration, workload mix, latency targets, error ceiling, retry amplification, and resource ceilings. Qualification must prove bounded degradation and recovery.
+
+## 12. Executable phase law
+
+P01-P16 are executable gates. Each phase must have a committed packet with allowed/forbidden files, exact invariants, failure/security/resource cases, test commands, thresholds, evidence schema, and stop condition.
+
+A PASS must bind contract IDs, architecture IDs, changed files, tests, commit SHA, CI/result reference, and reproducible evidence.
+
+## 13. Scope discipline
 
 Every T1/T2 task requires a Change Manifest and Diff Scope Gate. No drive-by refactor, dependency, schema, API, Worker, or infrastructure change.
 
-T0 = trivial mechanical; T1 = bounded local semantic; T2 = cross-boundary/security/state/routing/epoch/recovery/schema/public protocol/material performance or cost. Never downgrade a real T2 task.
+Every changed file must be justified by the manifest.
 
-## 8. 3.0 delivery law
+## 14. GPT 3.0 delivery law
 
 ```text
-Contract + Architecture
-→ DeepSeek implementation
+Master Contract + Architecture
+→ GPT implementation
 → local verification
 → diff/scope gate
 → commit
 → PUSH TO GITHUB
 → exact commit SHA
-→ STOP
-→ independent Worker verification
-→ contract-preserving refactor only if required
+→ independent verification of pushed SHA
+→ contract-preserving fix only if required
 → final PASS / FAIL evidence
+→ STOP
 ```
 
-A local PASS is not a delivery. The pushed GitHub commit is the verification input.
+The pushed GitHub commit is the verification input. A local PASS is not delivery.
 
-The implementation agent must not start unrelated work after pushing the assigned boundary.
+GPT MUST NOT automatically continue to the next phase after a successful push.
 
-## 9. Worker package/file rule
+## 15. Worker package/file rule
 
-Every independently deployable Worker must retain its own package boundary:
+Every independently deployable Worker retains its own package boundary:
 
 ```text
 workers/v2/<worker>/
@@ -143,53 +175,37 @@ workers/v2/<worker>/
   tests/
 ```
 
-Shared TypeScript contracts belong under:
+Shared TypeScript contracts belong under `workers/v2/contracts/`.
 
-```text
-workers/v2/contracts/
-```
+Worker runtime code is TypeScript. PowerShell is not a substitute for Worker runtime code. Dependencies must not be collapsed into a giant root package.
 
-Worker runtime code is TypeScript. PowerShell is not a substitute for Worker source code.
+## 16. Independent verification
 
-Dependencies must not be collapsed into one giant root package merely for convenience.
-
-Every delivery report must list repository-relative added/modified/deleted file paths.
-
-## 10. Independent Worker verification
-
-The verification pass must inspect the exact pushed commit and independently check:
+Verification MUST inspect the exact pushed commit and independently check:
 
 ```text
 package/file layout
 architecture ownership
-Contract → Code → Test mapping
-resource bounds
-security
+Master Contract → Code → Test mapping
+resource reservation/consumption/hard-stop
+security and state binding
 failure/concurrency/idempotency
+control epoch/LKG fencing
+quota guarantee level
+capacity envelope
 regression
 Architecture → Contract mapping
 Contract → Architecture mapping
-API capability completeness
-extreme-traffic/adversarial matrix
+API completeness
+adversarial/extreme-traffic matrix
 noisy-neighbor isolation
 D1 overload containment
 backpressure/degradation
+evidence reproducibility
 ```
 
-Verification may perform only contract-preserving refactoring. It may not add product/business functionality or change architecture under the label of refactoring.
+Verification may perform only contract-preserving refactoring. It may not add product/business functionality or change architecture.
 
-## 11. Iteration and commercial extension boundary
+## 17. Final rule
 
-3.0 provides versioned Iteration, Application, and Commercial Extension interfaces. These interfaces allow games, social applications, content platforms, commerce, AI applications, and future commercial capabilities to evolve without placing their business semantics inside the Fabric kernel.
-
-The kernel remains generic. Extensions must declare identity, version, capability, input/output contract, authorization scope, tenant scope, resource budget, data ownership, consistency, failure policy, compatibility, lifecycle, and observability requirements.
-
-No extension interface authorizes a new Worker, storage system, queue, coordinator, or business logic inside middleware.
-
-## 12. Roadmap and application boundary
-
-Application/business Workers remain outside the Fabric kernel. v1.1 business functionality must continue to follow the approved application contracts. A future interface is not permission to implement a future product feature.
-
-## 13. Final rule
-
-> Solve the declared system problem, use the minimum correct context, implement only the approved boundary, prove the result, push the verified commit, independently verify the pushed state, and stop.
+> Use the Master Contract as the only 3.0 semantic authority. Solve only the declared phase, implement the minimum correct boundary, prove all release-blocking invariants, push the verified commit, independently verify the pushed state, and stop.
