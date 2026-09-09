@@ -13,6 +13,7 @@ export interface PayloadDemand {
   largestFieldBytes: number;
   arrayItems: number;
   nestingDepth: number;
+  responseItems: number;
 }
 
 export interface BatchLimits {
@@ -28,7 +29,6 @@ export interface BatchDemand {
 export interface CursorLimits {
   maxCursorBytes: number;
   maxPageSize: number;
-  maxResponseItems: number;
   expectedVersion: number;
 }
 
@@ -47,6 +47,7 @@ export type PayloadRejectCode =
   | "FIELD_BYTES_EXCEEDED"
   | "ARRAY_ITEMS_EXCEEDED"
   | "NESTING_DEPTH_EXCEEDED"
+  | "RESPONSE_ITEMS_EXCEEDED"
   | "BATCH_ITEMS_EXCEEDED"
   | "BATCH_ITEM_BYTES_EXCEEDED"
   | "CURSOR_INVALID"
@@ -92,6 +93,7 @@ export function validatePayloadDemand(demand: PayloadDemand): void {
   if (!nonNegativeSafeInt(demand.largestFieldBytes)) throw new Error("invalid largestFieldBytes");
   if (!nonNegativeSafeInt(demand.arrayItems)) throw new Error("invalid arrayItems");
   if (!nonNegativeSafeInt(demand.nestingDepth)) throw new Error("invalid nestingDepth");
+  if (!nonNegativeSafeInt(demand.responseItems)) throw new Error("invalid responseItems");
 }
 
 export function validateBatchLimits(limits: BatchLimits): void {
@@ -107,7 +109,6 @@ export function validateBatchDemand(demand: BatchDemand): void {
 export function validateCursorLimits(limits: CursorLimits): void {
   if (!positiveSafeInt(limits.maxCursorBytes)) throw new Error("invalid maxCursorBytes");
   if (!positiveSafeInt(limits.maxPageSize)) throw new Error("invalid maxPageSize");
-  if (!positiveSafeInt(limits.maxResponseItems)) throw new Error("invalid maxResponseItems");
   if (!positiveSafeInt(limits.expectedVersion)) throw new Error("invalid expectedVersion");
 }
 
@@ -135,6 +136,7 @@ export function evaluatePayload(
   if (demand.largestFieldBytes > limits.maxFieldBytes) return { admitted: false, code: "FIELD_BYTES_EXCEEDED" };
   if (demand.arrayItems > limits.maxArrayItems) return { admitted: false, code: "ARRAY_ITEMS_EXCEEDED" };
   if (demand.nestingDepth > limits.maxNestingDepth) return { admitted: false, code: "NESTING_DEPTH_EXCEEDED" };
+  if (demand.responseItems > limits.maxResponseItems) return { admitted: false, code: "RESPONSE_ITEMS_EXCEEDED" };
   return { admitted: true };
 }
 
