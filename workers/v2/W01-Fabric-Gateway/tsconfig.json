@@ -6,7 +6,7 @@
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "types": ["@cloudflare/workers-types"]
+    "lib": ["ES2022", "DOM"]
   },
   "include": ["src/**/*.ts", "tests/**/*.ts"]
 }
