@@ -1,70 +1,96 @@
 # Business API v1.1 — FROZEN MVP Contract
 
-**Effective:** 2026-09-09
-**Status:** FROZEN / API-FIRST MVP
-**Authority:** This document is the v1.1 business contract gate. Canonical OpenAPI, DTO, migration, RPC and schema artifacts under `docs/api/v1.1/` must remain mutually consistent.
+**Effective:** 2026-09-09  
+**Status:** FROZEN / API-FIRST MVP  
+**Authority:** This document plus the canonical OpenAPI, DTO, migration, RPC and schema/cost artifacts under `docs/api/v1.1/` form one contract set. If any artifact disagrees, implementation is blocked.
 
-## 1. Purpose
+## 1. Objective
 
-v1.1 is the first runnable, headless Toutiao-style MVP. It prioritizes a small complete user journey over breadth while freezing the foundations that would otherwise cause database or API rework.
-
-Target journey:
+Ship a small, real, deployable Toutiao-style content/social MVP without foreseeable identity, localization, lifecycle or media rework.
 
 ```text
-register/login
-→ user
-→ create content
-→ media reference
-→ publish
-→ home/following/hot feed
-→ content detail
-→ like/favorite/comment/follow
-→ search
-→ topic/history
+register/login → user → create content → media → publish
+→ home/following/hot feed → detail → like/favorite/comment/follow
+→ search → topic/history
 ```
 
-## 2. Public API surface
+## 2. Physical topology
+
+```text
+W07 API/BFF
+W08 Identity
+W09 Content + Media + Topic
+W10 Feed + Recommendation + History
+W12 Social + Interaction
+W13 Search
+```
+
+W11 is not a physical Worker in v1.1. W01-W06 remain unchanged generic infrastructure.
+
+## 3. Public API
 
 ### Identity
-- `POST /api/v1/auth/register`
-- `POST /api/v1/auth/login`
-- `POST /api/v1/auth/refresh`
-- `POST /api/v1/auth/logout`
-- `GET /api/v1/me`
-- `GET /api/v1/users/{id}`
+```text
+POST /api/v1/auth/register
+POST /api/v1/auth/login
+POST /api/v1/auth/refresh
+POST /api/v1/auth/logout
+GET  /api/v1/me
+GET  /api/v1/users/{id}
+GET  /api/v1/users/{id}/posts
+```
 
-### Content
-- `POST /api/v1/posts`
-- `GET /api/v1/posts/{id}`
-- `PATCH /api/v1/posts/{id}`
-- `DELETE /api/v1/posts/{id}`
-- `GET /api/v1/users/{id}/posts`
-- `POST /api/v1/posts/{id}/publish`
+### Content / publishing
+```text
+POST   /api/v1/posts
+GET    /api/v1/posts/{id}
+PATCH  /api/v1/posts/{id}
+DELETE /api/v1/posts/{id}
+POST   /api/v1/posts/{id}/publish
+POST   /api/v1/posts/{id}/schedule
+POST   /api/v1/posts/{id}/unpublish
+POST   /api/v1/posts/{id}/archive
+GET    /api/v1/posts/drafts
+GET    /api/v1/posts/scheduled
+```
 
 ### Media
-- upload-authorization/reference endpoint is part of the v1.1 Media boundary; binary data is stored in R2, metadata/reference in D1.
+```text
+POST /api/v1/media/upload-authorizations
+```
+
+The endpoint authorizes direct R2 upload. D1 stores metadata/reference; binaries are never stored in D1.
 
 ### Feed
-- `GET /api/v1/feed`
-- `GET /api/v1/feed/following`
-- `GET /api/v1/feed/hot`
+```text
+GET /api/v1/feed
+GET /api/v1/feed/following
+GET /api/v1/feed/hot
+```
 
-### Interaction
-- `POST|DELETE /api/v1/posts/{id}/like`
-- `POST|DELETE /api/v1/posts/{id}/favorite`
-- `GET|POST /api/v1/posts/{id}/comments`
-- `POST|DELETE /api/v1/comments/{id}/like`
-- `POST|DELETE /api/v1/users/{id}/follow`
+### Social / interaction
+```text
+POST|DELETE /api/v1/posts/{id}/like
+POST|DELETE /api/v1/posts/{id}/favorite
+POST|DELETE /api/v1/users/{id}/follow
+POST|DELETE /api/v1/comments/{id}/like
+GET|POST     /api/v1/posts/{id}/comments
+```
 
 ### Search
-- `GET /api/v1/search`
+```text
+GET /api/v1/search?q=&type=&cursor=&limit=
+```
 
-### Topic / History
-- Minimum read/write interfaces required by the MVP journey are reserved in the v1.1 contract. Their business semantics remain owned by B12 Topic and B13 History.
+### Topic / history
+```text
+GET  /api/v1/topics/{id}
+GET  /api/v1/topics/{id}/posts
+GET  /api/v1/history
+POST /api/v1/history/events
+```
 
-## 3. Canonical data foundations
-
-The following primitives are frozen before implementation:
+## 4. P0 data foundations
 
 ```text
 users
@@ -88,22 +114,23 @@ collection_items
 topics
 topic_contents
 content_schedules
+content_views
 ```
 
-### Mandatory invariants
+Required invariants:
 
-1. `users.id` is the canonical internal user ID.
-2. External provider identifiers live in `user_identities`; they are never canonical user IDs.
-3. API IDs are decimal strings even when D1 uses INTEGER IDs, preventing JavaScript integer precision loss.
-4. Locale is represented by locale codes; no language-specific columns are permitted.
-5. Original content remains canonical. Human-created translations are separate records. No automatic translation is part of MVP.
-6. Content lifecycle reserves draft, scheduled, published and archived semantics using `publish_at`, `published_at`, and `unpublish_at`.
-7. Media binaries are authoritative in R2; D1 stores metadata and object references.
+1. `users.id` is the canonical user ID.
+2. External IDs live in `user_identities` and never become canonical IDs.
+3. API IDs are decimal strings; D1 may use INTEGER internally.
+4. Locale uses locale codes; no language-specific columns.
+5. Original content is canonical; translations are human-created separate records; no automatic translation in MVP.
+6. Lifecycle reserves draft/review/scheduled/published/updated/archived semantics and `publish_at`, `published_at`, `unpublish_at`.
+7. R2 is authoritative for binaries; D1 stores media metadata/object references.
 8. Topic, hashtag, collection, campaign and page are distinct concepts.
 
-## 4. Deferred capabilities
+## 5. Deferred capabilities
 
-These are extension boundaries, not MVP implementations:
+Only interfaces/boundaries are reserved now:
 
 ```text
 B08 Creator / Channel
@@ -120,88 +147,62 @@ B20 Payment / Order
 B21 Trust / Security
 ```
 
-Future interfaces:
+Reserved adapters: Realtime, Media Processing, Search Provider, Identity Provider, Webhook/Event Delivery, Observability. No future Worker or speculative subsystem is implemented for MVP.
+
+## 6. Context / compatibility
+
+Normalized request context supports:
 
 ```text
-Realtime Adapter
-Media Processing Adapter
-Search Provider Adapter
-Identity Provider Adapter
-Webhook/Event Delivery Adapter
-Observability
+request_id / trace_id / tenant_id / namespace / user_id
+locale / client_type / client_version / auth_context
+idempotency_key / deadline / resource_budget
 ```
 
-No future Worker or speculative empty subsystem is created in MVP.
-
-## 5. Physical Worker topology
-
-```text
-W01 Runtime Gateway
-W02 Shard Router
-W03 Query Engine
-W04 Write Engine
-W05 Cache
-W06 Control & Recovery
-
-W07 API/BFF
-W08 Identity
-W09 Content + Media + Topic
-W10 Feed + Recommendation + History
-W12 Social + Interaction
-W13 Search
-```
-
-W11 is not a physical Worker in v1.1. Interaction is physically merged into W12 while remaining a logically independent business capability.
-
-## 6. API context and compatibility
-
-Every request must support a normalized context containing, where applicable:
-
-```text
-request_id
-trace_id
-tenant_id
-namespace
-user_id
-locale
-client_type
-client_version
-auth_context
-idempotency_key
-deadline
-resource_budget
-```
-
-Public error shape is stable. Cursor pagination is deterministic and bounded. Retryable writes use idempotency semantics.
+All list APIs use deterministic bounded cursor pagination. Public errors use one stable envelope. Retryable writes use idempotency semantics.
 
 ## 7. Cost contract
 
 ```text
-cache hit       → 0 D1
-normal read     → ideally 1 D1
-primary write   → ideally 1 write
-side effects    → Queue / async
+cache hit     → 0 D1
+normal read   → ideally 1 D1
+primary write → ideally 1 write
+side effects  → Queue / async
 ```
 
-Additional rules:
-
-- No per-feed-item RPC.
-- Feed enrichment is batched.
-- Normal business reads target no more than 2 internal RPC hops.
-- Interaction writes target one business RPC and one primary write.
-- Search targets one business RPC.
-- D1 reads must be bounded by database execution, not response truncation.
+No per-item RPC. Feed enrichment is batch-oriented. Normal business reads target ≤2 internal RPC hops. Interaction target is one business RPC plus one primary write. Search targets one business RPC. D1 row limits must be enforced at execution, not by response truncation.
 
 ## 8. Client model
 
-Web, Android, iOS and mini-programs share `/api/v1`. Mini-program authentication is an identity-provider adapter mapped to the canonical user through `user_identities`; there is no mini-program-specific backend or database.
+Web, Android, iOS and mini-programs share `/api/v1`. Mini-program providers map through `user_identities`; no separate backend or database.
 
-## 9. Change control
+## 9. Non-rework rule
 
-v1.1 is frozen. No silent endpoint, DTO, schema, Worker ownership, RPC or business-truth changes are allowed. Additive compatible changes require updated contract and tests first; breaking changes require v1.2+.
+After freeze, DeepSeek must not redesign Workers, split/merge topology, redesign P0 tables, invent endpoints, change ownership, add per-item RPC, or implement deferred domains. Breaking changes require v1.2+.
 
 ## 10. Implementation gate
 
-Implementation begins only after the v1.1 canonical OpenAPI, DTO, migration, RPC contract and schema/cost document have been validated together.
+Before coding, validate these artifacts together:
 
-The first coding phase is the basic API skeleton. No future feature may delay the MVP path.
+```text
+FROZEN-v1.1.md
+openapi.yaml
+dto.ts
+migrations/0001_business_mvp_v1_1.sql
+RPC-CONTRACT-v1.1.md
+B01-BUSINESS-SCHEMA-API-DESIGN-v1.1.md
+```
+
+Then execute only:
+
+```text
+W07 API skeleton
+→ W08 Identity
+→ W09 Content/Media/Topic
+→ W10 Feed/History
+→ W12 Social/Interaction
+→ W13 Search
+→ E2E
+→ security/cost/concurrency acceptance
+→ deploy
+```
