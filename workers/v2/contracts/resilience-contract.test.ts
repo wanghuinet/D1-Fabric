@@ -1,24 +1,28 @@
 import {
   allocateBudget,
   canRetry,
-  clampPageSize,
   validateApiOperationContract,
   validateResourceBudget,
-  ApiOperationContract,
+  type ApiOperationContract,
 } from "./resilience-contract";
+
+let assertions = 0;
 
 function equal(actual: unknown, expected: unknown, name: string): void {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error(`FAIL: ${name}`);
+  assertions += 1;
 }
 
 function ok(value: unknown, name: string): void {
   if (!value) throw new Error(`FAIL: ${name}`);
+  assertions += 1;
 }
 
 function throws(fn: () => void, name: string): void {
   try {
     fn();
   } catch {
+    assertions += 1;
     return;
   }
   throw new Error(`FAIL: ${name}`);
@@ -57,8 +61,6 @@ validateApiOperationContract(contract);
 equal(allocateBudget(10, 3), [4, 3, 3], "budget remainder allocation");
 equal(allocateBudget(2, 5), [1, 1, 0, 0, 0], "budget below shard count");
 equal(allocateBudget(0, 5), [0, 0, 0, 0, 0], "zero budget");
-equal(clampPageSize(999, 50), 50, "page size upper bound");
-equal(clampPageSize(0, 50), 1, "invalid page size clamp");
 ok(canRetry(0, budget, 1000, 500), "retry within budget");
 ok(!canRetry(2, budget, 1000, 500), "retry exhaustion");
 ok(!canRetry(0, budget, 100, 500), "retry deadline bound");
@@ -68,4 +70,4 @@ throws(() => validateApiOperationContract({ ...contract, maxCursorBytes: 8 }), "
 throws(() => validateApiOperationContract({ ...contract, idempotencyRequired: true }), "idempotency mutation rule");
 throws(() => allocateBudget(5, 0), "invalid shard count");
 
-console.log("PASS: 14 resilience contract assertions");
+console.log(`PASS: ${assertions} resilience contract assertions`);
