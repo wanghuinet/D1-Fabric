@@ -8,6 +8,6 @@
     "dry-run": "npx --yes wrangler@4.130.0 deploy --dry-run",
     "types": "npx --yes wrangler@4.130.0 types",
     "typecheck": "npx --yes typescript@7.0.2 --noEmit",
-    "test": "node --test tests/*.test.ts"
+    "test": "node --experimental-strip-types --test tests/*.test.ts"
   }
 }
