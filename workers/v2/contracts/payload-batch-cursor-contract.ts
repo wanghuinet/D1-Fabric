@@ -1,11 +1,23 @@
-export interface PayloadLimits {
-  maxRequestBytes: number;
+import type { ApiOperationContract } from "./resilience-contract";
+
+export type PayloadLimits = Pick<
+  ApiOperationContract,
+  "requestBytesLimit" | "maxResponseItems"
+> & {
   maxHeaderBytes: number;
   maxFieldBytes: number;
   maxArrayItems: number;
   maxNestingDepth: number;
-  maxResponseItems: number;
-}
+};
+
+export type BatchLimits = Pick<ApiOperationContract, "maxBatchItems"> & {
+  maxItemBytes: number;
+};
+
+export type CursorLimits = Pick<
+  ApiOperationContract,
+  "maxCursorBytes" | "maxPageSize" | "contractVersion"
+>;
 
 export interface PayloadDemand {
   requestBytes: number;
@@ -16,20 +28,9 @@ export interface PayloadDemand {
   responseItems: number;
 }
 
-export interface BatchLimits {
-  maxBatchItems: number;
-  maxItemBytes: number;
-}
-
 export interface BatchDemand {
   itemCount: number;
   largestItemBytes: number;
-}
-
-export interface CursorLimits {
-  maxCursorBytes: number;
-  maxPageSize: number;
-  expectedVersion: number;
 }
 
 export interface CursorDemand {
@@ -79,7 +80,7 @@ export function utf8ByteLength(value: string): number {
 }
 
 export function validatePayloadLimits(limits: PayloadLimits): void {
-  if (!positiveSafeInt(limits.maxRequestBytes)) throw new Error("invalid maxRequestBytes");
+  if (!positiveSafeInt(limits.requestBytesLimit)) throw new Error("invalid requestBytesLimit");
   if (!positiveSafeInt(limits.maxHeaderBytes)) throw new Error("invalid maxHeaderBytes");
   if (!positiveSafeInt(limits.maxFieldBytes)) throw new Error("invalid maxFieldBytes");
   if (!positiveSafeInt(limits.maxArrayItems)) throw new Error("invalid maxArrayItems");
@@ -109,7 +110,7 @@ export function validateBatchDemand(demand: BatchDemand): void {
 export function validateCursorLimits(limits: CursorLimits): void {
   if (!positiveSafeInt(limits.maxCursorBytes)) throw new Error("invalid maxCursorBytes");
   if (!positiveSafeInt(limits.maxPageSize)) throw new Error("invalid maxPageSize");
-  if (!positiveSafeInt(limits.expectedVersion)) throw new Error("invalid expectedVersion");
+  if (!positiveSafeInt(limits.contractVersion)) throw new Error("invalid contractVersion");
 }
 
 export function validateCursorDemand(demand: CursorDemand): void {
@@ -131,7 +132,7 @@ export function evaluatePayload(
     return { admitted: false, code: "INVALID_PAYLOAD" };
   }
 
-  if (demand.requestBytes > limits.maxRequestBytes) return { admitted: false, code: "REQUEST_BYTES_EXCEEDED" };
+  if (demand.requestBytes > limits.requestBytesLimit) return { admitted: false, code: "REQUEST_BYTES_EXCEEDED" };
   if (demand.headerBytes > limits.maxHeaderBytes) return { admitted: false, code: "HEADER_BYTES_EXCEEDED" };
   if (demand.largestFieldBytes > limits.maxFieldBytes) return { admitted: false, code: "FIELD_BYTES_EXCEEDED" };
   if (demand.arrayItems > limits.maxArrayItems) return { admitted: false, code: "ARRAY_ITEMS_EXCEEDED" };
@@ -169,7 +170,7 @@ export function evaluateCursor(
 
   if (utf8ByteLength(demand.token) > limits.maxCursorBytes) return { admitted: false, code: "CURSOR_OVERSIZED" };
   if (demand.expiresAtMs <= demand.nowMs) return { admitted: false, code: "CURSOR_EXPIRED" };
-  if (demand.version !== limits.expectedVersion) return { admitted: false, code: "CURSOR_VERSION_MISMATCH" };
+  if (demand.version !== limits.contractVersion) return { admitted: false, code: "CURSOR_VERSION_MISMATCH" };
   if (demand.requestedPageSize > limits.maxPageSize) return { admitted: false, code: "PAGE_SIZE_EXCEEDED" };
   return { admitted: true, effectivePageSize: demand.requestedPageSize };
 }
