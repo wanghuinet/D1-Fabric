@@ -1,6 +1,6 @@
 # D1-Fabric AI Engineering Instructions
 
-**Version:** 5.0
+**Version:** 5.1
 **Status:** ACTIVE
 **Role:** AI唯一入口 / Router。
 
@@ -17,6 +17,7 @@ AGENTS.md                                      ← AI唯一入口 / Router
  docs/C02-ENGINEERING-OPERATIONS-v1.0.md       ← 开发 / 验证 / 成本 / 性能 / 部署 / 证据
  docs/PRODUCT-PLATFORM-ROADMAP-CONTRACT-v1.0.md← 产品/平台路线图与迭代决策合同
  docs/API-CONTRACT-v1.1-DEVELOPER-PLATFORM.md  ← v1.1公开API/第三方开发者合同
+ docs/API-IMPLEMENTATION-CONTRACT-v1.1.md      ← v1.1实现级冻结合同
  docs/api/v1.1/                                 ← v1.1 OpenAPI/DTO/RPC/migration evidence set
 ```
 
@@ -33,6 +34,7 @@ AGENTS.md
 → C02
 → PRODUCT-PLATFORM-ROADMAP-CONTRACT when product/version scope is relevant
 → API-CONTRACT when API/data contract is relevant
+→ API-IMPLEMENTATION-CONTRACT when implementing v1.1
 → applicable domain/data contract
 → existing verified implementation/tests
 → Change Manifest / Execution Packet
@@ -95,7 +97,7 @@ T0 = trivial mechanical; T1 = bounded local semantic; T2 = cross-boundary/securi
 
 The roadmap is evidence-driven. Future versions are not frozen implementation promises. Only the current approved iteration is execution-frozen.
 
-For v1.1, `docs/API-CONTRACT-v1.1-DEVELOPER-PLATFORM.md` and `docs/api/v1.1/` remain the concrete public/API/data implementation contract set.
+For v1.1, `docs/API-CONTRACT-v1.1-DEVELOPER-PLATFORM.md` defines public semantics, `docs/API-IMPLEMENTATION-CONTRACT-v1.1.md` freezes implementation behavior, and `docs/api/v1.1/` supplies OpenAPI/DTO/RPC/migration evidence.
 
 ## 9. Design review gate
 
