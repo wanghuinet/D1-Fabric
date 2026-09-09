@@ -446,6 +446,7 @@ FAIL_EVIDENCE
 FAIL_CAPACITY
 FAIL_SECURITY
 FAIL_RESILIENCE
+FAIL_REVIEW_GATE
 ```
 
 No release may PASS with an unresolved failure state.
@@ -513,6 +514,7 @@ contract implemented
 + reproducible evidence committed/referenced
 + commit created
 + pushed commit verified
++ GPT post-task review PASS
 ```
 
 Compilation alone is never acceptance.
@@ -536,6 +538,7 @@ LKG is stale/unfenced
 security binding is missing
 capacity baseline is undefined
 evidence cannot be reproduced
+post-task GPT review is missing or FAIL
 ```
 
 ## 19. GPT Development Mode
@@ -556,6 +559,9 @@ run architecture + scope gates
 commit
 push to GitHub
 verify the exact pushed commit
+perform the post-task independent review
+fix only contract-preserving defects found by review
+re-test and re-review until PASS
 report evidence
 stop
 ```
@@ -570,11 +576,35 @@ use PowerShell as Worker runtime code
 weaken tests
 modify contracts to fit code
 claim PASS without evidence
-continue into the next phase automatically
+continue into the next task/phase automatically
 ```
 
-## 20. Final Lock
+## 20. Mandatory Post-Task Review Gate
+
+Every implementation task inside P01-P16 MUST complete the following closed loop before the next task begins:
+
+```text
+IMPLEMENT
+→ TEST
+→ SCOPE / ARCHITECTURE CHECK
+→ COMMIT
+→ PUSH TO GITHUB
+→ VERIFY EXACT PUSHED SHA
+→ GPT INDEPENDENT REVIEW
+→ FAIL? FIX ONLY IDENTIFIED CONTRACT-PRESERVING DEFECTS
+→ TEST AGAIN
+→ COMMIT / PUSH AGAIN
+→ GPT RE-REVIEW
+→ PASS + REPRODUCIBLE EVIDENCE
+→ ONLY THEN NEXT TASK
+```
+
+The review is a mandatory independent quality gate even when implementation tests pass. It MUST inspect at minimum contract conformance, architecture ownership, correctness, failure behavior, security, resource accounting, regression risk, and evidence. A task without review is `FAIL_REVIEW_GATE` and cannot advance.
+
+The reviewer MUST use the exact pushed GitHub SHA as the review input. Review cannot silently expand scope, redesign architecture, add future-phase behavior, or convert a defect fix into a feature.
+
+## 21. Final Lock
 
 The eight hardening controls H01-H08 are release-blocking. Any one of them failing means 3.0 is NOT production-ready.
 
-This Master Contract is intentionally narrow: it closes governance, budget, idempotency, quota, epoch, security, capacity, and evidence loopholes without adding business functionality or changing the four-Worker architecture.
+This Master Contract is intentionally narrow: it closes governance, budget, idempotency, quota, epoch, security, capacity, evidence, and post-task review loopholes without adding business functionality or changing the four-Worker architecture.
