@@ -1,12 +1,18 @@
 import { parseAndValidateBody, ValidationError, W01_LIMITS } from "./validation.ts";
 
 const JSON_HEADERS = Object.freeze({ "content-type": "application/json; charset=utf-8" });
+const JSON_CONTENT_TYPE = /^application\/json(?:\s*;\s*charset\s*=\s*[^;]+)?\s*$/i;
 
 function jsonResponse(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: JSON_HEADERS,
   });
+}
+
+function isJsonContentType(request: Request): boolean {
+  const contentType = request.headers.get("content-type");
+  return contentType !== null && JSON_CONTENT_TYPE.test(contentType);
 }
 
 async function readBoundedBody(request: Request): Promise<string> {
@@ -58,6 +64,10 @@ export default {
       return jsonResponse({ error: "METHOD_NOT_ALLOWED" }, 405);
     }
 
+    if (!isJsonContentType(request)) {
+      return jsonResponse({ error: "UNSUPPORTED_MEDIA_TYPE" }, 415);
+    }
+
     let rawBody: string;
     try {
       rawBody = await readBoundedBody(request);
@@ -79,7 +89,7 @@ export default {
       const normalized = parseAndValidateBody(parsed, Date.now());
       return jsonResponse(
         {
-          status: "VALIDATED",
+          status: "ADMITTED",
           requestId: normalized.requestId,
           operation: normalized.operation,
           operationVersion: normalized.operationVersion,
@@ -96,4 +106,4 @@ export default {
   },
 };
 
-export { readBoundedBody };
+export { isJsonContentType, readBoundedBody };
