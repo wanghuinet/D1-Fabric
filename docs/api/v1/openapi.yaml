@@ -1,0 +1,189 @@
+openapi: 3.0.3
+info:
+  title: D1-Fabric Business API
+  version: 1.0.0
+  description: Frozen headless business API for Web, Android and iOS.
+servers:
+  - url: https://api.example.com
+paths:
+  /api/v1/auth/register:
+    post:
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/AuthResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /api/v1/auth/login:
+    post:
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/AuthResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/auth/refresh:
+    post:
+      operationId: refresh
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/AuthResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/auth/logout:
+    post:
+      operationId: logout
+      security: [{ bearerAuth: [] }]
+      responses: { '204': { description: Logged out }, '401': { $ref: '#/components/responses/Unauthorized' } }
+  /api/v1/me:
+    get:
+      operationId: getMe
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }, '401': { $ref: '#/components/responses/Unauthorized' } }
+  /api/v1/feed:
+    get:
+      operationId: getFeed
+      parameters: [{ $ref: '#/components/parameters/Cursor' }, { $ref: '#/components/parameters/Limit' }]
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/FeedResponse' } } } } }
+  /api/v1/feed/following:
+    get:
+      operationId: getFollowingFeed
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Cursor' }, { $ref: '#/components/parameters/Limit' }]
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/FeedResponse' } } } } }
+  /api/v1/feed/hot:
+    get:
+      operationId: getHotFeed
+      parameters: [{ $ref: '#/components/parameters/Cursor' }, { $ref: '#/components/parameters/Limit' }]
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/FeedResponse' } } } } }
+  /api/v1/posts:
+    post:
+      operationId: createPost
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreatePostRequest' } } } }
+      responses: { '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Post' } } } }, '400': { $ref: '#/components/responses/BadRequest' }, '401': { $ref: '#/components/responses/Unauthorized' } }
+  /api/v1/posts/{id}:
+    parameters: [{ $ref: '#/components/parameters/PostId' }]
+    get:
+      operationId: getPost
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/PostDetail' } } } }, '404': { $ref: '#/components/responses/NotFound' } }
+    patch:
+      operationId: updatePost
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/UpdatePostRequest' } } } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Post' } } } }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+    delete:
+      operationId: deletePost
+      security: [{ bearerAuth: [] }]
+      responses: { '204': { description: Deleted }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /api/v1/users/{id}/posts:
+    get:
+      operationId: getUserPosts
+      parameters: [{ $ref: '#/components/parameters/UserId' }, { $ref: '#/components/parameters/Cursor' }, { $ref: '#/components/parameters/Limit' }]
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/FeedResponse' } } } } }
+  /api/v1/posts/{id}/like:
+    post:
+      operationId: likePost
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/PostId' }]
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/InteractionState' } } } }, '404': { $ref: '#/components/responses/NotFound' } }
+    delete:
+      operationId: unlikePost
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/PostId' }]
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/InteractionState' } } } } }
+  /api/v1/posts/{id}/favorite:
+    post:
+      operationId: favoritePost
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/PostId' }]
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/InteractionState' } } } } }
+    delete:
+      operationId: unfavoritePost
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/PostId' }]
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/InteractionState' } } } } }
+  /api/v1/posts/{id}/comments:
+    get:
+      operationId: listComments
+      parameters: [{ $ref: '#/components/parameters/PostId' }, { $ref: '#/components/parameters/Cursor' }, { $ref: '#/components/parameters/Limit' }]
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/CommentListResponse' } } } } }
+    post:
+      operationId: createComment
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/PostId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreateCommentRequest' } } } }
+      responses: { '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Comment' } } } }, '400': { $ref: '#/components/responses/BadRequest' } }
+  /api/v1/users/{id}/follow:
+    post:
+      operationId: followUser
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/UserId' }]
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/FollowState' } } } } }
+    delete:
+      operationId: unfollowUser
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/UserId' }]
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/FollowState' } } } } }
+  /api/v1/users/{id}:
+    get:
+      operationId: getUser
+      parameters: [{ $ref: '#/components/parameters/UserId' }]
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }, '404': { $ref: '#/components/responses/NotFound' } }
+  /api/v1/comments/{id}/like:
+    post:
+      operationId: likeComment
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/CommentId' }]
+      responses: { '200': { description: OK } }
+  /api/v1/search:
+    get:
+      operationId: search
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string, minLength: 1, maxLength: 200 } }
+        - { name: type, in: query, required: false, schema: { type: string, enum: [all, post, user] }, default: all }
+        - { $ref: '#/components/parameters/Cursor' }
+        - { $ref: '#/components/parameters/Limit' }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/SearchResponse' } } } } }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: opaque }
+  parameters:
+    PostId: { name: id, in: path, required: true, schema: { type: string } }
+    UserId: { name: id, in: path, required: true, schema: { type: string } }
+    CommentId: { name: id, in: path, required: true, schema: { type: string } }
+    Cursor: { name: cursor, in: query, required: false, schema: { type: string, maxLength: 512 } }
+    Limit: { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
+  responses:
+    BadRequest: { description: Invalid request }
+    Unauthorized: { description: Authentication required }
+    Forbidden: { description: Permission denied }
+    NotFound: { description: Resource not found }
+  schemas:
+    RegisterRequest: { type: object, required: [username, password, nickname], properties: { username: { type: string, minLength: 3, maxLength: 32 }, password: { type: string, minLength: 8, maxLength: 128 }, nickname: { type: string, minLength: 1, maxLength: 64 } } }
+    LoginRequest: { type: object, required: [username, password], properties: { username: { type: string }, password: { type: string } } }
+    RefreshRequest: { type: object, required: [refresh_token], properties: { refresh_token: { type: string } } }
+    AuthResponse: { type: object, required: [access_token, refresh_token, user], properties: { access_token: { type: string }, refresh_token: { type: string }, user: { $ref: '#/components/schemas/User' } } }
+    User: { type: object, required: [id, username, nickname, status], properties: { id: { type: string }, username: { type: string }, nickname: { type: string }, avatar: { type: string, nullable: true }, bio: { type: string, nullable: true }, status: { type: integer } } }
+    CreatePostRequest: { type: object, required: [content_type], properties: { content_type: { type: string, enum: [text, image, video, mixed] }, text: { type: string, nullable: true, maxLength: 20000 }, media: { type: array, items: { $ref: '#/components/schemas/MediaInput' }, maxItems: 20 } } }
+    UpdatePostRequest: { type: object, properties: { text: { type: string, nullable: true, maxLength: 20000 }, visibility: { type: integer } } }
+    MediaInput: { type: object, required: [media_type, object_key], properties: { media_type: { type: string, enum: [image, video, audio, file] }, object_key: { type: string, maxLength: 1024 }, width: { type: integer, nullable: true }, height: { type: integer, nullable: true }, duration_ms: { type: integer, nullable: true }, sort_order: { type: integer, minimum: 0 } } }
+    Post: { type: object, required: [id, author_id, content_type, status, visibility, created_at], properties: { id: { type: string }, author_id: { type: string }, content_type: { type: string }, text: { type: string, nullable: true }, status: { type: integer }, visibility: { type: integer }, created_at: { type: integer }, updated_at: { type: integer }, published_at: { type: integer, nullable: true } } }
+    PostDetail: { allOf: [{ $ref: '#/components/schemas/Post' }, { type: object, properties: { media: { type: array, items: { $ref: '#/components/schemas/MediaInput' } }, author: { $ref: '#/components/schemas/User' } } }] }
+    FeedItem: { type: object, required: [post, author, media, stats, viewer], properties: { post: { $ref: '#/components/schemas/Post' }, author: { $ref: '#/components/schemas/User' }, media: { type: array, items: { $ref: '#/components/schemas/MediaInput' } }, stats: { type: object, properties: { likes: { type: integer }, comments: { type: integer } } }, viewer: { type: object, properties: { liked: { type: boolean }, favorited: { type: boolean }, following: { type: boolean } } } } }
+    FeedResponse: { type: object, required: [items, has_more], properties: { items: { type: array, items: { $ref: '#/components/schemas/FeedItem' } }, next_cursor: { type: string, nullable: true }, has_more: { type: boolean } } }
+    InteractionState: { type: object, required: [liked, favorited], properties: { liked: { type: boolean }, favorited: { type: boolean } } }
+    Comment: { type: object, required: [id, post_id, author_id, text, status, created_at], properties: { id: { type: string }, post_id: { type: string }, author_id: { type: string }, parent_id: { type: string, nullable: true }, text: { type: string }, status: { type: integer }, created_at: { type: integer }, updated_at: { type: integer } } }
+    CreateCommentRequest: { type: object, required: [text], properties: { text: { type: string, minLength: 1, maxLength: 5000 }, parent_id: { type: string, nullable: true } } }
+    CommentListResponse: { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/Comment' } }, next_cursor: { type: string, nullable: true }, has_more: { type: boolean } } }
+    FollowState: { type: object, required: [following], properties: { following: { type: boolean } } }
+    SearchResponse: { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/FeedItem' } }, next_cursor: { type: string, nullable: true }, has_more: { type: boolean } } }
