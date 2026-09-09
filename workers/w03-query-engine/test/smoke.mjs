@@ -12,12 +12,12 @@ if(t1.max_rows!==1000)throw new Error('Test 1: max_rows mismatch');
 // Test 2: LIMIT 100000, max_rows 1000 → must not exceed 1000 rows.
 const t2=await q({tenant_id:'t1',sql:'SELECT 1 LIMIT 100000',shard_ids:[0],max_rows:1000},200);
 if(t2.total_rows>1000)throw new Error(`Test 2: execution-level limit violated, got ${t2.total_rows}`);
-if(t2.per_shard_limit>1000)throw new Error('Test 2: per_shard_limit exceeds global');
+if(t2.budget_sum>1000)throw new Error('Test 2: budget_sum exceeds global');
 
 // Test 3: No LIMIT, max_rows 1000 → auto-bounded.
 const t3=await q({tenant_id:'t1',sql:'SELECT 1',shard_ids:[0],max_rows:1000},200);
 if(t3.total_rows>1000)throw new Error('Test 3: unbounded query not capped');
-if(typeof t3.per_shard_limit!=='number')throw new Error('Test 3: per_shard_limit missing');
+if(!Array.isArray(t3.per_shard_limits))throw new Error('Test 3: per_shard_limits missing');
 
 // Test 4: LIMIT 1000, max_rows 1000 → PASS.
 const t4=await q({tenant_id:'t1',sql:'SELECT 1 LIMIT 1000',shard_ids:[0],max_rows:1000},200);
@@ -44,7 +44,8 @@ if(t9.execution!=='D1_EXECUTED')throw new Error('Test 9: params not executed');
 const t10=await q({tenant_id:'t1',sql:'SELECT 1',shard_ids:[0,1,2,3],max_rows:1000},200);
 if(t10.total_rows>1000)throw new Error(`Test 10: global budget violated: ${t10.total_rows} > 1000`);
 if(t10.fanout!==4)throw new Error('Test 10: fanout mismatch');
-if(t10.per_shard_limit!==250)throw new Error(`Test 10: per_shard_limit wrong: ${t10.per_shard_limit}`);
+if(t10.budget_sum!==1000)throw new Error(`Test 10: budget_sum wrong: ${t10.budget_sum}`);
+if(t10.per_shard_limits.join(',')!=='250,250,250,250')throw new Error(`Test 10: per_shard_limits wrong: ${t10.per_shard_limits}`);
 
 // Test 11: max_parallelism must be enforced (shard_ids > parallelism still works).
 const t11=await q({tenant_id:'t1',sql:'SELECT 1',shard_ids:[0,1,2,3,4,5,6,7],max_rows:100},200);
@@ -61,4 +62,23 @@ await q({tenant_id:'t1',sql:'SELECT 1',shard_ids:[-1]},400);
 // Fanout limit: 65 shards exceeds default MAX_FANOUT=8.
 await q({tenant_id:'t1',sql:'SELECT 1',shard_ids:Array.from({length:65},(_,i)=>i)},429);
 
-console.log('W03 smoke PASS (12 tests)');
+// --- Global MAX_ROWS fanout boundary cases (sum of per-shard budgets <= budget) ---
+const boundary = async (fanout, budget) => {
+  const ids = Array.from({ length: fanout }, (_, i) => i);
+  const r = await q({ tenant_id:'t1', sql:'SELECT 1', shard_ids:ids, max_rows:budget }, 200);
+  const sum = r.per_shard_limits.reduce((a, b) => a + b, 0);
+  if (sum > budget) throw new Error(`fanout=${fanout} budget=${budget}: sum ${sum} > ${budget}`);
+  if (r.budget_sum !== sum) throw new Error(`fanout=${fanout}: budget_sum ${r.budget_sum} != ${sum}`);
+  if (r.per_shard_limits.length !== fanout) throw new Error(`fanout=${fanout}: wrong limit count`);
+  return r;
+};
+await boundary(1, 1000);
+await boundary(2, 1000);
+await boundary(3, 1000);
+await boundary(4, 1000);
+await boundary(7, 1000);
+await boundary(8, 1000);
+await boundary(3, 10);
+await boundary(8, 1);
+
+console.log('W03 smoke PASS (12 tests + fanout boundary cases)');

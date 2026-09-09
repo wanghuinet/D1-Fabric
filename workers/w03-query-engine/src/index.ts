@@ -1,8 +1,10 @@
+import { allocateShardBudgets } from './shard-budget';
+
 // Authoritative shard contract. 64 logical shards -> 8 physical D1: physical = (logical % 8) + 1.
 const LOGICAL_SHARD_COUNT = 64;
 const PHYSICAL_SHARD_COUNT = 8;
-// Hard global cap on rows returned per request. The response can never exceed this,
-// and per-shard D1 reads are bounded by ceil(globalMaxRows / fanout), not maxRows * fanout.
+// Hard global cap on rows returned per request. The sum of per-shard D1 execution
+// budgets is guaranteed <= MAX_ROWS_GLOBAL (never maxRows * fanout).
 const MAX_ROWS_GLOBAL = 1000;
 
 interface Env {
@@ -108,8 +110,9 @@ export default {
           params?: (string | number | null)[];
         };
         if (!body.tenant_id || !body.sql) return json({ code: 'INVALID_ARGUMENT' }, 400, requestId);
-        if (body.sql.length > 16000) return json({ code: 'PAYLOAD_TOO_LARGE' }, 413, requestId);
-        const unsafe = rejectUnsafeRead(body.sql);
+        const sql = body.sql;
+        if (sql.length > 16000) return json({ code: 'PAYLOAD_TOO_LARGE' }, 413, requestId);
+        const unsafe = rejectUnsafeRead(sql);
         if (unsafe) return json({ code: unsafe }, 400, requestId);
 
         const shardIds = [...new Set((body.shard_ids ?? [0]).filter((id) => Number.isInteger(id) && id >= 0 && id < LOGICAL_SHARD_COUNT))];
@@ -123,9 +126,10 @@ export default {
         const missing = shardIds.find((id) => !dbForShard(env, id));
         if (missing !== undefined) return json({ code: 'SHARD_NOT_READY', shard_id: missing }, 503, requestId);
 
-        // Per-shard D1 read budget so total D1 reads scale with globalMaxRows, not fanout.
-        const perShardLimit = Math.ceil(globalMaxRows / shardIds.length);
-        const execSql = enforceLimit(body.sql, perShardLimit);
+        // Per-shard D1 read budget: deterministic split guarantees sum(budgets) <= globalMaxRows.
+        // ceil() is deliberately avoided because it overshoots (e.g. 1000/3 -> 334*3 = 1002).
+        const shardBudgets = allocateShardBudgets(shardIds.length, globalMaxRows);
+        const budgetByShard = new Map<number, number>(shardIds.map((id, i) => [id, shardBudgets[i]]));
         const params = body.params ?? [];
         const deadlineMs = Math.max(1, Math.min(10000, Number(body.deadline_ms ?? 10000)));
         const started = Date.now();
@@ -133,6 +137,8 @@ export default {
           if (Date.now() - started >= deadlineMs) throw new Error('TIMEOUT');
           const db = dbForShard(env, shardId);
           if (!db) throw new Error('SHARD_NOT_READY');
+          const limit = budgetByShard.get(shardId) ?? 0;
+          const execSql = enforceLimit(sql, limit);
           const stmt = db.prepare(execSql);
           const result = params.length > 0 ? await stmt.bind(...params).all() : await stmt.bind().all();
           return { shard_id: shardId, results: result.results, success: true };
@@ -170,7 +176,8 @@ export default {
           fanout: shardIds.length,
           parallelism,
           max_rows: globalMaxRows,
-          per_shard_limit: perShardLimit,
+          per_shard_limits: shardBudgets,
+          budget_sum: shardBudgets.reduce((a, b) => a + b, 0),
           total_rows: allRows.length,
           truncated,
           deadline_ms: deadlineMs,
