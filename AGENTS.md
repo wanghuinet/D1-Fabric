@@ -1,6 +1,6 @@
 # D1-Fabric AI Engineering Instructions
 
-**Version:** 3.0
+**Version:** 3.1
 **Status:** ACTIVE
 **Role:** AI唯一入口 / Router；不重复定义领域合同。
 
@@ -69,6 +69,8 @@ Contract → Owner → Data Contract → Schema/Index → Implementation
 - Partial failure must not corrupt committed state.
 - Recovery must restore invariants before normal admission.
 - Public compatibility cannot be silently changed.
+- Reserved business interfaces in C01 are extension boundaries, not permission to place business code in W01-W06.
+- Future Realtime, Media Processing, Search Provider, Identity Provider, and Webhook/Event capabilities must remain generic adapters until a versioned business contract activates them.
 
 ## 7. Scope discipline
 
