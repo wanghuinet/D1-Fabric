@@ -26,8 +26,11 @@ const demand: AdmissionDemand = {
   retries: 1,
 };
 
+let assertions = 0;
+
 function assert(condition: boolean, message: string): void {
   if (!condition) throw new Error(`FAIL: ${message}`);
+  assertions += 1;
 }
 
 function assertThrows(fn: () => void, message: string): void {
@@ -66,8 +69,9 @@ assert(admit({ ...demand, retries: limits.maxRetries }, limits).admitted === tru
 assert(admit({ ...demand, fanout: 0 }, limits).code === "INVALID_DEMAND", "zero fanout is rejected");
 assert(admit({ ...demand, concurrency: Number.POSITIVE_INFINITY }, limits).code === "INVALID_DEMAND", "non-finite concurrency is rejected");
 assert(admit({ ...demand, rowsRead: Number.MAX_SAFE_INTEGER + 1 }, limits).code === "INVALID_DEMAND", "unsafe integer demand is rejected");
+assert(admit(demand, { ...limits, maxRetries: -1 }).code === "INVALID_LIMITS", "invalid limits are distinguished from invalid demand");
 
 assertThrows(() => validateAdmissionDemand({ ...demand, deadlineMs: 0 }), "zero deadline is rejected by validator");
 assertThrows(() => validateAdmissionLimits({ ...limits, maxRetries: -1 }), "negative retry limit is rejected by validator");
 
-console.log("PASS: 24 admission contract assertions");
+console.log(`PASS: ${assertions} admission contract assertions`);
