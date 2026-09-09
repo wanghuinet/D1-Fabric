@@ -46,6 +46,21 @@ test("rejects missing identity", () => {
   );
 });
 
+test("rejects missing operation", () => {
+  const body = validBody();
+  delete (body as Record<string, unknown>).operation;
+  assert.throws(() => parseAndValidateBody(body, now), (error: unknown) =>
+    error instanceof ValidationError && error.code === "INVALID_REQUEST",
+  );
+});
+
+test("rejects invalid operation version", () => {
+  assert.throws(
+    () => parseAndValidateBody(validBody({ operationVersion: "" }), now),
+    (error: unknown) => error instanceof ValidationError && error.code === "INVALID_REQUEST",
+  );
+});
+
 test("rejects expired deadline", () => {
   assert.throws(
     () => parseAndValidateBody(validBody({ deadlineAt: now }), now),
@@ -62,6 +77,13 @@ test("rejects deadline beyond the 25 second W01 envelope", () => {
 
 test("rejects non-integer budget", () => {
   const body = validBody({ budget: { ...validBody().budget, fanout: 0.5 } });
+  assert.throws(() => parseAndValidateBody(body, now), (error: unknown) =>
+    error instanceof ValidationError && error.code === "INVALID_BUDGET",
+  );
+});
+
+test("rejects negative budget", () => {
+  const body = validBody({ budget: { ...validBody().budget, retries: -1 } });
   assert.throws(() => parseAndValidateBody(body, now), (error: unknown) =>
     error instanceof ValidationError && error.code === "INVALID_BUDGET",
   );
