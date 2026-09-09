@@ -76,12 +76,7 @@ export function allocateBudget(global: number, shardCount: number): number[] {
   return out;
 }
 
-export function clampPageSize(requested: number, max: number): number {
-  if (!finitePositiveInt(max)) throw new Error("invalid maxPageSize");
-  if (!finitePositiveInt(requested)) return 1;
-  return Math.min(requested, max);
-}
-
+/** Page size is a hard contract ceiling; callers must reject requests above maxPageSize. */
 export function canRetry(attempt: number, budget: ResourceBudget, remainingDeadlineMs: number, retryCostMs: number): boolean {
   if (!Number.isSafeInteger(attempt) || attempt < 0) return false;
   if (attempt >= budget.maxRetries) return false;
