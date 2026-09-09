@@ -18,7 +18,7 @@ import {
 } from "./payload-batch-cursor-contract";
 
 const payloadLimits: PayloadLimits = {
-  maxRequestBytes: 4096,
+  requestBytesLimit: 4096,
   maxHeaderBytes: 1024,
   maxFieldBytes: 2048,
   maxArrayItems: 100,
@@ -38,7 +38,7 @@ const batch: BatchDemand = { itemCount: 8, largestItemBytes: 512 };
 const cursorLimits: CursorLimits = {
   maxCursorBytes: 128,
   maxPageSize: 50,
-  expectedVersion: 2,
+  contractVersion: 2,
 };
 const cursor: CursorDemand = {
   token: "opaque-cursor-token",
@@ -48,8 +48,11 @@ const cursor: CursorDemand = {
   nowMs: 1000,
 };
 
+let assertions = 0;
+
 function assert(condition: boolean, message: string): void {
   if (!condition) throw new Error(`FAIL: ${message}`);
+  assertions += 1;
 }
 
 function assertThrows(fn: () => void, message: string): void {
@@ -66,8 +69,8 @@ validateCursorLimits(cursorLimits);
 validateCursorDemand(cursor);
 
 assert(evaluatePayload(payload, payloadLimits).admitted === true, "valid payload admitted");
-assert(evaluatePayload({ ...payload, requestBytes: payloadLimits.maxRequestBytes }, payloadLimits).admitted === true, "request byte ceiling admitted");
-assert(evaluatePayload({ ...payload, requestBytes: payloadLimits.maxRequestBytes + 1 }, payloadLimits).code === "REQUEST_BYTES_EXCEEDED", "request byte overflow rejected");
+assert(evaluatePayload({ ...payload, requestBytes: payloadLimits.requestBytesLimit }, payloadLimits).admitted === true, "request byte ceiling admitted");
+assert(evaluatePayload({ ...payload, requestBytes: payloadLimits.requestBytesLimit + 1 }, payloadLimits).code === "REQUEST_BYTES_EXCEEDED", "request byte overflow rejected");
 assert(evaluatePayload({ ...payload, headerBytes: payloadLimits.maxHeaderBytes + 1 }, payloadLimits).code === "HEADER_BYTES_EXCEEDED", "header overflow rejected");
 assert(evaluatePayload({ ...payload, largestFieldBytes: payloadLimits.maxFieldBytes + 1 }, payloadLimits).code === "FIELD_BYTES_EXCEEDED", "field overflow rejected");
 assert(evaluatePayload({ ...payload, arrayItems: payloadLimits.maxArrayItems + 1 }, payloadLimits).code === "ARRAY_ITEMS_EXCEEDED", "array overflow rejected");
@@ -88,17 +91,17 @@ assert(utf8ByteLength("😀") === 4, "four-byte UTF-8 length is exact");
 assert(evaluateCursor(cursor, cursorLimits).admitted === true, "valid cursor admitted");
 assert(evaluateCursor({ ...cursor, token: "😀".repeat(40) }, cursorLimits).code === "CURSOR_OVERSIZED", "cursor byte ceiling uses UTF-8 bytes");
 assert(evaluateCursor({ ...cursor, expiresAtMs: cursor.nowMs }, cursorLimits).code === "CURSOR_EXPIRED", "expired cursor rejected");
-assert(evaluateCursor({ ...cursor, version: cursorLimits.expectedVersion + 1 }, cursorLimits).code === "CURSOR_VERSION_MISMATCH", "incompatible cursor rejected");
+assert(evaluateCursor({ ...cursor, version: cursorLimits.contractVersion + 1 }, cursorLimits).code === "CURSOR_VERSION_MISMATCH", "incompatible cursor rejected");
 assert(evaluateCursor({ ...cursor, requestedPageSize: cursorLimits.maxPageSize + 1 }, cursorLimits).code === "PAGE_SIZE_EXCEEDED", "oversized page rejected");
 assert(evaluateCursor({ ...cursor, token: "" }, cursorLimits).code === "CURSOR_INVALID", "empty cursor rejected");
 assert(evaluateCursor({ ...cursor, requestedPageSize: 1 }, cursorLimits).effectivePageSize === 1, "bounded page size is preserved");
 
 assertThrows(() => validatePayloadLimits({ ...payloadLimits, maxArrayItems: 0 }), "zero array limit rejected");
 assertThrows(() => validateBatchLimits({ ...batchLimits, maxBatchItems: 0 }), "zero batch limit rejected");
-assertThrows(() => validateCursorLimits({ ...cursorLimits, expectedVersion: 0 }), "zero cursor version rejected");
+assertThrows(() => validateCursorLimits({ ...cursorLimits, contractVersion: 0 }), "zero cursor version rejected");
 assertThrows(() => validateCursorDemand({ ...cursor, nowMs: 0 }), "invalid cursor clock rejected");
 
 // Cursor is opaque: this contract bounds and versions it without exposing or interpreting physical shard IDs.
 assert(evaluateCursor(cursor, cursorLimits).admitted, "opaque cursor remains topology-neutral");
 
-console.log("PASS: payload/batch/cursor contract assertions");
+console.log(`PASS: ${assertions} payload/batch/cursor contract assertions`);
