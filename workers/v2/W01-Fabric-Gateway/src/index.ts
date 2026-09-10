@@ -1,5 +1,9 @@
 import { parseGatewayEnvelope, ValidationError, W01_LIMITS, type GatewayEnvelope } from "./validation.ts";
 
+export interface ServiceBinding {
+  fetch(input: Request): Promise<Response>;
+}
+
 const JSON_HEADERS = Object.freeze({ "content-type": "application/json; charset=utf-8" });
 const JSON_CONTENT_TYPE = /^application\/json(?:\s*;\s*charset\s*=\s*[^;]+)?\s*$/i;
 
@@ -19,7 +23,7 @@ async function readBoundedBody(request: Request): Promise<string | Response> {
   return body;
 }
 
-export async function handleGateway(request: Request, env: { W02?: Fetcher }): Promise<Response> {
+export async function handleGateway(request: Request, env: { W02?: ServiceBinding }): Promise<Response> {
   if (request.method !== "POST") return jsonResponse({ error: "METHOD_NOT_ALLOWED" }, 405);
   if (!env?.W02 || typeof env.W02.fetch !== "function") return jsonResponse({ error: "W02_UNAVAILABLE" }, 503);
   if (!JSON_CONTENT_TYPE.test(request.headers.get("content-type") ?? "")) return jsonResponse({ error: "UNSUPPORTED_MEDIA_TYPE" }, 415);
@@ -38,8 +42,7 @@ export async function handleGateway(request: Request, env: { W02?: Fetcher }): P
     return jsonResponse({ error: "INVALID_REQUEST" }, 400);
   }
 
-  const remainingMs = envelope.request.deadlineAt - Date.now();
-  if (remainingMs <= 0) return jsonResponse({ error: "DEADLINE_EXCEEDED" }, 408);
+  if (envelope.request.deadlineAt <= Date.now()) return jsonResponse({ error: "DEADLINE_EXCEEDED" }, 408);
 
   const upstreamRequest = new Request(new URL("/", request.url), {
     method: "POST",
