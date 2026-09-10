@@ -116,6 +116,8 @@ executionEpoch is present
 executionEpoch is admissible for this execution
 ```
 
+For W03 v1.0, the locally verifiable admissibility rule is that `executionEpoch` is a positive safe integer. Freshness against a moving control-plane epoch is upstream-owned because W03 has no routing/control-plane authority in v1.0. W03 MUST NOT invent a local epoch source or silently replace the supplied epoch. A future contract version MAY add an explicit authoritative epoch witness for stale-epoch rejection.
+
 W03 MUST NOT guess a target when target metadata is absent or stale.
 
 For v1.0, a write execution is single-target only.
@@ -166,7 +168,7 @@ Before D1 dispatch:
 required <= remaining admitted budget
 ```
 
-For a retryable mutation, the minimum statement reservation for the v1.0 implementation is **5 D1 statements**:
+For a retryable mutation, the minimum statement reservation for the successful v1.0 path is **5 D1 statements**:
 
 ```text
 1  initial idempotency-state read
@@ -175,6 +177,8 @@ For a retryable mutation, the minimum statement reservation for the v1.0 impleme
 ```
 
 A committed replay uses **1 D1 statement** for the replay-state read and MUST NOT execute the authoritative mutation.
+
+A known failed batch may require one additional D1 statement to transition the owned `IN_FLIGHT` record to `FAILED`. This recovery bookkeeping is executed only after the transaction result is definitively classified as failed; an indeterminate transport exception MUST NOT perform this transition.
 
 After completion:
 
@@ -188,6 +192,8 @@ If the remaining budget is insufficient, W03 MUST NOT dispatch new work.
 W03 MUST never increase an upstream budget ceiling.
 
 A result exceeding the declared/admitted write budget MUST be classified as a budget violation and MUST NOT be reported as successful execution.
+
+For D1 mutations whose final row count is only knowable from the database result, W03 MAY perform the `rowsWritten` budget check immediately after the atomic dispatch result and MUST never report the operation successful when the measured result exceeds the admitted row budget. This is a post-dispatch accounting check, not permission to exceed a known pre-dispatch statement budget.
 
 ## 9. Idempotency Contract
 
@@ -206,6 +212,10 @@ COMMITTED
   ↘
    FAILED
 ```
+
+A known, definitively failed atomic attempt MUST transition its owned `IN_FLIGHT` record to `FAILED` when the failure can be classified without ambiguity. A `FAILED` record is reclaimable by a later attempt for the same exact tenant/principal/operation/version/key scope.
+
+An indeterminate transport outcome MUST NOT be converted to `FAILED` merely because the caller lost the response. Such an `IN_FLIGHT` record remains protected by `IDEMPOTENCY_CONFLICT` until an authoritative committed state can be observed; W03 MUST NOT issue a second authoritative mutation from an unknown outcome.
 
 A repeated committed key MUST replay the recorded committed result without repeating the authoritative mutation.
 
@@ -357,18 +367,21 @@ Before W03 can be marked PASS, tests MUST prove at minimum:
 - deadline boundary;
 - expected write-count boundary;
 - repeated committed idempotency key;
-- retryable mutation is rejected before any D1 dispatch when admitted statement budget is below 5.
+- retryable mutation is rejected before any D1 dispatch when admitted statement budget is below 5;
+- SQL literals containing semicolons are not misclassified as multi-statement input.
 
 ### Failure
 
 - malformed envelope;
 - contract mismatch;
 - target missing/stale;
+- non-admissible execution epoch;
 - expired deadline;
 - cancellation before admission;
 - budget exhaustion;
 - D1 failure;
-- unknown commit outcome;
+- known failed atomic result transitions to `FAILED` and can be safely reclaimed;
+- unknown commit outcome remains indeterminate and does not trigger a second mutation;
 - missing idempotency key for retryable mutation;
 - cross-target write rejection.
 
@@ -376,7 +389,7 @@ Before W03 can be marked PASS, tests MUST prove at minimum:
 
 - tenant A cannot replay tenant B's idempotency result;
 - principal scope mismatch is rejected;
-- execution epoch mismatch is rejected.
+- non-admissible execution epoch is rejected.
 
 ### Integration
 
@@ -387,6 +400,8 @@ W01 → W02 → W03
 ```
 
 with request identity, contract version, deadline, budget, target identity, and deterministic failure semantics preserved end-to-end.
+
+Test-only integration code MAY import upstream Worker source to exercise the actual W01/W02 contracts. The deployable W03 `src/` boundary MUST remain free of cross-worker imports and private bindings.
 
 ## 18. CI / Release Gates
 
