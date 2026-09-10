@@ -109,13 +109,6 @@ function positiveBudget(value: unknown, field: string): number {
   return value;
 }
 
-function nonNegativeBudget(value: unknown, field: string): number {
-  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
-    throw new ReadExecutionError("BUDGET_INVALID", `${field} is invalid`);
-  }
-  return value;
-}
-
 function validateBudget(budget: ReadBudget): ReadBudget {
   return Object.freeze({
     d1Statements: positiveBudget(budget.d1Statements, "d1Statements"),
@@ -134,6 +127,28 @@ function validatePlacement(placement: ReadPlacement): void {
   if (Date.now() >= placement.expiresAt) throw new ReadExecutionError("CONTROL_SNAPSHOT_EXPIRED", "execution epoch is expired");
 }
 
+function fingerprint(value: unknown): string {
+  let hash = 2166136261;
+  const text = JSON.stringify(value);
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+function expectedCacheIntegrity(input: ReadExecutionInput<unknown>, entry: CacheEntry): string {
+  return fingerprint({
+    tenantId: entry.tenantId,
+    principalScope: entry.principalScope,
+    operation: entry.operation,
+    contractVersion: entry.contractVersion,
+    shapeVersion: entry.shapeVersion,
+    expiresAt: entry.expiresAt,
+    payload: entry.payload,
+  });
+}
+
 function validateCache<T>(input: ReadExecutionInput<T>, entry: CacheEntry): boolean {
   if (!input.cachePolicy.cacheAllowed || !input.cachePolicy.cacheTermination) return false;
   if (entry.tenantId !== input.tenantId || entry.principalScope !== input.principalScope) {
@@ -143,6 +158,9 @@ function validateCache<T>(input: ReadExecutionInput<T>, entry: CacheEntry): bool
     throw new ReadExecutionError("CACHE_BINDING_INVALID", "cache contract binding is invalid");
   }
   boundedToken(entry.integrity, "cache integrity");
+  if (entry.integrity !== expectedCacheIntegrity(input, entry)) {
+    throw new ReadExecutionError("CACHE_BINDING_INVALID", "cache integrity is invalid");
+  }
   if (Date.now() >= entry.expiresAt) return false;
   return true;
 }
@@ -168,7 +186,7 @@ export async function executeBoundedRead<T = unknown>(input: ReadExecutionInput<
     const payloadBytes = serializedBytes(input.cacheEntry.payload);
     if (payloadBytes > budget.payloadBytes) throw new ReadExecutionError("BUDGET_EXCEEDED", "cache payload exceeds budget");
     const cached = Array.isArray(input.cacheEntry.payload) ? input.cacheEntry.payload as readonly T[] : [input.cacheEntry.payload as T];
-    if (cached.length > budget.rowsRead) throw new ReadExecutionError("BUDGET_EXCEEDED", "cache response exceeds row budget");
+    if (cached.length > budget.rowsRead) throw new ReadExecutionError("BUDGET_EXCEEDED", "cache response exceeds bounded response limit");
     return Object.freeze({
       status: "CACHE_TERMINATED" as const,
       requestId: input.requestId,
