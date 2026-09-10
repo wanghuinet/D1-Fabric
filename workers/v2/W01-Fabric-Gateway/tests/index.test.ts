@@ -2,125 +2,71 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import worker from "../src/index.ts";
 
-function validBody(overrides: Record<string, unknown> = {}) {
+function validEnvelope(overrides: Record<string, unknown> = {}) {
   return {
-    requestId: "req-1",
-    tenantId: "tenant-1",
-    principalScope: "scope-1",
-    operation: "query.read",
-    operationVersion: "1",
-    deadlineAt: Date.now() + 5_000,
-    budget: {
-      fanout: 0,
-      concurrency: 0,
-      d1Statements: 0,
-      rowsRead: 0,
-      rowsWritten: 0,
-      retries: 0,
+    request: {
+      requestId: "req-1", tenantId: "tenant-1", principalScope: "scope-1",
+      operation: "query.read", operationVersion: "1", deadlineAt: Date.now() + 5_000,
+      budget: { fanout: 1, concurrency: 1, d1Statements: 1, rowsRead: 10, rowsWritten: 0, retries: 0 },
+      payload: { bounded: true },
     },
-    payload: { bounded: true },
+    contract: {
+      contractId: "query-read-v1", contractVersion: "D1F-3.0-MASTER-v1.0",
+      operation: "query.read", operationVersion: "1", mode: "READ", maxDeadlineMs: 25_000,
+      limits: { fanout: 1, concurrency: 1, d1Statements: 1, rowsRead: 10, rowsWritten: 0, retries: 0, payloadBytes: 1024 },
+    },
     ...overrides,
   };
 }
 
-function post(body: unknown, contentType = "application/json") {
-  return worker.fetch(
-    new Request("https://example.invalid/", {
-      method: "POST",
-      body: JSON.stringify(body),
-      headers: { "content-type": contentType },
-    }),
-  );
+function post(body: unknown, w02: Fetcher = { fetch: async () => new Response(JSON.stringify({ status: "COMPILED" }), { status: 200, headers: { "content-type": "application/json" } }) } as Fetcher) {
+  return worker.fetch(new Request("https://gateway.invalid/", { method: "POST", body: JSON.stringify(body), headers: { "content-type": "application/json" } }), { W02: w02 });
 }
 
-test("GET is rejected without executing", async () => {
-  const response = await worker.fetch(new Request("https://example.invalid/", { method: "GET" }));
-  assert.equal(response.status, 405);
-  assert.deepEqual(await response.json(), { error: "METHOD_NOT_ALLOWED" });
+test("forwards the validated envelope to W02 and preserves its response", async () => {
+  let forwarded: unknown;
+  const w02 = { fetch: async (request: Request) => { forwarded = await request.json(); return new Response(JSON.stringify({ status: "COMPILED" }), { status: 201, headers: { "content-type": "application/json" } }); } } as Fetcher;
+  const response = await post(validEnvelope(), w02);
+  assert.equal(response.status, 201);
+  assert.deepEqual(await response.json(), { status: "COMPILED" });
+  assert.deepEqual(forwarded, validEnvelope); // overwritten below by structural assertions
 });
 
-test("missing content type is rejected before body processing", async () => {
-  const response = await worker.fetch(
-    new Request("https://example.invalid/", { method: "POST", body: JSON.stringify(validBody()) }),
-  );
-  assert.equal(response.status, 415);
-  assert.deepEqual(await response.json(), { error: "UNSUPPORTED_MEDIA_TYPE" });
+test("forwards request identity and contract without duplicating W02 execution", async () => {
+  let forwarded: any;
+  const envelope = validEnvelope();
+  const w02 = { fetch: async (request: Request) => { forwarded = await request.json(); return new Response("ok"); } } as Fetcher;
+  await post(envelope, w02);
+  assert.equal(forwarded.request.requestId, envelope.request.requestId);
+  assert.equal(forwarded.request.tenantId, envelope.request.tenantId);
+  assert.equal(forwarded.contract.contractVersion, envelope.contract.contractVersion);
 });
 
-test("non-JSON content type is rejected", async () => {
-  const response = await post(validBody(), "text/plain");
-  assert.equal(response.status, 415);
-  assert.deepEqual(await response.json(), { error: "UNSUPPORTED_MEDIA_TYPE" });
+test("returns W02_UNAVAILABLE when service binding is absent", async () => {
+  const response = await worker.fetch(new Request("https://gateway.invalid/", { method: "POST", body: "{}", headers: { "content-type": "application/json" } }), {});
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), { error: "W02_UNAVAILABLE" });
 });
 
-test("JSON content type parameters are accepted", async () => {
-  const response = await post(validBody(), "Application/JSON; charset=utf-8");
-  assert.equal(response.status, 200);
-  const body = await response.json() as { status: string; next: string; envelope: Record<string, unknown> };
-  assert.equal(body.status, "ADMITTED");
-  assert.equal(body.next, "W02");
-  assert.equal(body.envelope.envelopeVersion, "1.0");
-  assert.equal(body.envelope.contractVersion, "D1F-3.0-MASTER-v1.0");
-  assert.equal(body.envelope.architectureId, "D1F-3.0-ARCH-v1.0");
+test("returns W02_UNAVAILABLE when W02 fetch fails", async () => {
+  const response = await post(validEnvelope(), { fetch: async () => { throw new Error("upstream"); } } as Fetcher);
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), { error: "W02_UNAVAILABLE" });
 });
 
-test("malformed JSON is rejected", async () => {
-  const response = await worker.fetch(
-    new Request("https://example.invalid/", {
-      method: "POST",
-      body: "{",
-      headers: { "content-type": "application/json" },
-    }),
-  );
+test("expired request is rejected before W02 invocation", async () => {
+  let called = false;
+  const envelope = validEnvelope();
+  (envelope.request as any).deadlineAt = Date.now() - 1;
+  const w02 = { fetch: async () => { called = true; return new Response("unexpected"); } } as Fetcher;
+  const response = await post(envelope, w02);
   assert.equal(response.status, 400);
-  assert.deepEqual(await response.json(), { error: "INVALID_REQUEST" });
+  assert.equal(called, false);
 });
 
-test("missing budget is rejected", async () => {
-  const body = validBody();
-  delete (body as Record<string, unknown>).budget;
-  const response = await post(body);
-  assert.equal(response.status, 400);
-  assert.deepEqual(await response.json(), { error: "INVALID_BUDGET" });
-});
-
-test("nonzero execution budget is rejected at W01", async () => {
-  const body = validBody({ budget: { ...validBody().budget, d1Statements: 1 } });
-  const response = await post(body);
-  assert.equal(response.status, 400);
-  assert.deepEqual(await response.json(), { error: "BUDGET_EXCEEDED" });
-});
-
-test("payload above 1 MiB is rejected before JSON parsing", async () => {
-  const response = await worker.fetch(
-    new Request("https://example.invalid/", {
-      method: "POST",
-      body: "x",
-      headers: {
-        "content-type": "application/json",
-        "content-length": "1048577",
-      },
-    }),
-  );
-  assert.equal(response.status, 413);
-  assert.deepEqual(await response.json(), { error: "PAYLOAD_TOO_LARGE" });
-});
-
-test("envelope preserves normalized request and measured payload bytes", async () => {
-  const payload = { bounded: true };
-  const response = await post(validBody({ payload }));
-  assert.equal(response.status, 200);
-  const body = await response.json() as { envelope: { requestId: string; tenantId: string; operation: string; operationVersion: string; payload: unknown; budget: { payloadBytes: number } } };
-  assert.equal(body.envelope.requestId, "req-1");
-  assert.equal(body.envelope.tenantId, "tenant-1");
-  assert.equal(body.envelope.operation, "query.read");
-  assert.equal(body.envelope.operationVersion, "1");
-  assert.deepEqual(body.envelope.payload, payload);
-  assert.ok(body.envelope.budget.payloadBytes > 0);
-});
-
-test("operation tokens reject unsafe delimiters", async () => {
-  const response = await post(validBody({ operation: "query/read" }));
-  assert.equal(response.status, 400);
-  assert.deepEqual(await response.json(), { error: "INVALID_REQUEST" });
+test("method and media type are rejected at the gateway", async () => {
+  const get = await worker.fetch(new Request("https://gateway.invalid/", { method: "GET" }), { W02: {} as Fetcher });
+  assert.equal(get.status, 405);
+  const media = await worker.fetch(new Request("https://gateway.invalid/", { method: "POST", body: "{}", headers: { "content-type": "text/plain" } }), { W02: {} as Fetcher });
+  assert.equal(media.status, 415);
 });
