@@ -7,6 +7,7 @@ import {
   retryDelayMs,
   withTimeout,
   type ReliabilityPolicy,
+  type OperationDescriptor,
 } from "./reliability.ts";
 
 export {
