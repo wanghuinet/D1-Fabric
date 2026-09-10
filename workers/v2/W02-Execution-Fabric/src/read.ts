@@ -220,7 +220,7 @@ export async function executeBoundedRead<T = unknown>(input: ReadExecutionInput<
       payloadBytes,
       actualFanout: 0 as const,
       results: Object.freeze(cached),
-      resourceAccounting: accounting(budget, { reserved: 0, consumed: 0, released: 0 }, { reserved: 0, consumed: 0, released: 0 }, { reserved: payloadBytes, consumed: payloadBytes, released: 0 }),
+      resourceAccounting: accounting(budget, { reserved: budget.d1Statements, consumed: 0, released: budget.d1Statements }, { reserved: budget.rowsRead, consumed: 0, released: budget.rowsRead }, { reserved: budget.payloadBytes, consumed: payloadBytes, released: budget.payloadBytes - payloadBytes }),
     });
   }
 
@@ -259,9 +259,9 @@ export async function executeBoundedRead<T = unknown>(input: ReadExecutionInput<
     results: Object.freeze([...result.results]),
     resourceAccounting: accounting(
       budget,
-      { reserved: 0, consumed: 1, released: reservedD1 - 1 },
-      { reserved: 0, consumed: rowsRead, released: reservedRows - rowsRead },
-      { reserved: 0, consumed: payloadBytes, released: reservedPayload - payloadBytes },
+      { reserved: reservedD1, consumed: 1, released: reservedD1 - 1 },
+      { reserved: reservedRows, consumed: rowsRead, released: reservedRows - rowsRead },
+      { reserved: reservedPayload, consumed: payloadBytes, released: reservedPayload - payloadBytes },
     ),
   });
 }
