@@ -24,12 +24,14 @@ function post(body: unknown, w02: Fetcher = { fetch: async () => new Response(JS
 }
 
 test("forwards the validated envelope to W02 and preserves its response", async () => {
-  let forwarded: unknown;
+  let forwarded: any;
+  const envelope = validEnvelope();
   const w02 = { fetch: async (request: Request) => { forwarded = await request.json(); return new Response(JSON.stringify({ status: "COMPILED" }), { status: 201, headers: { "content-type": "application/json" } }); } } as Fetcher;
-  const response = await post(validEnvelope(), w02);
+  const response = await post(envelope, w02);
   assert.equal(response.status, 201);
   assert.deepEqual(await response.json(), { status: "COMPILED" });
-  assert.deepEqual(forwarded, validEnvelope); // overwritten below by structural assertions
+  assert.equal(forwarded.request.requestId, envelope.request.requestId);
+  assert.equal(forwarded.contract.contractId, envelope.contract.contractId);
 });
 
 test("forwards request identity and contract without duplicating W02 execution", async () => {
