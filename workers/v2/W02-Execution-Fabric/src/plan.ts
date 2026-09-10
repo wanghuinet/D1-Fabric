@@ -11,6 +11,12 @@ export interface BudgetLimits {
   readonly retries: number;
   readonly payloadBytes: number;
 }
+export interface RoutingSelection {
+  readonly logicalDatabaseId: string;
+  readonly logicalShardId: string;
+  readonly physicalShardId: string;
+  readonly topologyVersion: number;
+}
 export interface ExecutionRequest {
   readonly requestId: string;
   readonly tenantId: string;
@@ -73,6 +79,14 @@ function assertContract(contract: VersionedExecutionContract): void {
   assertNonEmptyBounded(contract.contractId, "contractId"); assertNonEmptyBounded(contract.contractVersion, "contractVersion"); assertNonEmptyBounded(contract.operation, "operation"); assertNonEmptyBounded(contract.operationVersion, "operationVersion");
   if (contract.mode !== "READ" && contract.mode !== "WRITE") throw new PlanCompileError("INVALID_CONTRACT", "mode must be READ or WRITE");
   assertSafeLimit(contract.maxDeadlineMs, "maxDeadlineMs"); assertBudget(contract.limits, "contract.limits");
+}
+export function validateRoutingSelection(value: unknown): asserts value is RoutingSelection {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) throw new PlanCompileError("INVALID_REQUEST", "routing must be an object");
+  const route = value as Record<string, unknown>;
+  assertNonEmptyBounded(route.logicalDatabaseId, "routing.logicalDatabaseId");
+  assertNonEmptyBounded(route.logicalShardId, "routing.logicalShardId");
+  assertNonEmptyBounded(route.physicalShardId, "routing.physicalShardId");
+  if (!Number.isSafeInteger(route.topologyVersion) || (route.topologyVersion as number) < 1) throw new PlanCompileError("INVALID_REQUEST", "routing.topologyVersion must be a positive safe integer");
 }
 function freezeBudget(value: BudgetLimits): BudgetLimits { return Object.freeze({ ...value }); }
 function stableFingerprint(parts: readonly string[]): string {
