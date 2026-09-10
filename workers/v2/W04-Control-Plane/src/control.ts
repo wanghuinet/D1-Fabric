@@ -24,9 +24,12 @@ export interface ControlStore {
 }
 
 export class ControlPlaneError extends Error {
-  constructor(readonly code: string, message: string) {
+  readonly code: string;
+
+  constructor(code: string, message: string) {
     super(message);
     this.name = "ControlPlaneError";
+    this.code = code;
   }
 }
 
