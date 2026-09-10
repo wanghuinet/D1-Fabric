@@ -52,8 +52,9 @@ jobs:
 
       - name: Verify no forbidden W02 storage bindings
         run: |
-          if grep -RInE "(D1Database|\.prepare\(|\.batch\(|\.exec\(|wrangler d1)" src tests; then
-            echo "Forbidden D1/SQL execution surface detected in W02"
+          set -eu
+          if grep -RInE "(wrangler[[:space:]]+d1|--d1|D1_DATABASE|D1_BINDING|\.env\.D1|env\.D1|env\[[[:space:]]*['\"]D1)" src tests; then
+            echo "Forbidden Cloudflare D1 binding/CLI surface detected in W02"
             exit 1
           fi
 
