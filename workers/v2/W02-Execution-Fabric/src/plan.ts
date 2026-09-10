@@ -19,6 +19,7 @@ export interface ExecutionRequest {
   readonly operationVersion: string;
   readonly deadlineAt: number;
   readonly budget: BudgetLimits;
+  readonly payload?: Record<string, unknown>;
 }
 export interface VersionedExecutionContract {
   readonly contractId: string;
