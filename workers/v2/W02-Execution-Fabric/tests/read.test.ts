@@ -4,9 +4,17 @@ import { executeBoundedRead, ReadExecutionError, type CacheEntry, type D1Databas
 
 const now = () => Date.now();
 
-function integrity(payload: unknown): string {
+function integrity(entry: Omit<CacheEntry, "integrity">): string {
   let hash = 2166136261;
-  const text = JSON.stringify(payload);
+  const text = JSON.stringify({
+    tenantId: entry.tenantId,
+    principalScope: entry.principalScope,
+    operation: entry.operation,
+    contractVersion: entry.contractVersion,
+    shapeVersion: entry.shapeVersion,
+    expiresAt: entry.expiresAt,
+    payload: entry.payload,
+  });
   for (let i = 0; i < text.length; i += 1) {
     hash ^= text.charCodeAt(i);
     hash = Math.imul(hash, 16777619);
@@ -43,27 +51,22 @@ function makeInput(overrides: Partial<ReadExecutionInput<{ id: string }>> = {}):
 }
 
 function cache(payload: unknown, overrides: Partial<CacheEntry> = {}): CacheEntry {
-  return {
+  const base: Omit<CacheEntry, "integrity"> = {
     tenantId: "tenant-1",
     principalScope: "content:read",
     operation: "content.list",
     contractVersion: "D1F-3.0-MASTER-v1.0",
     shapeVersion: "shape-1",
     expiresAt: now() + 10_000,
-    integrity: integrity(payload),
     payload,
     ...overrides,
   };
+  return { ...base, integrity: integrity(base) };
 }
 
 test("P07.1 valid bounded D1 read executes once", async () => {
   let calls = 0;
-  const countedDb: D1DatabaseLike = {
-    prepare() {
-      calls += 1;
-      return db.prepare("x");
-    },
-  };
+  const countedDb: D1DatabaseLike = { prepare() { calls += 1; return db.prepare("x"); } };
   const result = await executeBoundedRead(makeInput({ db: countedDb, cacheEntry: undefined }));
   assert.equal(result.status, "READ_EXECUTED");
   assert.equal(result.d1Statements, 1);
@@ -75,8 +78,7 @@ test("P07.1 valid bounded D1 read executes once", async () => {
 test("P07.1 valid cache HIT terminates with zero D1 work", async () => {
   let calls = 0;
   const neverDb: D1DatabaseLike = { prepare() { calls += 1; throw new Error("must not execute D1"); } };
-  const payload = [{ id: "cached" }];
-  const result = await executeBoundedRead(makeInput({ db: neverDb, cacheEntry: cache(payload) }));
+  const result = await executeBoundedRead(makeInput({ db: neverDb, cacheEntry: cache([{ id: "cached" }]) }));
   assert.equal(result.status, "CACHE_TERMINATED");
   assert.equal(result.cacheResult, "HIT");
   assert.equal(result.cacheTermination, true);
@@ -104,9 +106,9 @@ test("P07.1 rejects fenced and expired epochs", async () => {
 });
 
 test("P07.1 rejects insufficient statement, row, and payload budgets", async () => {
-  await assert.rejects(() => executeBoundedRead(makeInput({ cacheEntry: undefined, budget: { d1Statements: 0, rowsRead: 10, payloadBytes: 1024 } })), (e: unknown) => e instanceof ReadExecutionError && e.code === "BUDGET_EXCEEDED");
+  await assert.rejects(() => executeBoundedRead(makeInput({ cacheEntry: undefined, budget: { d1Statements: 0, rowsRead: 10, payloadBytes: 1024 } })), (e: unknown) => e instanceof ReadExecutionError && e.code === "BUDGET_INVALID");
   await assert.rejects(() => executeBoundedRead(makeInput({ cacheEntry: undefined, budget: { d1Statements: 1, rowsRead: 1, payloadBytes: 1024 } })), (e: unknown) => e instanceof ReadExecutionError && e.code === "BUDGET_EXCEEDED");
-  await assert.rejects(() => executeBoundedRead(makeInput({ cacheEntry: undefined, budget: { d1Statements: 1, rowsRead: 10, payloadBytes: 1 } })), (e: unknown) => e instanceof ReadExecutionError && e.code === "BUDGET_EXCEEDED");
+  await assert.rejects(() => executeBoundedRead(makeInput({ cacheEntry: undefined, budget: { d1Statements: 1, rowsRead: 10, payloadBytes: 1 } })), (e: unknown) => executeBoundedRead(makeInput({ cacheEntry: undefined, budget: { d1Statements: 1, rowsRead: 10, payloadBytes: 1 } })), (e: unknown) => e instanceof ReadExecutionError && e.code === "BUDGET_EXCEEDED");
 });
 
 test("P07.1 rejects expired deadline before D1 dispatch", async () => {
