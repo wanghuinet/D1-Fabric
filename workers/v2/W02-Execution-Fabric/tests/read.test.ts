@@ -125,10 +125,14 @@ test("P07.1 D1 failure is propagated without retry", async () => {
 });
 
 test("P07.1 rejects cross-tenant, cross-principal, cross-operation and version-mismatched cache", async () => {
-  await assert.rejects(() => executeBoundedRead(makeInput({ cacheEntry: await cache(["x"], { tenantId: "tenant-2" }) })), (e: unknown) => e instanceof ReadExecutionError && e.code === "CACHE_BINDING_INVALID");
-  await assert.rejects(() => executeBoundedRead(makeInput({ cacheEntry: await cache(["x"], { principalScope: "other" }) })), (e: unknown) => e instanceof ReadExecutionError && e.code === "CACHE_BINDING_INVALID");
-  await assert.rejects(() => executeBoundedRead(makeInput({ cacheEntry: await cache(["x"], { operation: "other" }) })), (e: unknown) => e instanceof ReadExecutionError && e.code === "CACHE_BINDING_INVALID");
-  await assert.rejects(() => executeBoundedRead(makeInput({ cacheEntry: await cache(["x"], { contractVersion: "old" }) })), (e: unknown) => e instanceof ReadExecutionError && e.code === "CACHE_BINDING_INVALID");
+  const tenantEntry = await cache(["x"], { tenantId: "tenant-2" });
+  const principalEntry = await cache(["x"], { principalScope: "other" });
+  const operationEntry = await cache(["x"], { operation: "other" });
+  const versionEntry = await cache(["x"], { contractVersion: "old" });
+  await assert.rejects(() => executeBoundedRead(makeInput({ cacheEntry: tenantEntry })), (e: unknown) => e instanceof ReadExecutionError && e.code === "CACHE_BINDING_INVALID");
+  await assert.rejects(() => executeBoundedRead(makeInput({ cacheEntry: principalEntry })), (e: unknown) => e instanceof ReadExecutionError && e.code === "CACHE_BINDING_INVALID");
+  await assert.rejects(() => executeBoundedRead(makeInput({ cacheEntry: operationEntry })), (e: unknown) => e instanceof ReadExecutionError && e.code === "CACHE_BINDING_INVALID");
+  await assert.rejects(() => executeBoundedRead(makeInput({ cacheEntry: versionEntry })), (e: unknown) => e instanceof ReadExecutionError && e.code === "CACHE_BINDING_INVALID");
 });
 
 test("P07.1 rejects tampered cache integrity", async () => {
