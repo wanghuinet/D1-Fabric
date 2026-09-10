@@ -1,0 +1,32 @@
+name: W03 P08 Validation
+on:
+  push:
+    paths: ['workers/v2/W03-Write-Fabric/**', 'docs/phases/P08-WRITE-EXECUTION-IDEMPOTENCY-v1.0.md', '.github/workflows/w03-p08-validation.yml']
+  pull_request:
+    paths: ['workers/v2/W03-Write-Fabric/**', 'docs/phases/P08-WRITE-EXECUTION-IDEMPOTENCY-v1.0.md', '.github/workflows/w03-p08-validation.yml']
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: workers/v2/W03-Write-Fabric
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.18.0'
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run dry-run
+      - name: Bounded write surface scan
+        shell: bash
+        run: |
+          ! grep -R -nE 'Promise\.all\(|wrangler d1|workers/v2/W0[124]' src tests
+      - name: Atomicity marker
+        shell: bash
+        run: |
+          grep -q "db.batch(statements)" src/write.ts
+          grep -q "INSERT INTO __d1_fabric_idempotency" src/write.ts
+          grep -q "state = 'COMMITTED'" src/write.ts
+          grep -q "RESPONSE_LOST_AFTER_COMMIT" tests/write.test.ts
