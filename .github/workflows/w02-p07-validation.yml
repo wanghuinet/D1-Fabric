@@ -1,0 +1,69 @@
+name: W02 P07 Validation
+
+on:
+  push:
+    paths:
+      - "workers/v2/W02-Execution-Fabric/**"
+      - "docs/phases/P07-READ-EXECUTION-CACHE-TERMINATION-v1.0.md"
+      - "docs/phases/evidence/P07.1-EVIDENCE.md"
+      - ".github/workflows/w02-p07-validation.yml"
+  pull_request:
+    paths:
+      - "workers/v2/W02-Execution-Fabric/**"
+      - "docs/phases/P07-READ-EXECUTION-CACHE-TERMINATION-v1.0.md"
+      - "docs/phases/evidence/P07.1-EVIDENCE.md"
+      - ".github/workflows/w02-p07-validation.yml"
+  workflow_dispatch:
+
+jobs:
+  validate-w02-p07:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: workers/v2/W02-Execution-Fabric
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+
+      - name: Setup Node 24.18.0
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.0
+          cache: npm
+          cache-dependency-path: workers/v2/W02-Execution-Fabric/package-lock.json
+
+      - name: Show toolchain
+        run: |
+          node --version
+          npm --version
+
+      - name: npm ci
+        run: npm ci
+
+      - name: npm run typecheck
+        run: npm run typecheck
+
+      - name: npm test
+        run: npm test
+
+      - name: npm run dry-run
+        run: npm run dry-run
+
+      - name: Verify bounded read-only D1 surface
+        run: |
+          if grep -RInE "(\.batch\(|\.exec\(|wrangler d1|\b(INSERT|UPDATE|DELETE|REPLACE)\b)" src tests; then
+            echo "Forbidden write or direct wrangler D1 surface detected in W02 P07"
+            exit 1
+          fi
+          if grep -RInE "(Promise\.all\(|physicalDatabaseId|physicalShardId|sqlTopology|workerGraph)" src tests; then
+            echo "Forbidden unbounded/topology surface detected in W02 P07"
+            exit 1
+          fi
+
+      - name: Emit exact verification marker
+        run: |
+          echo "W02_P07_VALIDATION=PASS"
+          echo "COMMIT_SHA=${GITHUB_SHA}"
+          echo "NODE_VERSION=$(node --version)"
+          echo "NPM_VERSION=$(npm --version)"
