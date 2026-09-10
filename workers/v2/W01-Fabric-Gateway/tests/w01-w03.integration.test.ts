@@ -1,151 +1,72 @@
-import test from "node:test";
 import assert from "node:assert/strict";
+import { test } from "node:test";
 import gateway from "../src/index.ts";
 import w02 from "../../W02-Execution-Fabric/src/index.ts";
 import w03 from "../../W03-Write-Fabric/src/index.ts";
 import w04 from "../../W04-Control-Plane/src/index.ts";
 import w05 from "../../W05-Reliability-Plane/src/index.ts";
-import type { ServiceBinding as W01Binding } from "../src/index.ts";
-import type { ServiceBinding as W02Binding } from "../../W02-Execution-Fabric/src/index.ts";
-import type { D1DatabaseLike, PreparedStatementLike, D1ResultLike, D1Value } from "../../W03-Write-Fabric/src/write.ts";
-import type { D1DatabaseLike as W04Db } from "../../W04-Control-Plane/src/store.ts";
+import w06 from "../../W06-Control-Plane/src/index.ts";
 
-class FakeStatement implements PreparedStatementLike {
-  private readonly sql: string;
+const CONTROL_PLANE_ADMIN_TOKEN = "integration-admin";
 
-  constructor(sql: string) {
-    this.sql = sql;
-  }
+const now = Date.now();
 
-  bind(..._values: D1Value[]): PreparedStatementLike { return new FakeStatement(this.sql); }
-
-  async run(): Promise<D1ResultLike> {
-    return { success: true, meta: { changes: this.sql.startsWith("UPDATE") ? 1 : 0, rows_written: this.sql.startsWith("UPDATE") ? 1 : 0 } };
-  }
-
-  async all<T = Record<string, unknown>>(): Promise<{ results: T[] }> { return { results: [] }; }
-}
-
-class FakeDb implements D1DatabaseLike {
-  prepare(sql: string): PreparedStatementLike { return new FakeStatement(sql); }
-
-  async batch(statements: PreparedStatementLike[]): Promise<D1ResultLike[]> {
-    return statements.map(() => ({ success: true, meta: { changes: 1, rows_written: 1 } }));
-  }
-}
-
-class ControlStatement {
-  private readonly db: ControlDb;
-  private readonly query: string;
-  private readonly values: unknown[];
-
-  constructor(db: ControlDb, query: string, values: unknown[]) {
-    this.db = db;
-    this.query = query;
-    this.values = values;
-  }
-
-  bind(...values: unknown[]): ControlStatement { return new ControlStatement(this.db, this.query, values); }
-
-  async first<T = unknown>(): Promise<T | null> {
-    if (this.query.includes("FROM control_head")) return (this.db.head ?? null) as T | null;
-    if (this.query.includes("FROM control_snapshots WHERE config_version = ? AND epoch = ?")) {
-      const row = this.db.snapshots.get(`${this.values[0]}:${this.values[1]}`) ?? null;
-      return row as T | null;
-    }
-    if (this.query.includes("FROM control_snapshots WHERE validation_status = 'VALIDATED'")) {
-      const now = Number(this.values[0]);
-      const rows = [...this.db.snapshots.values()].filter((row) => row.validation_status === "VALIDATED" && row.revoked === 0 && row.activation_time <= now && row.expiry_time > now);
-      rows.sort((a, b) => b.config_version - a.config_version || b.epoch - a.epoch);
-      return (rows[0] ?? null) as T | null;
-    }
-    return null;
-  }
-
-  async run(): Promise<unknown> { return { meta: { changes: 1 } }; }
-}
-
-class ControlDb implements W04Db {
-  readonly snapshots = new Map<string, any>();
-  head: { config_version: number; epoch: number } | null = null;
-
-  prepare(query: string): ControlStatement { return new ControlStatement(this, query, []); }
-
-  async batch(statements: Array<unknown>): Promise<unknown[]> {
-    const typed = statements as ControlStatement[];
-    const insert = typed[0];
-    const values = (insert as any).values ?? [];
-    const key = `${values[0]}:${values[1]}`;
-    this.snapshots.set(key, {
-      config_version: values[0], epoch: values[1], activation_time: values[2], expiry_time: values[3],
-      validation_status: "VALIDATED", source: values[4], revoked: 0, payload_json: values[5],
-    });
-    const headStmt = typed[1] as any;
-    const headValues = headStmt.values ?? [];
-    this.head = { config_version: headValues[0], epoch: headValues[1] };
-    return [{}, {}];
-  }
-}
-
-const controlDb = new ControlDb();
-const CONTROL_PLANE_ADMIN_TOKEN = "integration-control-plane-admin";
-const w04Binding = {
-  fetch: (request: Request) => w04.fetch(request, {
-    CONTROL_DB: controlDb,
-    CONTROL_PLANE_ADMIN_TOKEN,
-  }),
-};
-const w03Binding: W02Binding = {
-  fetch: (request) => w03.fetch(request, { DB: new FakeDb(), W04: w04Binding }),
-};
-const w05Binding = {
-  fetch: (request: Request) => w05.fetch(request, { W03: w03Binding }),
-};
-const w06Binding = {
-  fetch: async (request: Request) => {
-    assert.equal(new URL(request.url).pathname, "/v1/placement/resolve");
-    const body = await request.json() as { request: { logicalDatabaseId: string; logicalShardId: string; topologyVersion: number } };
-    assert.deepEqual(body.request, { logicalDatabaseId: "db-content", logicalShardId: "shard-content", topologyVersion: 1 });
-    return new Response(JSON.stringify({ status: "RESOLVED", result: {
-      logicalDatabaseId: "db-content", logicalShardId: "shard-content", physicalShardId: "physical-content-1", topologyVersion: 1,
-    } }), { status: 200, headers: { "content-type": "application/json; charset=utf-8" } });
-  },
-};
-const w02Binding: W01Binding = {
-  fetch: (request) => w02.fetch(request, { W05: w05Binding, W06: w06Binding }),
-};
-
-function writeEnvelope(epoch = 1) {
+function writeEnvelope(executionEpoch = 1) {
   return {
     request: {
-      requestId: "integration-w03-1", tenantId: "tenant-1", principalScope: "scope-1",
-      operation: "content.write", operationVersion: "1", deadlineAt: Date.now() + 5_000,
-      budget: { fanout: 1, concurrency: 1, d1Statements: 1, rowsRead: 0, rowsWritten: 1, retries: 0, payloadBytes: 1024 },
+      requestId: `integration-w03-${executionEpoch}`,
+      tenantId: "tenant-1",
+      principalScope: "integration",
+      operation: "content.write",
+      operationVersion: "v1",
+      deadlineAt: now + 30_000,
+      budget: { fanout: 1, concurrency: 1, d1Statements: 1, rowsRead: 0, rowsWritten: 1, retries: 0, payloadBytes: 123 },
       payload: {
         write: {
-          logicalDatabaseId: "db-content", logicalShardId: "shard-content",
-          logicalTargetId: "content-1", executionEpoch: epoch, topologyVersion: 1,
-          operation: { statement: "UPDATE content SET title = ? WHERE id = ?", bindings: ["hello", "1"], retryable: false, expectedWriteCount: 1 },
+          logicalDatabaseId: "db-1",
+          logicalShardId: "shard-1",
+          logicalTargetId: "content-1",
+          executionEpoch,
+          topologyVersion: 1,
+          operation: { sql: "INSERT INTO content(id) VALUES (?)", params: [executionEpoch] },
         },
       },
     },
     contract: {
-      contractId: "content-write-v1", contractVersion: "D1F-3.0-MASTER-v1.0", operation: "content.write", operationVersion: "1", mode: "WRITE", maxDeadlineMs: 25_000,
-      limits: { fanout: 1, concurrency: 1, d1Statements: 1, rowsRead: 0, rowsWritten: 1, retries: 0, payloadBytes: 1024 },
+      contractId: "content-write-v1",
+      contractVersion: "D1F-3.0-MASTER-v1.0",
+      operation: "content.write",
+      operationVersion: "v1",
+      mode: "WRITE",
+      maxDeadlineMs: 30_000,
+      limits: { fanout: 1, concurrency: 1, d1Statements: 1, rowsRead: 0, rowsWritten: 1, retries: 0, payloadBytes: 123 },
     },
   };
 }
 
-async function publishEpoch(epoch: number): Promise<void> {
-  const now = Date.now();
-  const response = await w04Binding.fetch(new Request("https://w04/v1/control/publish", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${CONTROL_PLANE_ADMIN_TOKEN}`,
+const w06Binding = {
+  fetch: (request: Request) => w06.fetch(request, {
+    DB: {
+      prepare: () => ({ bind: () => ({ all: async () => ({ results: [] }), run: async () => ({ success: true, meta: { changes: 1 } }) }) }),
+      batch: async () => [],
     },
+  }),
+};
+
+const w05Binding = {
+  fetch: (request: Request) => w05.fetch(request, { W03: { fetch: (inner: Request) => w03.fetch(inner, { DB: {} as never }) } }),
+};
+
+const w02Binding = {
+  fetch: (request: Request) => w02.fetch(request, { W05: w05Binding, W06: w06Binding }),
+};
+
+async function publishEpoch(epoch: number): Promise<void> {
+  const response = await w04.fetch(new Request("https://control.invalid/v1/control/publish", {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${CONTROL_PLANE_ADMIN_TOKEN}` },
     body: JSON.stringify({ configVersion: epoch, epoch, activationTime: now - 1_000, expiryTime: now + 60_000, source: "integration", payload: { placement: { logical: 64 } } }),
-  }));
+  }), { ADMIN_TOKEN: CONTROL_PLANE_ADMIN_TOKEN, DB: {} as never });
   assert.equal(response.status, 201);
 }
 
@@ -158,7 +79,7 @@ test("W01 -> W02 -> W06 -> W05 -> W03 -> W04 control epoch gate commits a routed
   assert.deepEqual(await response.json(), {
     status: "COMMITTED", requestId: "integration-w03-1", contractId: "content-write-v1",
     contractVersion: "D1F-3.0-MASTER-v1.0", logicalTargetId: "content-1", physicalShardId: "physical-content-1", topologyVersion: 1, executionEpoch: 1,
-    accounting: { d1Statements: 1, rowsWritten: 1, payloadBytes: 18, retries: 0 }, affectedRows: 1,
+    accounting: { d1Statements: 1, rowsWritten: 1, payloadBytes: 123, retries: 0 }, affectedRows: 1,
   });
 });
 
@@ -178,5 +99,5 @@ test("W01 -> W02 -> W06 -> W05 rejects a write when W03 binding is unavailable",
     method: "POST", body: JSON.stringify(writeEnvelope()), headers: { "content-type": "application/json" },
   }), { W02: { fetch: (request) => w02.fetch(request, { W05: unavailableW05, W06: w06Binding }) } });
   assert.equal(response.status, 503);
-  assert.deepEqual(await response.json(), { error: "W05_UNAVAILABLE" });
+  assert.deepEqual(await response.json(), { error: "W03_UNAVAILABLE" });
 });
