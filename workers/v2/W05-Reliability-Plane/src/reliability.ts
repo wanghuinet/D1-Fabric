@@ -10,6 +10,11 @@ export interface RetryPolicy {
   retryWrites: boolean;
 }
 
+export interface RetryBudgetPolicy {
+  capacity: number;
+  refillRate: number;
+}
+
 export interface TimeoutPolicy {
   timeoutMs: number;
 }
@@ -22,6 +27,7 @@ export interface CircuitBreakerPolicy {
 
 export interface ReliabilityPolicy {
   retry: RetryPolicy;
+  retryBudget: RetryBudgetPolicy;
   timeout: TimeoutPolicy;
   circuit: CircuitBreakerPolicy;
 }
@@ -106,6 +112,8 @@ function assertPolicy(policy: ReliabilityPolicy): void {
   if (!Number.isFinite(policy.retry.baseDelayMs) || policy.retry.baseDelayMs < 0) throw new ReliabilityError("INVALID_POLICY", "baseDelayMs must be >= 0", { class: "permanent", retryable: false });
   if (!Number.isFinite(policy.retry.maxDelayMs) || policy.retry.maxDelayMs < policy.retry.baseDelayMs) throw new ReliabilityError("INVALID_POLICY", "maxDelayMs must be >= baseDelayMs", { class: "permanent", retryable: false });
   if (!Number.isFinite(policy.retry.jitterRatio) || policy.retry.jitterRatio < 0 || policy.retry.jitterRatio > 1) throw new ReliabilityError("INVALID_POLICY", "jitterRatio must be between 0 and 1", { class: "permanent", retryable: false });
+  if (!Number.isSafeInteger(policy.retryBudget.capacity) || policy.retryBudget.capacity < 1) throw new ReliabilityError("INVALID_POLICY", "retry budget capacity must be a positive safe integer", { class: "permanent", retryable: false });
+  if (!Number.isFinite(policy.retryBudget.refillRate) || policy.retryBudget.refillRate < 0) throw new ReliabilityError("INVALID_POLICY", "retry budget refillRate must be >= 0", { class: "permanent", retryable: false });
   if (!Number.isFinite(policy.timeout.timeoutMs) || policy.timeout.timeoutMs <= 0) throw new ReliabilityError("INVALID_POLICY", "timeoutMs must be > 0", { class: "permanent", retryable: false });
   if (!Number.isSafeInteger(policy.circuit.failureThreshold) || policy.circuit.failureThreshold < 1) throw new ReliabilityError("INVALID_POLICY", "failureThreshold must be >= 1", { class: "permanent", retryable: false });
   if (!Number.isFinite(policy.circuit.resetTimeoutMs) || policy.circuit.resetTimeoutMs < 0) throw new ReliabilityError("INVALID_POLICY", "resetTimeoutMs must be >= 0", { class: "permanent", retryable: false });
@@ -119,6 +127,36 @@ export function retryDelayMs(policy: RetryPolicy, attempt: number, random = Math
   const exponential = Math.min(policy.maxDelayMs, policy.baseDelayMs * (2 ** exponent));
   const spread = exponential * policy.jitterRatio;
   return Math.max(0, Math.min(policy.maxDelayMs, exponential - spread + (2 * spread * sample)));
+}
+
+export class RetryBudget {
+  private tokens: number;
+  private lastRefill: number;
+
+  constructor(private readonly policy: RetryBudgetPolicy, private readonly now = () => Date.now()) {
+    this.tokens = policy.capacity;
+    this.lastRefill = this.now();
+  }
+
+  allow(): boolean {
+    this.refill();
+    if (this.tokens < 1) return false;
+    this.tokens -= 1;
+    return true;
+  }
+
+  available(): number {
+    this.refill();
+    return this.tokens;
+  }
+
+  private refill(): void {
+    const current = this.now();
+    const elapsedSeconds = Math.max(0, current - this.lastRefill) / 1000;
+    if (elapsedSeconds === 0) return;
+    this.tokens = Math.min(this.policy.capacity, this.tokens + elapsedSeconds * this.policy.refillRate);
+    this.lastRefill = current;
+  }
 }
 
 export class CircuitBreaker {
@@ -192,6 +230,7 @@ export interface ExecuteOptions {
   sleep?: (delayMs: number) => Promise<void>;
   random?: () => number;
   breaker?: CircuitBreaker;
+  retryBudget?: RetryBudget;
 }
 
 export async function executeReliably<T>(fn: () => Promise<T>, options: ExecuteOptions): Promise<T> {
@@ -200,6 +239,7 @@ export async function executeReliably<T>(fn: () => Promise<T>, options: ExecuteO
   const sleep = options.sleep ?? ((ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const random = options.random ?? Math.random;
   const breaker = options.breaker ?? new CircuitBreaker(options.policy.circuit);
+  const retryBudget = options.retryBudget ?? new RetryBudget(options.policy.retryBudget, now);
   const startedAt = now();
 
   const retriesAllowed = options.operation.kind === "read" || (options.operation.kind === "write" && options.operation.idempotent && options.policy.retry.retryWrites);
@@ -226,6 +266,10 @@ export async function executeReliably<T>(fn: () => Promise<T>, options: ExecuteO
         breaker.recordFailure(now());
         if (error instanceof ReliabilityError) throw new ReliabilityError(error.code, error.message, failure, attempt);
         throw new ReliabilityError("OPERATION_FAILED", messageOf(error), failure, attempt);
+      }
+      if (!retryBudget.allow()) {
+        breaker.recordFailure(now());
+        throw new ReliabilityError("RETRY_RATE_LIMITED", "retry budget exhausted", { class: "transient", retryable: false, code: "RETRY_RATE_LIMITED" }, attempt);
       }
       const delay = retryDelayMs(options.policy.retry, attempt, random);
       const remaining = options.policy.retry.maxElapsedMs - Math.max(0, now() - startedAt);
