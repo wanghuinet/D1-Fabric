@@ -1,5 +1,6 @@
 import { handleW06 } from "./api.ts";
 export { handleW06 } from "./api.ts";
+export * from "./authoritative-store.ts";
 export * from "./expansion.ts";
 export * from "./metadata.ts";
 export * from "./migration.ts";
