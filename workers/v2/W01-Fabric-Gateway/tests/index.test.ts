@@ -56,13 +56,12 @@ test("non-JSON content type is rejected", async () => {
 test("JSON content type parameters are accepted", async () => {
   const response = await post(validBody(), "Application/JSON; charset=utf-8");
   assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), {
-    status: "ADMITTED",
-    requestId: "req-1",
-    operation: "query.read",
-    operationVersion: "1",
-    contractVersion: "D1F-3.0-MASTER-v1.0",
-  });
+  const body = await response.json() as { status: string; next: string; envelope: Record<string, unknown> };
+  assert.equal(body.status, "ADMITTED");
+  assert.equal(body.next, "W02");
+  assert.equal(body.envelope.envelopeVersion, "1.0");
+  assert.equal(body.envelope.contractVersion, "D1F-3.0-MASTER-v1.0");
+  assert.equal(body.envelope.architectureId, "D1F-3.0-ARCH-v1.0");
 });
 
 test("malformed JSON is rejected", async () => {
@@ -107,14 +106,21 @@ test("payload above 1 MiB is rejected before JSON parsing", async () => {
   assert.deepEqual(await response.json(), { error: "PAYLOAD_TOO_LARGE" });
 });
 
-test("valid request returns a topology-neutral admission envelope", async () => {
-  const response = await post(validBody());
+test("envelope preserves normalized request and measured payload bytes", async () => {
+  const payload = { bounded: true };
+  const response = await post(validBody({ payload }));
   assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), {
-    status: "ADMITTED",
-    requestId: "req-1",
-    operation: "query.read",
-    operationVersion: "1",
-    contractVersion: "D1F-3.0-MASTER-v1.0",
-  });
+  const body = await response.json() as { envelope: { requestId: string; tenantId: string; operation: string; operationVersion: string; payload: unknown; budget: { payloadBytes: number } } };
+  assert.equal(body.envelope.requestId, "req-1");
+  assert.equal(body.envelope.tenantId, "tenant-1");
+  assert.equal(body.envelope.operation, "query.read");
+  assert.equal(body.envelope.operationVersion, "1");
+  assert.deepEqual(body.envelope.payload, payload);
+  assert.ok(body.envelope.budget.payloadBytes > 0);
+});
+
+test("operation tokens reject unsafe delimiters", async () => {
+  const response = await post(validBody({ operation: "query/read" }));
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), { error: "INVALID_REQUEST" });
 });
