@@ -76,8 +76,9 @@ function json(value: unknown, status = 200): Response {
 function errorResponse(error: unknown): Response {
   if (error instanceof W06ApiError) return json({ status: "ERROR", code: error.code, message: error.message }, error.status);
 
-  if (error instanceof Error && typeof (error as { code?: unknown }).code === "string") {
-    return json({ status: "ERROR", code: (error as { code: string }).code, message: error.message }, 400);
+  if (error instanceof Error) {
+    const code = (error as unknown as { code?: unknown }).code;
+    if (typeof code === "string") return json({ status: "ERROR", code, message: error.message }, 400);
   }
 
   return json({ status: "ERROR", code: "CONTROL_PLANE_FAILURE", message: "control-plane operation failed" }, 500);
