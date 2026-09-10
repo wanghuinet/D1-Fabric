@@ -304,7 +304,7 @@ export async function executeReliably<T>(fn: (signal: AbortSignal) => Promise<T>
     }
     attempt += 1;
     try {
-      const remaining = Math.min(options.policy.timeout.timeoutMs, Math.max(1, options.policy.retry.maxElapsedMs - Math.max(0, finiteNow(now, "reliability" as unknown as number) - startedAt)));
+      const remaining = Math.min(options.policy.timeout.timeoutMs, Math.max(1, options.policy.retry.maxElapsedMs - Math.max(0, finiteNow(now(), "reliability") - startedAt)));
       const result = await withTimeout(fn, remaining);
       breaker.recordSuccess(finiteNow(now(), "reliability"));
       return result;
