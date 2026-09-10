@@ -55,6 +55,24 @@ test("idempotent writes retry within the attempt budget", async () => {
   assert.equal(calls, 3);
 });
 
+test("retryable internal attempts do not self-trip the circuit", async () => {
+  const breaker = new CircuitBreaker({ ...policy.circuit, failureThreshold: 1 });
+  let calls = 0;
+  const result = await executeReliably(async () => {
+    calls += 1;
+    if (calls === 1) throw new Error("Network connection lost");
+    return "ok";
+  }, {
+    policy: { ...policy, circuit: { ...policy.circuit, failureThreshold: 1 } },
+    breaker,
+    operation: { kind: "read", idempotent: true, target: "db-1" },
+    sleep: async () => undefined,
+  });
+  assert.equal(result, "ok");
+  assert.equal(calls, 2);
+  assert.equal(breaker.stateAt(0), "closed");
+});
+
 test("read operations retry transient failures", async () => {
   let calls = 0;
   const result = await executeReliably(async () => {
