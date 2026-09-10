@@ -41,7 +41,10 @@ class SQLiteStatement implements PreparedStatementLike {
 
 class SQLiteD1 implements D1DatabaseLike {
   batchCalls = 0;
-  constructor(readonly db = new DatabaseSync(":memory:")) {
+  readonly db: DatabaseSync;
+
+  constructor(db = new DatabaseSync(":memory:")) {
+    this.db = db;
     this.db.exec(`
       CREATE TABLE business (id INTEGER PRIMARY KEY, value TEXT NOT NULL);
       INSERT INTO business (id, value) VALUES (1, 'old'), (2, 'old'), (3, 'old');
