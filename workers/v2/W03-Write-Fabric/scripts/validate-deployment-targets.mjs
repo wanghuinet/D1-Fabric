@@ -25,7 +25,21 @@ function parseTomlBindings(text) {
   return rows;
 }
 
-const [manifestPath = "deployment/targets.json", wranglerPath = "wrangler.toml"] = process.argv.slice(2);
+function parseRemoteDatabases(raw) {
+  let value;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    fail("Wrangler D1 list output is not valid JSON");
+  }
+  if (!Array.isArray(value)) fail("Wrangler D1 list output must be an array");
+  return value.map((entry) => ({
+    id: entry.uuid ?? entry.database_id,
+    name: entry.name ?? entry.database_name,
+  }));
+}
+
+const [manifestPath = "deployment/targets.json", wranglerPath = "wrangler.toml", remotePath] = process.argv.slice(2);
 const manifestText = await readFile(manifestPath, "utf8").catch((error) => fail(`cannot read ${manifestPath}: ${error.message}`));
 const wranglerText = await readFile(wranglerPath, "utf8").catch((error) => fail(`cannot read ${wranglerPath}: ${error.message}`));
 
@@ -69,17 +83,30 @@ for (const target of manifest.targets) {
 
   const binding = bindingMap.get(target.bindingName);
   if (!binding) fail(`manifest binding ${target.bindingName} is absent from wrangler.toml`);
+  if (binding.database_name !== target.databaseName) fail(`database_name mismatch for ${target.bindingName}`);
 
   const placeholder = PLACEHOLDER.test(target.databaseId);
   if (strict && placeholder) fail(`placeholder databaseId is forbidden in strict deployment: ${target.bindingName}`);
   if (!placeholder && !UUID.test(target.databaseId)) fail(`databaseId for ${target.bindingName} is not a valid D1 UUID`);
   if (!placeholder && binding.database_id !== target.databaseId) fail(`database_id mismatch for ${target.bindingName}`);
-  if (binding.database_name !== target.databaseName) fail(`database_name mismatch for ${target.bindingName}`);
 }
 
 if (strict && bindings.length !== manifest.targets.length) {
   fail(`strict deployment requires a one-to-one manifest/Wrangler D1 binding set; manifest=${manifest.targets.length}, wrangler=${bindings.length}`);
 }
 
-console.log(`deployment target manifest structurally valid: ${manifest.targets.length} target(s)`);
-if (!strict) console.log("non-strict mode: placeholder database IDs are permitted for repository CI only");
+if (remotePath) {
+  const remoteText = await readFile(remotePath, "utf8").catch((error) => fail(`cannot read ${remotePath}: ${error.message}`));
+  const remote = parseRemoteDatabases(remoteText);
+  const remoteById = new Map(remote.filter((entry) => entry.id).map((entry) => [entry.id, entry]));
+  for (const target of manifest.targets) {
+    if (PLACEHOLDER.test(target.databaseId)) fail(`remote attestation cannot use placeholder databaseId: ${target.bindingName}`);
+    const actual = remoteById.get(target.databaseId);
+    if (!actual) fail(`databaseId ${target.databaseId} for ${target.bindingName} is not present in the Cloudflare account`);
+    if (actual.name !== target.databaseName) fail(`Cloudflare database name mismatch for ${target.bindingName}: expected ${target.databaseName}, got ${actual.name ?? "<unknown>"}`);
+  }
+}
+
+console.log(`deployment target manifest valid: ${manifest.targets.length} target(s)`);
+if (remotePath) console.log("Cloudflare remote D1 identity attestation: PASS");
+else if (!strict) console.log("non-strict mode: placeholder database IDs are permitted for repository CI only");
