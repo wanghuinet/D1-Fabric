@@ -18,6 +18,14 @@ export class AuthoritativeMetadataStoreError extends Error {
   }
 }
 
+export class TopologyVersionNotPublishedError extends Error {
+  readonly code = "TOPOLOGY_VERSION_NOT_PUBLISHED" as const;
+  constructor(message: string) {
+    super(message);
+    this.name = "TopologyVersionNotPublishedError";
+  }
+}
+
 interface ShardRow {
   logical_database_id: string;
   logical_shard_id: string;
@@ -29,10 +37,24 @@ interface ShardRow {
   last_transition_timestamp: number;
 }
 
+interface HeadRow {
+  topology_version: number;
+}
+
 export class D1AuthoritativeMetadataStore {
   constructor(private readonly db: D1DatabaseLike) {}
 
   async readSnapshot(logicalDatabaseId: string, topologyVersion: number): Promise<MetadataSnapshot> {
+    const head = await this.db.prepare(`
+      SELECT topology_version
+      FROM d1f_w06_topology_head
+      WHERE logical_database_id = ?
+    `).bind(logicalDatabaseId).all<HeadRow>();
+
+    if (head.results.length !== 1 || head.results[0].topology_version !== topologyVersion) {
+      throw new TopologyVersionNotPublishedError("requested topology version is not the published head");
+    }
+
     const result = await this.db.prepare(`
       SELECT logical_database_id, logical_shard_id, physical_shard_id,
              topology_version, lifecycle, capacity_state,
