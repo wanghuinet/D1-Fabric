@@ -169,11 +169,22 @@ test("W01 -> W02 -> W06 -> W05 -> W03 -> W04 control epoch gate commits a routed
     method: "POST", body: JSON.stringify(writeEnvelope(1)), headers: { "content-type": "application/json" },
   }), { W02: w02Binding });
   assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), {
-    status: "COMMITTED", requestId: "integration-w03-1", contractId: "content-write-v1",
-    contractVersion: "D1F-3.0-MASTER-v1.0", logicalTargetId: "content-1", physicalShardId: "physical-content-1", topologyVersion: 1, executionEpoch: 1,
-    accounting: { d1Statements: 1, rowsWritten: 1, payloadBytes: 123, retries: 0 }, affectedRows: 1,
-  });
+  const result = await response.json() as Record<string, unknown>;
+  assert.equal(result.status, "COMMITTED");
+  assert.equal(result.requestId, "integration-w03-1");
+  assert.equal(result.contractId, "content-write-v1");
+  assert.equal(result.contractVersion, "D1F-3.0-MASTER-v1.0");
+  assert.equal(result.logicalTargetId, "content-1");
+  assert.equal(result.physicalShardId, "physical-content-1");
+  assert.equal(result.physicalTargetId, "target-content-1");
+  assert.equal(result.logicalDatabaseId, "db-content");
+  assert.equal(result.logicalShardId, "shard-content");
+  assert.equal(result.topologyVersion, 1);
+  assert.equal(result.executionEpoch, 1);
+  assert.deepEqual(result.accounting, { d1Statements: 1, rowsWritten: 1, payloadBytes: 123, retries: 0 });
+  assert.equal(result.affectedRows, 1);
+  assert.equal(typeof result.planId, "string");
+  assert.ok((result.planId as string).length > 0);
 });
 
 test("W01 -> W02 -> W05 -> W03 rejects a stale W04 control epoch", async () => {
