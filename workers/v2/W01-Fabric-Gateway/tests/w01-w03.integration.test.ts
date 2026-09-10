@@ -101,8 +101,18 @@ const w03Binding: W02Binding = {
 const w05Binding = {
   fetch: (request: Request) => w05.fetch(request, { W03: w03Binding }),
 };
+const w06Binding = {
+  fetch: async (request: Request) => {
+    assert.equal(new URL(request.url).pathname, "/v1/placement/resolve");
+    const body = await request.json() as { request: { logicalDatabaseId: string; logicalShardId: string; topologyVersion: number } };
+    assert.deepEqual(body.request, { logicalDatabaseId: "db-content", logicalShardId: "shard-content", topologyVersion: 1 });
+    return new Response(JSON.stringify({ status: "RESOLVED", result: {
+      logicalDatabaseId: "db-content", logicalShardId: "shard-content", physicalShardId: "physical-content-1", topologyVersion: 1,
+    } }), { status: 200, headers: { "content-type": "application/json; charset=utf-8" } });
+  },
+};
 const w02Binding: W01Binding = {
-  fetch: (request) => w02.fetch(request, { W05: w05Binding }),
+  fetch: (request) => w02.fetch(request, { W05: w05Binding, W06: w06Binding }),
 };
 
 function writeEnvelope(epoch = 1) {
@@ -113,6 +123,7 @@ function writeEnvelope(epoch = 1) {
       budget: { fanout: 1, concurrency: 1, d1Statements: 1, rowsRead: 0, rowsWritten: 1, retries: 0, payloadBytes: 1024 },
       payload: {
         write: {
+          logicalDatabaseId: "db-content", logicalShardId: "shard-content",
           logicalTargetId: "content-1", executionEpoch: epoch, topologyVersion: 1,
           operation: { statement: "UPDATE content SET title = ? WHERE id = ?", bindings: ["hello", "1"], retryable: false, expectedWriteCount: 1 },
         },
@@ -138,7 +149,7 @@ async function publishEpoch(epoch: number): Promise<void> {
   assert.equal(response.status, 201);
 }
 
-test("W01 -> W02 -> W05 -> W03 -> W04 control epoch gate commits a write", async () => {
+test("W01 -> W02 -> W06 -> W05 -> W03 -> W04 control epoch gate commits a routed write", async () => {
   await publishEpoch(1);
   const response = await gateway.fetch(new Request("https://gateway.invalid/", {
     method: "POST", body: JSON.stringify(writeEnvelope(1)), headers: { "content-type": "application/json" },
@@ -146,7 +157,7 @@ test("W01 -> W02 -> W05 -> W03 -> W04 control epoch gate commits a write", async
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), {
     status: "COMMITTED", requestId: "integration-w03-1", contractId: "content-write-v1",
-    contractVersion: "D1F-3.0-MASTER-v1.0", logicalTargetId: "content-1", executionEpoch: 1,
+    contractVersion: "D1F-3.0-MASTER-v1.0", logicalTargetId: "content-1", physicalShardId: "physical-content-1", topologyVersion: 1, executionEpoch: 1,
     accounting: { d1Statements: 1, rowsWritten: 1, payloadBytes: 18, retries: 0 }, affectedRows: 1,
   });
 });
@@ -159,13 +170,13 @@ test("W01 -> W02 -> W05 -> W03 rejects a stale W04 control epoch", async () => {
   assert.deepEqual(await response.json(), { status: "ERROR", code: "STALE_EXECUTION_EPOCH", message: "epoch is not the active control epoch" });
 });
 
-test("W01 -> W02 -> W05 rejects a write when W03 binding is unavailable", async () => {
+test("W01 -> W02 -> W06 -> W05 rejects a write when W03 binding is unavailable", async () => {
   const unavailableW05 = {
     fetch: (request: Request) => w05.fetch(request, {}),
   };
   const response = await gateway.fetch(new Request("https://gateway.invalid/", {
     method: "POST", body: JSON.stringify(writeEnvelope()), headers: { "content-type": "application/json" },
-  }), { W02: { fetch: (request) => w02.fetch(request, { W05: unavailableW05 }) } });
+  }), { W02: { fetch: (request) => w02.fetch(request, { W05: unavailableW05, W06: w06Binding }) } });
   assert.equal(response.status, 503);
-  assert.deepEqual(await response.json(), { error: "W03_UNAVAILABLE" });
+  assert.deepEqual(await response.json(), { error: "W05_UNAVAILABLE" });
 });
