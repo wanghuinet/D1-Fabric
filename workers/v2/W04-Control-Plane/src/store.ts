@@ -69,6 +69,16 @@ export class D1ControlStore implements ControlStore {
     ).bind(snapshot.configVersion, snapshot.epoch);
     await this.db.batch([insert, head]);
 
+    const stored = await this.get({ configVersion: snapshot.configVersion, epoch: snapshot.epoch });
+    if (!stored ||
+      stored.activationTime !== snapshot.activationTime ||
+      stored.expiryTime !== snapshot.expiryTime ||
+      stored.source !== snapshot.source ||
+      stored.revoked ||
+      JSON.stringify(stored.payload) !== payload) {
+      throw new ControlPlaneError("CONTROL_SNAPSHOT_CONFLICT", "immutable control snapshot conflicts with stored state");
+    }
+
     const active = await this.currentHead();
     if (!active || active.configVersion !== snapshot.configVersion || active.epoch !== snapshot.epoch) {
       throw new ControlPlaneError("CONTROL_HEAD_ADVANCE_RACE", "control snapshot was stored but could not become the active head");
