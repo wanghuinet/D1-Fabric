@@ -1,0 +1,52 @@
+name: W06 Control Plane
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify-w06:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: workers/v2/W06-Control-Plane
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: workers/v2/W06-Control-Plane/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npx --yes wrangler@4.130.0 deploy --dry-run
+      - run: '! grep -R -n -E "wrangler d1 execute|database_id|article|comment|feed|gallery|question|commerce|advertising" src'
+      - run: '! grep -R -n -E "while[[:space:]]*\\(true\\)|for[[:space:]]*\\(;;\\)" src'
+
+  regression-w01-w05:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        worker:
+          - workers/v2/W01-Fabric-Gateway
+          - workers/v2/W02-Execution-Fabric
+          - workers/v2/W03-Write-Fabric
+          - workers/v2/W04-Control-Plane
+          - workers/v2/W05-Reliability-Plane
+    defaults:
+      run:
+        working-directory: ${{ matrix.worker }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ${{ matrix.worker }}/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run dry-run
