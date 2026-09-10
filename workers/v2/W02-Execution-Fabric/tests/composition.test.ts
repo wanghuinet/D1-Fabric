@@ -44,7 +44,7 @@ test("P06.3 composes compile -> route -> bounded admission -> read", async () =>
     tenantId: request.tenantId,
     principalScope: request.principalScope,
     operation: request.operation,
-    contractVersion: request.contractVersion ?? contract.contractVersion,
+    contractVersion: contract.contractVersion,
     shapeVersion: "shape-1",
     placement: { logicalTargetId: scheduled.results[0], executionEpoch: "epoch-1", expiresAt: Date.now() + 5000, fenced: false },
     deadlineAt: request.deadlineAt,
@@ -59,14 +59,14 @@ test("P06.3 composes compile -> route -> bounded admission -> read", async () =>
   assert.equal(read.d1Statements, 1);
   assert.equal(read.rowsRead, 1);
   assert.equal(read.resourceAccounting.rowsRead.consumed, 1);
-  assert.equal((read as Record<string, unknown>).physicalDatabaseId, undefined);
+  assert.equal(Object.prototype.hasOwnProperty.call(read, "physicalDatabaseId"), false);
 });
 
 test("P06.3 upstream scheduler failure blocks downstream read", async () => {
-  let readCalls = 0;
+  let downstreamCalls = 0;
   await assert.rejects(
     () => runBounded(["logical-content"], { fanout: 1, concurrency: 1, deadlineAt: Date.now() + 5000 }, async () => { throw new Error("upstream-stop"); }),
     /upstream-stop/,
   );
-  assert.equal(readCalls, 0);
+  if (downstreamCalls !== 0) throw new Error("downstream execution occurred after upstream failure");
 });
