@@ -44,5 +44,5 @@ export function transitionLifecycle(from: string, to: string): ShardLifecycle {
   if (!canTransition(from, to)) {
     throw new TopologyTransitionError("ILLEGAL_TRANSITION", `illegal lifecycle transition: ${from} -> ${to}`);
   }
-  return to;
+  return to as ShardLifecycle;
 }
