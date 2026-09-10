@@ -16,28 +16,35 @@ class MockStatement implements PreparedStatementLike {
   constructor(private readonly sql: string, private readonly db: MockDb, private readonly values: D1Value[] = []) {}
   bind(...values: D1Value[]): PreparedStatementLike { return new MockStatement(this.sql, this.db, values); }
   async run(): Promise<D1ResultLike> { return this.db.run(this.sql, this.values); }
-  async all<T = Record<string, unknown>>(): Promise<{ results: T[] }> { return this.db.all(this.sql) as { results: T[] }; }
+  async all<T = Record<string, unknown>>(): Promise<{ results: T[] }> { return this.db.all(this.sql, this.values) as { results: T[] }; }
 }
 
 class MockDb implements D1DatabaseLike {
-  committed = false;
   mutationRuns = 0;
   prepared: string[] = [];
+  private readonly committedKeys = new Set<string>();
   prepare(sql: string): PreparedStatementLike { this.prepared.push(sql); return new MockStatement(sql, this); }
-  async run(sql: string): Promise<D1ResultLike> {
-    if (sql.startsWith("SELECT state")) return { success: true, results: this.committed ? [{ state: "COMMITTED", affected_rows: 1 }] : [] };
+  async run(sql: string, values: D1Value[]): Promise<D1ResultLike> {
+    if (sql.startsWith("SELECT state")) return { success: true, results: this.committedKeys.has(this.key(values)) ? [{ state: "COMMITTED", affected_rows: 1 }] : [] };
     return { success: true, meta: { changes: sql.includes("UPDATE business") ? 1 : 0 } };
   }
-  async all<T = Record<string, unknown>>(sql: string): Promise<{ results: T[] }> {
-    if (sql.startsWith("SELECT state") && this.committed) return { results: [{ state: "COMMITTED", affected_rows: 1 } as T] };
+  async all<T = Record<string, unknown>>(sql: string, values: D1Value[]): Promise<{ results: T[] }> {
+    if (sql.startsWith("SELECT state") && this.committedKeys.has(this.key(values))) return { results: [{ state: "COMMITTED", affected_rows: 1 } as T] };
     return { results: [] };
   }
   async batch(statements: PreparedStatementLike[]): Promise<D1ResultLike[]> {
     this.mutationRuns += 1;
-    this.committed = true;
-    return statements.map((_, index) => index === 1 ? { success: true, meta: { changes: 1 } } : { success: true, meta: { changes: 1 } });
+    return statements.map((_, index) => index === 1 ? { success: true, meta: { changes: 1, rows_written: 1 } } : { success: true, meta: { changes: 1, rows_written: 1 } });
   }
+  markCommitted(tenant: string, principal: string, operation: string, version: string, key: string): void { this.committedKeys.add([tenant, principal, operation, version, key].join("|")); }
+  private key(values: D1Value[]): string { return values.slice(0, 5).map(String).join("|"); }
 }
+
+const retryableOperation = {
+  statement: "UPDATE business SET value=? WHERE id=?",
+  bindings: ["x", "1"], retryable: true, idempotencyKey: "idem-1",
+  atomicIdempotency: { guardedMutation: { sql: "UPDATE business SET value=? WHERE id=? AND EXISTS (SELECT 1 FROM __d1f_idempotency WHERE tenant_id=? AND idempotency_key=? AND owner_request_id=? AND state='IN_FLIGHT')", bindings: ["x", "1", "tenant-a", "idem-1", "req-1"] } },
+} as const;
 
 test("valid single-target write succeeds", async () => {
   const db = new MockDb();
@@ -70,30 +77,42 @@ test("retryable mutation requires atomic protocol", async () => {
   await assert.rejects(() => executeWrite(db, identity(), { statement: "UPDATE x SET y=1", bindings: [], retryable: true, idempotencyKey: "k" }), (error: unknown) => error instanceof WriteExecutionError && error.code === "INVALID_REQUEST");
 });
 
+test("retryable mutation refuses a budget below its five-statement admission", async () => {
+  const db = new MockDb();
+  await assert.rejects(() => executeWrite(db, identity({ budget: { d1Statements: 4, rowsWritten: 10, payloadBytes: 4096, retries: 2 } }), retryableOperation), (error: unknown) => error instanceof WriteExecutionError && error.code === "BUDGET_EXCEEDED");
+  assert.equal(db.prepared.length, 1);
+  assert.equal(db.mutationRuns, 0);
+});
+
 test("retryable mutation commits through one D1 batch and is replayable", async () => {
   const db = new MockDb();
-  const op = {
-    statement: "UPDATE business SET value=? WHERE id=?",
-    bindings: ["x", "1"], retryable: true, idempotencyKey: "idem-1",
-    atomicIdempotency: { guardedMutation: { sql: "UPDATE business SET value=? WHERE id=? AND EXISTS (SELECT 1 FROM __d1f_idempotency WHERE tenant_id=? AND idempotency_key=? AND owner_request_id=? AND state='IN_FLIGHT')", bindings: ["x", "1", "tenant-a", "idem-1", "req-1"] } },
-  } as const;
-  const first = await executeWrite(db, identity(), op);
+  db.markCommitted = (tenant, principal, operation, version, key) => { db["committedKeys"].add([tenant, principal, operation, version, key].join("|")); };
+  const originalBatch = db.batch.bind(db);
+  const wrappedBatch = async (statements: PreparedStatementLike[]) => {
+    const result = await originalBatch(statements);
+    db.markCommitted("tenant-a", "principal-a", "write", "1", "idem-1");
+    return result;
+  };
+  db.batch = wrappedBatch;
+  const first = await executeWrite(db, identity(), retryableOperation);
   assert.equal(first.status, "COMMITTED");
   assert.equal(first.affectedRows, 1);
+  assert.equal(first.accounting.d1Statements, 5);
   assert.equal(db.mutationRuns, 1);
-  const second = await executeWrite(db, identity({ requestId: "req-2" }), op);
+  const second = await executeWrite(db, identity({ requestId: "req-2" }), retryableOperation);
   assert.equal(second.status, "REPLAYED");
   assert.equal(second.affectedRows, 1);
+  assert.equal(second.accounting.d1Statements, 1);
   assert.equal(db.mutationRuns, 1);
 });
 
-test("tenant isolation changes the idempotency namespace", async () => {
+test("tenant isolation prevents cross-tenant replay", async () => {
   const db = new MockDb();
-  const op = { statement: "UPDATE business SET value=1", bindings: [], retryable: true, idempotencyKey: "same", atomicIdempotency: { guardedMutation: { sql: "UPDATE business SET value=1 WHERE EXISTS (SELECT 1 FROM __d1f_idempotency)", bindings: [] } } } as const;
-  const a = await executeWrite(db, identity({ tenantId: "tenant-a" }), op);
-  assert.equal(a.status, "COMMITTED");
+  db.markCommitted("tenant-a", "principal-a", "write", "1", "same");
+  const op = { ...retryableOperation, idempotencyKey: "same" } as const;
   const b = await executeWrite(db, identity({ tenantId: "tenant-b", requestId: "req-b" }), op);
   assert.equal(b.status, "COMMITTED");
+  assert.equal(db.mutationRuns, 1);
 });
 
 test("expected write count mismatch is rejected", async () => {
@@ -105,4 +124,12 @@ test("zero D1 statement budget stops admission", async () => {
   const db = new MockDb();
   await assert.rejects(() => executeWrite(db, identity({ budget: { d1Statements: 0, rowsWritten: 10, payloadBytes: 4096, retries: 0 } }), { statement: "UPDATE x SET y=1", bindings: [], retryable: false }), (error: unknown) => error instanceof WriteExecutionError && error.code === "BUDGET_EXCEEDED");
   assert.equal(db.prepared.length, 0);
+});
+
+test("retryable transport failure is classified as unknown outcome", async () => {
+  class FailingDb extends MockDb {
+    override async batch(_statements: PreparedStatementLike[]): Promise<D1ResultLike[]> { throw new Error("network closed"); }
+  }
+  const db = new FailingDb();
+  await assert.rejects(() => executeWrite(db, identity(), retryableOperation), (error: unknown) => error instanceof WriteExecutionError && error.code === "COMMIT_UNKNOWN");
 });
