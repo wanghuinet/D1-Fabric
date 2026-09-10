@@ -62,11 +62,13 @@ test("P06.3 composes compile -> route -> bounded admission -> read", async () =>
   assert.equal(Object.prototype.hasOwnProperty.call(read, "physicalDatabaseId"), false);
 });
 
-test("P06.3 upstream scheduler failure blocks downstream read", async () => {
+test("P06.3 upstream scheduler failure prevents downstream stage", async () => {
   let downstreamCalls = 0;
-  await assert.rejects(
-    () => runBounded(["logical-content"], { fanout: 1, concurrency: 1, deadlineAt: Date.now() + 5000 }, async () => { throw new Error("upstream-stop"); }),
-    /upstream-stop/,
-  );
-  if (downstreamCalls !== 0) throw new Error("downstream execution occurred after upstream failure");
+  const pipeline = async () => {
+    const scheduled = await runBounded(["logical-content"], { fanout: 1, concurrency: 1, deadlineAt: Date.now() + 5000 }, async () => { throw new Error("upstream-stop"); });
+    downstreamCalls += 1;
+    return scheduled;
+  };
+  await assert.rejects(pipeline, /upstream-stop/);
+  assert.equal(downstreamCalls, 0);
 });
