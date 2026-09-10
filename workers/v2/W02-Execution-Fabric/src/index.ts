@@ -175,14 +175,18 @@ export default {
     }>;
 
     try {
-      const plan = compileExecutionPlan(executionRequest as ExecutionRequest, contract as VersionedExecutionContract);
+      if (executionRequest === undefined) throw new PlanCompileError("INVALID_REQUEST", "request is required");
+      if (contract === undefined) throw new PlanCompileError("INVALID_CONTRACT", "contract is required");
+      const plan = compileExecutionPlan(executionRequest, contract);
       if (plan.mode !== "WRITE") return response({ status: "COMPILED", plan });
-      const write = extractWritePayload(executionRequest?.payload as Record<string, unknown>);
+      const payload = executionRequest.payload;
+      if (!isPlainRecord(payload)) throw new PlanCompileError("INVALID_REQUEST", "write payload is required");
+      const write = extractWritePayload(payload);
       if (!env?.W06 || typeof env.W06.fetch !== "function") return response({ error: "W06_UNAVAILABLE" }, 503);
       if (!env?.W05 || typeof env.W05.fetch !== "function") return response({ error: "W05_UNAVAILABLE" }, 503);
 
       const route = await resolveAuthoritativePlacement(env.W06, write);
-      const writeRequest = toWriteRequest(executionRequest, contract as VersionedExecutionContract, plan, write, route);
+      const writeRequest = toWriteRequest(executionRequest, contract, plan, write, route);
       const upstream = await env.W05.fetch(new Request(new URL("/v1/execute", request.url), {
         method: "POST",
         headers: {
