@@ -4,14 +4,24 @@ on:
   push:
     paths:
       - 'workers/v2/W05-Reliability-Plane/**'
+      - 'workers/v2/W01-Fabric-Gateway/**'
+      - 'workers/v2/W02-Execution-Fabric/**'
+      - 'workers/v2/W03-Write-Fabric/**'
+      - 'workers/v2/W04-Control-Plane/**'
+      - 'docs/phases/P11-CONTROL-PLANE-LKG-FENCING-v1.0.md'
       - '.github/workflows/w05-reliability-plane.yml'
   pull_request:
     paths:
       - 'workers/v2/W05-Reliability-Plane/**'
+      - 'workers/v2/W01-Fabric-Gateway/**'
+      - 'workers/v2/W02-Execution-Fabric/**'
+      - 'workers/v2/W03-Write-Fabric/**'
+      - 'workers/v2/W04-Control-Plane/**'
+      - 'docs/phases/P11-CONTROL-PLANE-LKG-FENCING-v1.0.md'
       - '.github/workflows/w05-reliability-plane.yml'
 
 jobs:
-  verify:
+  verify-w05:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -31,3 +41,26 @@ jobs:
         run: |
           ! grep -R -n -E 'database_id|databaseId|shard|placement|routing|wrangler d1 execute|article|comment|feed|gallery|question|commerce|advertising' src
           ! grep -R -n -E 'while[[:space:]]*\(true\)|for[[:space:]]*\(;;\)' src
+
+  regression-w01-w04:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        worker:
+          - workers/v2/W01-Fabric-Gateway
+          - workers/v2/W02-Execution-Fabric
+          - workers/v2/W03-Write-Fabric
+          - workers/v2/W04-Control-Plane
+    defaults:
+      run:
+        working-directory: ${{ matrix.worker }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run dry-run
