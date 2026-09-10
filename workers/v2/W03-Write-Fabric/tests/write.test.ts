@@ -35,6 +35,7 @@ class MockDb implements D1DatabaseLike {
   mutationRuns = 0;
   prepared: string[] = [];
   nextCommittedKey = "idem-1";
+  nextCommittedTenant = "tenant-a";
   protected readonly committedKeys = new Set<string>();
   prepare(sql: string): PreparedStatementLike { this.prepared.push(sql); return new MockStatement(sql, this); }
   async run(sql: string, values: D1Value[]): Promise<D1ResultLike> {
@@ -47,7 +48,7 @@ class MockDb implements D1DatabaseLike {
   }
   async batch(statements: PreparedStatementLike[]): Promise<D1ResultLike[]> {
     this.mutationRuns += 1;
-    this.markCommitted("tenant-a", "principal-a", "write", "1", this.nextCommittedKey);
+    this.markCommitted(this.nextCommittedTenant, "principal-a", "write", "1", this.nextCommittedKey);
     return statements.map((_, index) => index === 1 ? { success: true, meta: { changes: 1, rows_written: 1 } } : { success: true, meta: { changes: 1, rows_written: 1 } });
   }
   markCommitted(tenant: string, principal: string, operation: string, version: string, key: string): void { this.committedKeys.add([tenant, principal, operation, version, key].join("|")); }
@@ -116,6 +117,7 @@ test("tenant isolation prevents cross-tenant replay", async () => {
   const db = new MockDb();
   db.markCommitted("tenant-a", "principal-a", "write", "1", "same");
   db.nextCommittedKey = "same";
+  db.nextCommittedTenant = "tenant-b";
   const op = { ...retryableOperation, idempotencyKey: "same" } as const;
   const b = await executeWrite(db, identity({ tenantId: "tenant-b", requestId: "req-b" }), op);
   assert.equal(b.status, "COMMITTED");
