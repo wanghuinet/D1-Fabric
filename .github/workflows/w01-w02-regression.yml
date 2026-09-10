@@ -1,0 +1,74 @@
+name: W01 W02 Full Regression
+
+on:
+  push:
+    paths:
+      - "workers/v2/W01-Fabric-Gateway/**"
+      - "workers/v2/W02-Execution-Fabric/**"
+      - ".github/workflows/w01-w02-regression.yml"
+  pull_request:
+    paths:
+      - "workers/v2/W01-Fabric-Gateway/**"
+      - "workers/v2/W02-Execution-Fabric/**"
+      - ".github/workflows/w01-w02-regression.yml"
+  workflow_dispatch:
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+
+      - name: Setup Node 24.18.0
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.0
+          cache: npm
+          cache-dependency-path: |
+            workers/v2/W01-Fabric-Gateway/package-lock.json
+            workers/v2/W02-Execution-Fabric/package-lock.json
+
+      - name: W01 npm ci
+        working-directory: workers/v2/W01-Fabric-Gateway
+        run: npm ci
+
+      - name: W02 npm ci
+        working-directory: workers/v2/W02-Execution-Fabric
+        run: npm ci
+
+      - name: W01 typecheck
+        working-directory: workers/v2/W01-Fabric-Gateway
+        run: npm run typecheck
+
+      - name: W01 tests
+        working-directory: workers/v2/W01-Fabric-Gateway
+        run: npm test
+
+      - name: W01 dry-run
+        working-directory: workers/v2/W01-Fabric-Gateway
+        run: npm run dry-run
+
+      - name: W02 typecheck
+        working-directory: workers/v2/W02-Execution-Fabric
+        run: npm run typecheck
+
+      - name: W02 tests
+        working-directory: workers/v2/W02-Execution-Fabric
+        run: npm test
+
+      - name: W02 dry-run
+        working-directory: workers/v2/W02-Execution-Fabric
+        run: npm run dry-run
+
+      - name: W01 to W02 contract regression
+        working-directory: workers/v2/W01-Fabric-Gateway
+        run: node --experimental-strip-types --test tests/w01-w02.integration.test.ts
+
+      - name: Emit exact verification marker
+        run: |
+          echo "W01_W02_FULL_REGRESSION=PASS"
+          echo "COMMIT_SHA=${GITHUB_SHA}"
+          echo "NODE_VERSION=$(node --version)"
+          echo "NPM_VERSION=$(npm --version)"
