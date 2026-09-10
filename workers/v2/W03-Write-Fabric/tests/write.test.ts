@@ -53,9 +53,13 @@ class MockDb implements D1DatabaseLike {
     this.mutationRuns += 1;
     const claim = statements[0] as MockStatement;
     const [tenant, principal, operation, version, key] = claim.values;
-    this.committedKeys.add([String(tenant), String(principal), String(operation), String(version), String(key)].join("|"));
-    this.failedKeys.delete([String(tenant), String(principal), String(operation), String(version), String(key)].join("|"));
+    this.markCommitted(String(tenant), String(principal), String(operation), String(version), String(key));
     return statements.map(() => ({ success: true, meta: { changes: 1, rows_written: 1 } }));
+  }
+  markCommitted(tenant: string, principal: string, operation: string, version: string, key: string): void {
+    const composite = [tenant, principal, operation, version, key].join("|");
+    this.committedKeys.add(composite);
+    this.failedKeys.delete(composite);
   }
   protected key(values: D1Value[]): string { return values.slice(0, 5).map(String).join("|"); }
 }
@@ -126,7 +130,7 @@ test("retryable mutation commits through one D1 batch and is replayable", async 
 
 test("tenant isolation prevents cross-tenant replay", async () => {
   const db = new MockDb();
-  db["committedKeys"].add(["tenant-a", "principal-a", "write", "1", "same"].join("|"));
+  db.markCommitted("tenant-a", "principal-a", "write", "1", "same");
   const op = { ...retryableOperation, idempotencyKey: "same" } as const;
   const b = await executeWrite(db, identity({ tenantId: "tenant-b", requestId: "req-b" }), op);
   assert.equal(b.status, "COMMITTED");
