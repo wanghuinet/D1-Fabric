@@ -1,3 +1,5 @@
+import type { BudgetLimits } from "../../contracts/index.ts";
+
 export const W01_LIMITS = Object.freeze({
   maxPayloadBytes: 1_048_576,
   maxDeadlineMs: 25_000,
@@ -14,14 +16,7 @@ const MAX_VERSION_LENGTH = 32;
 const MAX_AUTH_SCOPE_LENGTH = 256;
 const OPERATION_TOKEN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 
-export type GatewayBudget = {
-  fanout: number;
-  concurrency: number;
-  d1Statements: number;
-  rowsRead: number;
-  rowsWritten: number;
-  retries: number;
-};
+export type GatewayBudget = Omit<BudgetLimits, "payloadBytes">;
 
 export type GatewayRequest = {
   requestId: string;
