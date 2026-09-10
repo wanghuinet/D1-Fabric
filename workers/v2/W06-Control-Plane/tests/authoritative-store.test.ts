@@ -5,7 +5,13 @@ import type { MetadataSnapshot } from "../src/metadata.ts";
 
 class FakeStatement {
   private values: unknown[] = [];
-  constructor(private readonly rows: Record<string, unknown>[], private readonly changes = 1) {}
+  private readonly rows: Record<string, unknown>[];
+  private readonly changes: number;
+
+  constructor(rows: Record<string, unknown>[], changes = 1) {
+    this.rows = rows;
+    this.changes = changes;
+  }
 
   bind(...values: unknown[]): FakeStatement {
     this.values = values;
@@ -27,7 +33,7 @@ class FakeStatement {
 }
 
 class FakeDb {
-  batchCalls: number[][] = [];
+  batchCalls: number[] = [];
   prepare(sql: string): FakeStatement {
     if (sql.includes("FROM d1f_w06_topology_head")) {
       return new FakeStatement([{ topology_version: 4 }]);
@@ -45,7 +51,7 @@ class FakeDb {
   }
   async batch(statements: FakeStatement[]): Promise<Array<{ success: boolean; meta?: { changes?: number } }>> {
     this.batchCalls.push(statements.length);
-    return statements.map((_, index) => ({ success: true, meta: { changes: index === statements.length - 1 ? 1 : 1 } }));
+    return statements.map(() => ({ success: true, meta: { changes: 1 } }));
   }
 }
 
