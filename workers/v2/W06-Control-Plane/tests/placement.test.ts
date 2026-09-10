@@ -3,7 +3,7 @@ import test from "node:test";
 import { PlacementError, resolvePlacement, type ShardMetadata } from "../src/placement.ts";
 
 const metadata: readonly ShardMetadata[] = [
-  { logicalDatabaseId: "db-1", logicalShardId: "ls-7", physicalShardId: "ps-3", topologyVersion: 4, lifecycle: "ACTIVE" },
+  { logicalDatabaseId: "db-1", logicalShardId: "ls-7", physicalShardId: "ps-3", topologyVersion: 4, lifecycle: "ACTIVE", capacityState: "ADMITTED" },
 ];
 
 test("resolves one active placement deterministically", () => {
@@ -34,7 +34,7 @@ test("rejects duplicate active ownership in one topology version", () => {
       { logicalDatabaseId: "db-1", logicalShardId: "ls-7", topologyVersion: 4 },
       [
         ...metadata,
-        { logicalDatabaseId: "db-1", logicalShardId: "ls-7", physicalShardId: "ps-4", topologyVersion: 4, lifecycle: "ACTIVE" },
+        { logicalDatabaseId: "db-1", logicalShardId: "ls-7", physicalShardId: "ps-4", topologyVersion: 4, lifecycle: "ACTIVE", capacityState: "ADMITTED" },
       ],
     ),
     (error: unknown) => error instanceof PlacementError && error.code === "AMBIGUOUS_PLACEMENT",
@@ -51,6 +51,16 @@ test("does not place onto non-active lifecycle state", () => {
   );
 });
 
+test("does not place onto a capacity-blocked active shard", () => {
+  assert.throws(
+    () => resolvePlacement(
+      { logicalDatabaseId: "db-1", logicalShardId: "ls-7", topologyVersion: 4 },
+      [{ ...metadata[0], capacityState: "BLOCKED" }],
+    ),
+    (error: unknown) => error instanceof PlacementError && error.code === "CAPACITY_BLOCKED",
+  );
+});
+
 test("rejects malformed request and metadata identifiers", () => {
   assert.throws(
     () => resolvePlacement({ logicalDatabaseId: "", logicalShardId: "ls-7", topologyVersion: 4 }, metadata),
@@ -60,6 +70,13 @@ test("rejects malformed request and metadata identifiers", () => {
     () => resolvePlacement(
       { logicalDatabaseId: "db-1", logicalShardId: "ls-7", topologyVersion: 4 },
       [{ ...metadata[0], physicalShardId: "" }],
+    ),
+    (error: unknown) => error instanceof PlacementError && error.code === "INVALID_METADATA",
+  );
+  assert.throws(
+    () => resolvePlacement(
+      { logicalDatabaseId: "db-1", logicalShardId: "ls-7", topologyVersion: 4 },
+      [{ ...metadata[0], capacityState: "UNKNOWN" as never }],
     ),
     (error: unknown) => error instanceof PlacementError && error.code === "INVALID_METADATA",
   );
