@@ -109,7 +109,7 @@ function writeEnvelope(epoch = 1) {
   return {
     request: {
       requestId: "integration-w03-1", tenantId: "tenant-1", principalScope: "scope-1",
-      operation: "content.write", operationVersion: "1", deadlineAt: Date.now() + 5_000,
+      operation: "content.write", operationVersion: "1", topologyVersion: 1, deadlineAt: Date.now() + 5_000,
       budget: { fanout: 1, concurrency: 1, d1Statements: 1, rowsRead: 0, rowsWritten: 1, retries: 0, payloadBytes: 1024 },
       payload: {
         write: {
