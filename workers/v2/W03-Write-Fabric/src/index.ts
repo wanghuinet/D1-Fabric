@@ -4,7 +4,7 @@ import {
   type D1DatabaseLike,
   type WriteIdentity,
   type WriteOperation,
-} from "./write.js";
+} from "./write.ts";
 
 interface Env { DB: D1DatabaseLike }
 
