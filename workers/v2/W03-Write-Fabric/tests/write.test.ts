@@ -16,7 +16,10 @@ class MockStatement implements PreparedStatementLike {
   constructor(private readonly sql: string, private readonly db: MockDb, private readonly values: D1Value[] = []) {}
   bind(...values: D1Value[]): PreparedStatementLike { return new MockStatement(this.sql, this.db, values); }
   async run(): Promise<D1ResultLike> { return this.db.run(this.sql, this.values); }
-  async all<T = Record<string, unknown>>(): Promise<{ results: T[] }> { return this.db.all(this.sql, this.values) as { results: T[] }; }
+  async all<T = Record<string, unknown>>(): Promise<{ results: T[] }> {
+    const result = await this.db.all(this.sql, this.values);
+    return result as { results: T[] };
+  }
 }
 
 class MockDb implements D1DatabaseLike {
