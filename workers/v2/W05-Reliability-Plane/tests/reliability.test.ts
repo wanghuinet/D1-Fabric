@@ -30,6 +30,12 @@ test("retry delay is bounded and exponential", () => {
   assert.equal(retryDelayMs(policy.retry, Number.MAX_SAFE_INTEGER, () => 0.5), 100);
 });
 
+test("invalid jitter source is rejected instead of silently clamped", () => {
+  assert.throws(() => retryDelayMs(policy.retry, 1, () => -0.01), (error: unknown) => error instanceof ReliabilityError && error.code === "INVALID_RANDOM");
+  assert.throws(() => retryDelayMs(policy.retry, 1, () => 1.01), (error: unknown) => error instanceof ReliabilityError && error.code === "INVALID_RANDOM");
+  assert.throws(() => retryDelayMs(policy.retry, 1, () => Number.NaN), (error: unknown) => error instanceof ReliabilityError && error.code === "INVALID_RANDOM");
+});
+
 test("retry budget token bucket consumes capacity and refills over time", () => {
   let now = 0;
   const budget = new RetryBudget({ capacity: 2, refillRate: 1 }, () => now);
@@ -44,6 +50,23 @@ test("retry budget token bucket consumes capacity and refills over time", () => 
   assert.equal(budget.available(), 0);
   now = 3000;
   assert.equal(budget.available(), 2);
+});
+
+test("retry budget never gains tokens when the clock moves backwards", () => {
+  let now = 1000;
+  const budget = new RetryBudget({ capacity: 2, refillRate: 10 }, () => now);
+  assert.equal(budget.allow(), true);
+  assert.equal(budget.available(), 1);
+  now = 500;
+  assert.equal(budget.available(), 1);
+  now = 600;
+  assert.equal(budget.available(), 1);
+  now = 1100;
+  assert.equal(budget.available(), 2);
+});
+
+test("invalid retry budget clock is rejected", () => {
+  assert.throws(() => new RetryBudget({ capacity: 1, refillRate: 1 }, () => Number.NaN), (error: unknown) => error instanceof ReliabilityError && error.code === "INVALID_CLOCK");
 });
 
 test("non-idempotent writes never retry or consume retry budget", async () => {
@@ -155,6 +178,11 @@ test("circuit opens after threshold and allows one half-open probe", () => {
   assert.equal(breaker.stateAt(1000), "half_open");
   assert.equal(breaker.allow(1000), true);
   assert.equal(breaker.allow(1000), false);
+});
+
+test("circuit rejects invalid timestamps", () => {
+  const breaker = new CircuitBreaker(policy.circuit);
+  assert.throws(() => breaker.allow(Number.NaN), (error: unknown) => error instanceof ReliabilityError && error.code === "INVALID_CLOCK");
 });
 
 test("timeout is surfaced as a typed reliability failure", async () => {
