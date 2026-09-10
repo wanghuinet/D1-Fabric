@@ -38,7 +38,7 @@ export interface WriteOperation {
 export interface WriteAccounting { readonly d1Statements: number; readonly rowsWritten: number; readonly payloadBytes: number; readonly retries: number; }
 export interface WriteResult {
   readonly status: "COMMITTED" | "REPLAYED"; readonly requestId: string; readonly contractId: string; readonly contractVersion: string;
-  readonly logicalTargetId: string; readonly executionEpoch: number; readonly accounting: WriteAccounting; readonly affectedRows?: number;
+  readonly logicalTargetId: string; readonly executionEpoch: number; readonly accounting: WriteAccounting; readonly affectedRows: number;
   readonly idempotencyState?: "COMMITTED";
 }
 
@@ -97,23 +97,13 @@ function payloadSize(value: unknown): number { return JSON.stringify(value).leng
 function checkAbort(signal?: AbortSignal): void { if (signal?.aborted) throw new WriteExecutionError("CANCELLED", "execution cancelled before admission"); }
 
 const CLAIM_SQL = `INSERT INTO ${IDEMPOTENCY_TABLE} (tenant_id, principal_scope, operation, operation_version, idempotency_key, owner_request_id, state, affected_rows) VALUES (?, ?, ?, ?, ?, ?, 'IN_FLIGHT', NULL) ON CONFLICT (tenant_id, principal_scope, operation, operation_version, idempotency_key) DO UPDATE SET owner_request_id = excluded.owner_request_id, state = 'IN_FLIGHT', affected_rows = NULL, created_at = unixepoch() WHERE state = 'FAILED'`;
-const COMMIT_SQL = `UPDATE ${IDEMPOTENCY_TABLE} SET state = 'COMMITTED', affected_rows = ?, committed_at = unixepoch() WHERE tenant_id = ? AND principal_scope = ? AND operation = ? AND operation_version = ? AND idempotency_key = ? AND owner_request_id = ? AND state = 'IN_FLIGHT'`;
+const COMMIT_SQL = `UPDATE ${IDEMPOTENCY_TABLE} SET state = 'COMMITTED', affected_rows = changes(), committed_at = unixepoch() WHERE tenant_id = ? AND principal_scope = ? AND operation = ? AND operation_version = ? AND idempotency_key = ? AND owner_request_id = ? AND state = 'IN_FLIGHT'`;
 const FAILED_SQL = `UPDATE ${IDEMPOTENCY_TABLE} SET state = 'FAILED', affected_rows = NULL, committed_at = NULL WHERE tenant_id = ? AND principal_scope = ? AND operation = ? AND operation_version = ? AND idempotency_key = ? AND owner_request_id = ? AND state = 'IN_FLIGHT'`;
 const REPLAY_SQL = `SELECT state, owner_request_id, affected_rows FROM ${IDEMPOTENCY_TABLE} WHERE tenant_id = ? AND principal_scope = ? AND operation = ? AND operation_version = ? AND idempotency_key = ?`;
 
-async function replayState(db: D1DatabaseLike, identity: WriteIdentity, key: string): Promise<{ state: string; affectedRows?: number } | undefined> {
+async function replayState(db: D1DatabaseLike, identity: WriteIdentity, key: string): Promise<{ state: string; affectedRows: number } | undefined> {
   const result = await db.prepare(REPLAY_SQL).bind(identity.tenantId, identity.principalScope, identity.operation, identity.operationVersion, key).all<{ state: string; affected_rows: number | null }>();
-  const row = result.results[0]; return row ? { state: row.state, ...(row.affected_rows === null ? {} : { affectedRows: row.affected_rows }) } : undefined;
-}
-
-function replayResult(identity: WriteIdentity, state: { state: string; affectedRows?: number }): WriteResult {
-  return {
-    status: "REPLAYED", requestId: identity.requestId, contractId: identity.contractId, contractVersion: identity.contractVersion,
-    logicalTargetId: identity.logicalTargetId, executionEpoch: identity.executionEpoch,
-    accounting: { d1Statements: 1, rowsWritten: 0, payloadBytes: 0, retries: 1 },
-    ...(state.affectedRows === undefined ? {} : { affectedRows: state.affectedRows }),
-    idempotencyState: "COMMITTED",
-  };
+  const row = result.results[0]; return row ? { state: row.state, affectedRows: row.affected_rows ?? 0 } : undefined;
 }
 
 export async function executeWrite(db: D1DatabaseLike, identity: WriteIdentity, operation: WriteOperation, signal?: AbortSignal): Promise<WriteResult> {
@@ -126,7 +116,7 @@ export async function executeWrite(db: D1DatabaseLike, identity: WriteIdentity, 
     const existing = await replayState(db, identity, key);
     if (existing?.state === "COMMITTED") {
       ensureBudget(identity, 1, 0, 0, 1);
-      return replayResult(identity, existing);
+      return { status: "REPLAYED", requestId: identity.requestId, contractId: identity.contractId, contractVersion: identity.contractVersion, logicalTargetId: identity.logicalTargetId, executionEpoch: identity.executionEpoch, accounting: { d1Statements: 1, rowsWritten: 0, payloadBytes: 0, retries: 1 }, affectedRows: existing.affectedRows, idempotencyState: "COMMITTED" };
     }
     if (existing?.state === "IN_FLIGHT") throw new WriteExecutionError("IDEMPOTENCY_CONFLICT", "idempotency key is already in flight");
 
@@ -134,13 +124,13 @@ export async function executeWrite(db: D1DatabaseLike, identity: WriteIdentity, 
     const protocol = operation.atomicIdempotency as AtomicIdempotencyProtocol;
     const claim = db.prepare(CLAIM_SQL).bind(identity.tenantId, identity.principalScope, identity.operation, identity.operationVersion, key, identity.requestId);
     const mutation = db.prepare(protocol.guardedMutation.sql).bind(...protocol.guardedMutation.bindings);
-    const commit = db.prepare(COMMIT_SQL).bind(operation.expectedWriteCount ?? null, identity.tenantId, identity.principalScope, identity.operation, identity.operationVersion, key, identity.requestId);
+    const commit = db.prepare(COMMIT_SQL).bind(identity.tenantId, identity.principalScope, identity.operation, identity.operationVersion, key, identity.requestId);
     let batch: D1ResultLike[];
     try { batch = await db.batch([claim, mutation, commit]); } catch {
       try {
         const state = await replayState(db, identity, key);
         if (state?.state === "COMMITTED") {
-          return { status: "COMMITTED", requestId: identity.requestId, contractId: identity.contractId, contractVersion: identity.contractVersion, logicalTargetId: identity.logicalTargetId, executionEpoch: identity.executionEpoch, accounting: { d1Statements: 5, rowsWritten: state.affectedRows ?? 0, payloadBytes: payloadSize({ affectedRows: state.affectedRows ?? null }), retries: 0 }, ...(state.affectedRows === undefined ? {} : { affectedRows: state.affectedRows }), idempotencyState: "COMMITTED" };
+          return { status: "COMMITTED", requestId: identity.requestId, contractId: identity.contractId, contractVersion: identity.contractVersion, logicalTargetId: identity.logicalTargetId, executionEpoch: identity.executionEpoch, accounting: { d1Statements: 5, rowsWritten: state.affectedRows, payloadBytes: payloadSize({ affectedRows: state.affectedRows }), retries: 0 }, affectedRows: state.affectedRows, idempotencyState: "COMMITTED" };
         }
       } catch { /* transport remains indeterminate */ }
       throw new WriteExecutionError("COMMIT_UNKNOWN", "transaction outcome could not be confirmed");
