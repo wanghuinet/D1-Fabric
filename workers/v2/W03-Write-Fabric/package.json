@@ -9,5 +9,8 @@
     "types": "npx --yes wrangler@4.130.0 types",
     "typecheck": "npx --yes typescript@7.0.2 --noEmit",
     "test": "node --experimental-strip-types --test tests/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3"
   }
 }
