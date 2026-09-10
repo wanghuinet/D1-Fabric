@@ -23,6 +23,7 @@ export type MetadataErrorCode =
   | "INVALID_SNAPSHOT"
   | "INVALID_SHARD_METADATA"
   | "DUPLICATE_PHYSICAL_SHARD"
+  | "DUPLICATE_LOGICAL_SHARD"
   | "VERSION_MISMATCH"
   | "IMMUTABLE_VERSION"
   | "MISSING_VERSION";
@@ -92,12 +93,17 @@ export function validateSnapshot(snapshot: MetadataSnapshot): void {
   }
 
   const physicalShardIds = new Set<string>();
+  const logicalShardIds = new Set<string>();
   for (const shard of snapshot.shards) {
     validateShardMetadata(snapshot.logicalDatabaseId, snapshot.topologyVersion, shard);
     if (physicalShardIds.has(shard.physicalShardId)) {
       throw new MetadataError("DUPLICATE_PHYSICAL_SHARD", "physical shard ownership must be unique within a logical database");
     }
+    if (logicalShardIds.has(shard.logicalShardId)) {
+      throw new MetadataError("DUPLICATE_LOGICAL_SHARD", "logical shard ownership must be unique within a topology version");
+    }
     physicalShardIds.add(shard.physicalShardId);
+    logicalShardIds.add(shard.logicalShardId);
   }
 }
 
