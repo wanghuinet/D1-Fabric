@@ -5,7 +5,7 @@ export interface ServiceBinding {
 }
 
 interface Env {
-  W03?: ServiceBinding;
+  W05?: ServiceBinding;
 }
 
 const JSON_HEADERS = { "content-type": "application/json; charset=utf-8" };
@@ -39,7 +39,7 @@ function toWriteRequest(
   plan: ReturnType<typeof compileExecutionPlan>,
   payload: Record<string, unknown>,
 ): Record<string, unknown> {
-  const write = (payload.write as Record<string, unknown>);
+  const write = payload.write as Record<string, unknown>;
   return {
     identity: {
       requestId: plan.requestId,
@@ -66,49 +66,68 @@ function toWriteRequest(
   };
 }
 
+async function parseRequestBody(request: Request): Promise<unknown> {
+  const contentType = request.headers.get("content-type") ?? "";
+  if (!/^application\/json(?:\s*;|\s*$)/i.test(contentType)) throw new TypeError("unsupported media type");
+
+  const contentLength = request.headers.get("content-length");
+  if (contentLength !== null) {
+    const parsedLength = Number(contentLength);
+    if (!Number.isSafeInteger(parsedLength) || parsedLength < 0 || parsedLength > MAX_BODY_BYTES) {
+      throw new RangeError(parsedLength > MAX_BODY_BYTES ? "payload too large" : "invalid content length");
+    }
+  }
+
+  const body = await request.text();
+  if (new TextEncoder().encode(body).byteLength > MAX_BODY_BYTES) throw new RangeError("payload too large");
+  try {
+    return JSON.parse(body);
+  } catch {
+    throw new SyntaxError("invalid json");
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     if (request.method !== "POST") return response({ error: "METHOD_NOT_ALLOWED" }, 405);
-    const contentType = request.headers.get("content-type") ?? "";
-    if (!/^application\/json(?:\s*;|\s*$)/i.test(contentType)) {
-      return response({ error: "UNSUPPORTED_MEDIA_TYPE" }, 415);
-    }
-
-    const contentLength = request.headers.get("content-length");
-    if (contentLength !== null) {
-      const parsedLength = Number(contentLength);
-      if (!Number.isSafeInteger(parsedLength) || parsedLength < 0 || parsedLength > MAX_BODY_BYTES) {
-        return response({ error: parsedLength > MAX_BODY_BYTES ? "PAYLOAD_TOO_LARGE" : "INVALID_REQUEST" }, parsedLength > MAX_BODY_BYTES ? 413 : 400);
-      }
-    }
-
-    const body = await request.text();
-    if (new TextEncoder().encode(body).byteLength > MAX_BODY_BYTES) return response({ error: "PAYLOAD_TOO_LARGE" }, 413);
 
     let parsed: unknown;
-    try { parsed = JSON.parse(body); } catch { return response({ error: "INVALID_REQUEST" }, 400); }
+    try {
+      parsed = await parseRequestBody(request);
+    } catch (error) {
+      if (error instanceof RangeError && error.message === "payload too large") return response({ error: "PAYLOAD_TOO_LARGE" }, 413);
+      if (error instanceof TypeError && error.message === "unsupported media type") return response({ error: "UNSUPPORTED_MEDIA_TYPE" }, 415);
+      return response({ error: "INVALID_REQUEST" }, 400);
+    }
+
     if (!isPlainRecord(parsed)) return response({ error: "INVALID_REQUEST" }, 400);
 
     const { request: executionRequest, contract } = parsed as Partial<{
       request: ExecutionRequest;
       contract: VersionedExecutionContract;
     }>;
+
     try {
       const plan = compileExecutionPlan(executionRequest as ExecutionRequest, contract as VersionedExecutionContract);
       if (plan.mode !== "WRITE") return response({ status: "COMPILED", plan });
       if (!isWritePayload(executionRequest?.payload)) return response({ error: "INVALID_REQUEST" }, 400);
-      if (!env?.W03 || typeof env.W03.fetch !== "function") return response({ error: "W03_UNAVAILABLE" }, 503);
+      if (!env?.W05 || typeof env.W05.fetch !== "function") return response({ error: "W05_UNAVAILABLE" }, 503);
+
       const writeRequest = toWriteRequest(executionRequest, contract as VersionedExecutionContract, plan, executionRequest.payload as Record<string, unknown>);
-      const upstream = await env.W03.fetch(new Request(new URL("/", request.url), {
+      const upstream = await env.W05.fetch(new Request(new URL("/v1/execute", request.url), {
         method: "POST",
-        headers: { "content-type": "application/json; charset=utf-8", "x-d1f-request-id": plan.requestId, "x-d1f-deadline-at": String(plan.deadlineAt) },
+        headers: {
+          "content-type": "application/json; charset=utf-8",
+          "x-d1f-request-id": plan.requestId,
+          "x-d1f-deadline-at": String(plan.deadlineAt),
+        },
         body: JSON.stringify(writeRequest),
       }));
       return new Response(upstream.body, { status: upstream.status, headers: upstream.headers });
     } catch (error) {
       if (error instanceof PlanCompileError) return response({ error: error.code }, 400);
-      if (error instanceof TypeError) return response({ error: "INVALID_REQUEST" }, 400);
-      return response({ error: "W03_UNAVAILABLE" }, 503);
+      if (error instanceof TypeError || error instanceof RangeError || error instanceof SyntaxError) return response({ error: "INVALID_REQUEST" }, 400);
+      return response({ error: "W05_UNAVAILABLE" }, 503);
     }
   },
 };
