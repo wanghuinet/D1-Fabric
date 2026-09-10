@@ -152,6 +152,7 @@ export async function runBounded<T, R>(
       }
     }
 
+    assertAdmissible(valid.deadlineAt, valid.signal);
     const state = Object.freeze({
       declaredFanout: valid.fanout,
       reservedFanout,
