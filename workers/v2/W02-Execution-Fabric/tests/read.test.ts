@@ -108,7 +108,7 @@ test("P07.1 rejects fenced and expired epochs", async () => {
 test("P07.1 rejects insufficient statement, row, and payload budgets", async () => {
   await assert.rejects(() => executeBoundedRead(makeInput({ cacheEntry: undefined, budget: { d1Statements: 0, rowsRead: 10, payloadBytes: 1024 } })), (e: unknown) => e instanceof ReadExecutionError && e.code === "BUDGET_INVALID");
   await assert.rejects(() => executeBoundedRead(makeInput({ cacheEntry: undefined, budget: { d1Statements: 1, rowsRead: 1, payloadBytes: 1024 } })), (e: unknown) => e instanceof ReadExecutionError && e.code === "BUDGET_EXCEEDED");
-  await assert.rejects(() => executeBoundedRead(makeInput({ cacheEntry: undefined, budget: { d1Statements: 1, rowsRead: 10, payloadBytes: 1 } })), (e: unknown) => executeBoundedRead(makeInput({ cacheEntry: undefined, budget: { d1Statements: 1, rowsRead: 10, payloadBytes: 1 } })), (e: unknown) => e instanceof ReadExecutionError && e.code === "BUDGET_EXCEEDED");
+  await assert.rejects(() => executeBoundedRead(makeInput({ cacheEntry: undefined, budget: { d1Statements: 1, rowsRead: 10, payloadBytes: 1 } })), (e: unknown) => e instanceof ReadExecutionError && e.code === "BUDGET_EXCEEDED");
 });
 
 test("P07.1 rejects expired deadline before D1 dispatch", async () => {
@@ -133,7 +133,8 @@ test("P07.1 rejects cross-tenant, cross-principal, cross-operation and version-m
 });
 
 test("P07.1 rejects tampered cache integrity", async () => {
-  await assert.rejects(() => executeBoundedRead(makeInput({ cacheEntry: cache([{ id: "cached" }], { integrity: "tampered" }) })), (e: unknown) => e instanceof ReadExecutionError && e.code === "CACHE_BINDING_INVALID");
+  const entry = cache([{ id: "cached" }]);
+  await assert.rejects(() => executeBoundedRead(makeInput({ cacheEntry: { ...entry, integrity: "tampered" } })), (e: unknown) => e instanceof ReadExecutionError && e.code === "CACHE_BINDING_INVALID");
 });
 
 test("P07.1 does not expose physical topology", async () => {
