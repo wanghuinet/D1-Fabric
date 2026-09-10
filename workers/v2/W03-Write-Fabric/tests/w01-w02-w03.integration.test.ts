@@ -91,7 +91,7 @@ test("W03 fails closed when W04 control-plane binding is absent", async () => {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ identity, operation: { statement: "UPDATE app_table SET value=? WHERE id=?", bindings: ["x", "1"], retryable: false } }),
     }),
-    { DB: new IntegrationDb() } as Parameters<typeof handleWrite>[1],
+    { DB: new IntegrationDb() } as unknown as Parameters<typeof handleWrite>[1],
   );
   assert.equal(response.status, 502);
   assert.equal((await response.json() as { code: string }).code, "D1_EXECUTION_FAILED");
