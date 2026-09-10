@@ -37,12 +37,14 @@ interface ShardRow {
   last_transition_timestamp: number;
 }
 
-interface HeadRow {
-  topology_version: number;
-}
+interface HeadRow { topology_version: number }
 
 export class D1AuthoritativeMetadataStore {
-  constructor(private readonly db: D1DatabaseLike) {}
+  private readonly db: D1DatabaseLike;
+
+  constructor(db: D1DatabaseLike) {
+    this.db = db;
+  }
 
   async readSnapshot(logicalDatabaseId: string, topologyVersion: number): Promise<MetadataSnapshot> {
     const head = await this.db.prepare(`
