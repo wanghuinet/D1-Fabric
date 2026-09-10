@@ -25,8 +25,8 @@ async function readBoundedBody(request: Request): Promise<string | Response> {
 
 export async function handleGateway(request: Request, env: { W02?: ServiceBinding }): Promise<Response> {
   if (request.method !== "POST") return jsonResponse({ error: "METHOD_NOT_ALLOWED" }, 405);
-  if (!env?.W02 || typeof env.W02.fetch !== "function") return jsonResponse({ error: "W02_UNAVAILABLE" }, 503);
   if (!JSON_CONTENT_TYPE.test(request.headers.get("content-type") ?? "")) return jsonResponse({ error: "UNSUPPORTED_MEDIA_TYPE" }, 415);
+  if (!env?.W02 || typeof env.W02.fetch !== "function") return jsonResponse({ error: "W02_UNAVAILABLE" }, 503);
 
   const body = await readBoundedBody(request);
   if (body instanceof Response) return body;
