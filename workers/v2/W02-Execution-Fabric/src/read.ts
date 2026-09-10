@@ -180,6 +180,14 @@ function serializedBytes(value: unknown): number {
   return new TextEncoder().encode(JSON.stringify(value)).byteLength;
 }
 
+function authoritativeRowsRead<T>(result: D1Result<T>): number {
+  const value = result.meta?.rows_read;
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
+    throw new ReadExecutionError("READ_EXECUTION_FAILED", "read execution metadata is invalid");
+  }
+  return value;
+}
+
 function accounting(requested: ReadBudget, d1: Readonly<{ reserved: number; consumed: number; released: number }>, rows: Readonly<{ reserved: number; consumed: number; released: number }>, payload: Readonly<{ reserved: number; consumed: number; released: number }>): ResourceAccounting {
   return Object.freeze({
     d1Statements: Object.freeze({ requested: requested.d1Statements, ...d1 }),
@@ -237,9 +245,10 @@ export async function executeBoundedRead<T = unknown>(input: ReadExecutionInput<
     throw new ReadExecutionError("READ_EXECUTION_FAILED", "read execution failed");
   }
 
-  const rowsRead = result.results.length;
+  const rowsRead = authoritativeRowsRead(result);
+  const responseItems = result.results.length;
   const payloadBytes = serializedBytes(result.results);
-  if (rowsRead > reservedRows || payloadBytes > reservedPayload) {
+  if (rowsRead > reservedRows || responseItems > reservedRows || payloadBytes > reservedPayload) {
     throw new ReadExecutionError("BUDGET_EXCEEDED", "read result exceeds budget");
   }
 
