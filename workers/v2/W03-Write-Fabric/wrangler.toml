@@ -7,3 +7,7 @@ binding = "DB"
 database_name = "d1-fabric-target"
 database_id = "00000000-0000-0000-0000-000000000000"
 migrations_dir = "migrations"
+
+[[services]]
+binding = "W04"
+service = "d1-fabric-w04-control-plane"
