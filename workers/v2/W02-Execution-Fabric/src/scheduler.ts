@@ -10,6 +10,7 @@ export type SchedulerState = Readonly<{
   consumedFanout: number;
   declaredConcurrency: number;
   reservedConcurrency: number;
+  maxReservedConcurrency: number;
   maxActive: number;
   completed: number;
 }>;
@@ -47,6 +48,7 @@ export function createSchedulerState(budget: SchedulerBudget): SchedulerState {
     consumedFanout: 0,
     declaredConcurrency: valid.concurrency,
     reservedConcurrency: 0,
+    maxReservedConcurrency: 0,
     maxActive: 0,
     completed: 0,
   });
@@ -71,6 +73,7 @@ export async function runBounded<T, R>(
   let completed = 0;
   let reservedFanout = 0;
   let maxActive = 0;
+  let maxReservedConcurrency = 0;
   const activePromises = new Set<Promise<number>>();
 
   const launch = (index: number): void => {
@@ -80,14 +83,24 @@ export async function runBounded<T, R>(
     reservedFanout += 1;
     active += 1;
     maxActive = Math.max(maxActive, active);
-    const operation = task(items[index], index).then((result) => {
-      results[index] = result;
-      completed += 1;
-      active -= 1;
-      return index;
-    });
+    maxReservedConcurrency = Math.max(maxReservedConcurrency, active);
+    const operation = task(items[index], index).then(
+      (result) => {
+        results[index] = result;
+        completed += 1;
+        active -= 1;
+        return index;
+      },
+      (error: unknown) => {
+        active -= 1;
+        throw error;
+      },
+    );
     activePromises.add(operation);
-    void operation.finally(() => activePromises.delete(operation));
+    void operation.then(
+      () => activePromises.delete(operation),
+      () => activePromises.delete(operation),
+    );
   };
 
   while (nextIndex < items.length && active < valid.concurrency) {
@@ -109,6 +122,7 @@ export async function runBounded<T, R>(
     consumedFanout: completed,
     declaredConcurrency: valid.concurrency,
     reservedConcurrency: 0,
+    maxReservedConcurrency,
     maxActive,
     completed,
   });
