@@ -22,11 +22,11 @@ class MockStatement implements PreparedStatementLike {
 class MockDb implements D1DatabaseLike {
   mutationRuns = 0;
   prepared: string[] = [];
-  private readonly committedKeys = new Set<string>();
+  protected readonly committedKeys = new Set<string>();
   prepare(sql: string): PreparedStatementLike { this.prepared.push(sql); return new MockStatement(sql, this); }
   async run(sql: string, values: D1Value[]): Promise<D1ResultLike> {
     if (sql.startsWith("SELECT state")) return { success: true, results: this.committedKeys.has(this.key(values)) ? [{ state: "COMMITTED", affected_rows: 1 }] : [] };
-    return { success: true, meta: { changes: sql.includes("UPDATE business") ? 1 : 0 } };
+    return { success: true, meta: { changes: sql.includes("UPDATE business") ? 1 : 0, rows_written: sql.includes("UPDATE business") ? 1 : 0 } };
   }
   async all<T = Record<string, unknown>>(sql: string, values: D1Value[]): Promise<{ results: T[] }> {
     if (sql.startsWith("SELECT state") && this.committedKeys.has(this.key(values))) return { results: [{ state: "COMMITTED", affected_rows: 1 } as T] };
@@ -34,6 +34,7 @@ class MockDb implements D1DatabaseLike {
   }
   async batch(statements: PreparedStatementLike[]): Promise<D1ResultLike[]> {
     this.mutationRuns += 1;
+    this.markCommitted("tenant-a", "principal-a", "write", "1", "idem-1");
     return statements.map((_, index) => index === 1 ? { success: true, meta: { changes: 1, rows_written: 1 } } : { success: true, meta: { changes: 1, rows_written: 1 } });
   }
   markCommitted(tenant: string, principal: string, operation: string, version: string, key: string): void { this.committedKeys.add([tenant, principal, operation, version, key].join("|")); }
@@ -86,14 +87,6 @@ test("retryable mutation refuses a budget below its five-statement admission", a
 
 test("retryable mutation commits through one D1 batch and is replayable", async () => {
   const db = new MockDb();
-  db.markCommitted = (tenant, principal, operation, version, key) => { db["committedKeys"].add([tenant, principal, operation, version, key].join("|")); };
-  const originalBatch = db.batch.bind(db);
-  const wrappedBatch = async (statements: PreparedStatementLike[]) => {
-    const result = await originalBatch(statements);
-    db.markCommitted("tenant-a", "principal-a", "write", "1", "idem-1");
-    return result;
-  };
-  db.batch = wrappedBatch;
   const first = await executeWrite(db, identity(), retryableOperation);
   assert.equal(first.status, "COMMITTED");
   assert.equal(first.affectedRows, 1);
