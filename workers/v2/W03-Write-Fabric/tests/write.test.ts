@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { executeWrite, WriteExecutionError, type D1DatabaseLike, type D1ResultLike, type PreparedStatementLike, type WriteIdentity } from "../src/write.js";
+import { executeWrite, WriteExecutionError, type D1DatabaseLike, type D1ResultLike, type PreparedStatementLike, type WriteIdentity, type D1Value } from "../src/write.ts";
 
 function identity(overrides: Partial<WriteIdentity> = {}): WriteIdentity {
   return {
@@ -13,10 +13,10 @@ function identity(overrides: Partial<WriteIdentity> = {}): WriteIdentity {
 }
 
 class MockStatement implements PreparedStatementLike {
-  constructor(private readonly sql: string, private readonly db: MockDb, private readonly values: unknown[] = []) {}
-  bind(...values: unknown[]): PreparedStatementLike { return new MockStatement(this.sql, this.db, values); }
+  constructor(private readonly sql: string, private readonly db: MockDb, private readonly values: D1Value[] = []) {}
+  bind(...values: D1Value[]): PreparedStatementLike { return new MockStatement(this.sql, this.db, values); }
   async run(): Promise<D1ResultLike> { return this.db.run(this.sql, this.values); }
-  async all<T = Record<string, unknown>>(): Promise<{ results: T[] }> { return this.db.all(this.sql, this.values) as { results: T[] }; }
+  async all<T = Record<string, unknown>>(): Promise<{ results: T[] }> { return this.db.all(this.sql) as { results: T[] }; }
 }
 
 class MockDb implements D1DatabaseLike {
@@ -24,7 +24,7 @@ class MockDb implements D1DatabaseLike {
   mutationRuns = 0;
   prepared: string[] = [];
   prepare(sql: string): PreparedStatementLike { this.prepared.push(sql); return new MockStatement(sql, this); }
-  async run(sql: string, values: unknown[]): Promise<D1ResultLike> {
+  async run(sql: string): Promise<D1ResultLike> {
     if (sql.startsWith("SELECT state")) return { success: true, results: this.committed ? [{ state: "COMMITTED", affected_rows: 1 }] : [] };
     return { success: true, meta: { changes: sql.includes("UPDATE business") ? 1 : 0 } };
   }
