@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { compileExecutionPlan, PlanCompileError, type BudgetLimits, type ExecutionRequest, type VersionedExecutionContract } from "../src/plan.ts";
+import { compileExecutionPlan, PlanCompileError, MASTER_CONTRACT_VERSION, type BudgetLimits, type ExecutionRequest, type VersionedExecutionContract } from "../src/plan.ts";
 
 const budget: BudgetLimits = {
   fanout: 4,
@@ -28,7 +28,7 @@ function makeRequest(overrides: Partial<ExecutionRequest> = {}): ExecutionReques
 function makeContract(overrides: Partial<VersionedExecutionContract> = {}): VersionedExecutionContract {
   return {
     contractId: "cap.content.list",
-    contractVersion: "1",
+    contractVersion: MASTER_CONTRACT_VERSION,
     operation: "content.list",
     operationVersion: "1",
     mode: "READ",
@@ -44,6 +44,7 @@ test("P04.1 compiles deterministically for identical validated identity", () => 
   assert.equal(a.planId, b.planId);
   assert.equal(a.routingResolved, false);
   assert.equal(a.routingRequired, true);
+  assert.equal(a.contractVersion, MASTER_CONTRACT_VERSION);
 });
 
 test("P04.1 rejects budget above contract ceiling", () => {
@@ -57,6 +58,13 @@ test("P04.1 rejects deadline above contract ceiling", () => {
   assert.throws(
     () => compileExecutionPlan(makeRequest({ deadlineAt: Date.now() + 30_000 }), makeContract({ maxDeadlineMs: 1000 })),
     (error: unknown) => error instanceof PlanCompileError && error.code === "DEADLINE_EXCEEDED",
+  );
+});
+
+test("P04.1 rejects master contract version drift", () => {
+  assert.throws(
+    () => compileExecutionPlan(makeRequest(), makeContract({ contractVersion: "D1F-OLD" })),
+    (error: unknown) => error instanceof PlanCompileError && error.code === "INVALID_CONTRACT",
   );
 });
 
