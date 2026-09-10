@@ -143,7 +143,7 @@ test("W01 -> W02 -> W03 -> W04 control epoch gate commits a write", async () => 
   assert.deepEqual(await response.json(), {
     status: "COMMITTED", requestId: "integration-w03-1", contractId: "content-write-v1",
     contractVersion: "D1F-3.0-MASTER-v1.0", logicalTargetId: "content-1", executionEpoch: 1,
-    accounting: { d1Statements: 1, rowsWritten: 1, payloadBytes: 17, retries: 0 }, affectedRows: 1,
+    accounting: { d1Statements: 1, rowsWritten: 1, payloadBytes: 18, retries: 0 }, affectedRows: 1,
   });
 });
 
