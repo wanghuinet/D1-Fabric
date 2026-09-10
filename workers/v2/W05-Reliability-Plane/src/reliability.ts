@@ -126,8 +126,11 @@ export class CircuitBreaker {
   private failures = 0;
   private openedAt = 0;
   private probes = 0;
+  private readonly policy: CircuitBreakerPolicy;
 
-  constructor(private readonly policy: CircuitBreakerPolicy) {}
+  constructor(policy: CircuitBreakerPolicy) {
+    this.policy = policy;
+  }
 
   stateAt(now: number): "closed" | "open" | "half_open" {
     if (this.state === "open" && now - this.openedAt >= this.policy.resetTimeoutMs) {
