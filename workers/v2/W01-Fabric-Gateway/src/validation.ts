@@ -1,50 +1,45 @@
 export const W01_LIMITS = Object.freeze({
   maxPayloadBytes: 1_048_576,
   maxDeadlineMs: 25_000,
-  maxFanout: 0,
-  maxConcurrency: 0,
-  maxD1Statements: 0,
-  maxRowsRead: 0,
-  maxRowsWritten: 0,
-  maxRetries: 0,
+  maxIdLength: 256,
+  maxScopeLength: 256,
 } as const);
 
-const MAX_ID_LENGTH = 128;
-const MAX_VERSION_LENGTH = 32;
-const MAX_AUTH_SCOPE_LENGTH = 256;
 const OPERATION_TOKEN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
-
-export type GatewayBudget = {
-  fanout: number;
-  concurrency: number;
-  d1Statements: number;
-  rowsRead: number;
-  rowsWritten: number;
-  retries: number;
-};
+const MASTER_CONTRACT_VERSION = "D1F-3.0-MASTER-v1.0";
+const ARCHITECTURE_ID = "D1F-3.0-ARCH-v1.0";
 
 export type GatewayRequest = {
-  requestId: string;
-  tenantId: string;
-  principalScope: string;
-  operation: string;
-  operationVersion: string;
-  deadlineAt: number;
-  budget: GatewayBudget;
-  payload: unknown;
+  readonly requestId: string;
+  readonly tenantId: string;
+  readonly principalScope: string;
+  readonly operation: string;
+  readonly operationVersion: string;
+  readonly deadlineAt: number;
+  readonly budget: Record<string, unknown>;
+  readonly payload?: unknown;
 };
 
-export type ValidationFailureCode =
-  | "INVALID_REQUEST"
-  | "INVALID_BUDGET"
-  | "BUDGET_EXCEEDED"
-  | "INVALID_DEADLINE"
-  | "PAYLOAD_TOO_LARGE";
+export type GatewayContract = {
+  readonly contractId: string;
+  readonly contractVersion: string;
+  readonly operation: string;
+  readonly operationVersion: string;
+  readonly mode: "READ" | "WRITE";
+  readonly maxDeadlineMs: number;
+  readonly limits: Record<string, unknown>;
+};
+
+export type GatewayEnvelope = Readonly<{
+  request: GatewayRequest;
+  contract: GatewayContract;
+}>;
+
+export type ValidationFailureCode = "INVALID_REQUEST" | "INVALID_CONTRACT" | "INVALID_DEADLINE" | "PAYLOAD_TOO_LARGE";
 
 export class ValidationError extends Error {
   readonly code: ValidationFailureCode;
   readonly status: 400 | 413;
-
   constructor(code: ValidationFailureCode, message: string, status: 400 | 413 = 400) {
     super(message);
     this.name = "ValidationError";
@@ -53,63 +48,57 @@ export class ValidationError extends Error {
   }
 }
 
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+function record(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function requiredString(value: unknown, field: string, maxLength: number): string {
-  if (typeof value !== "string" || value.length === 0 || value.length > maxLength) {
-    throw new ValidationError("INVALID_REQUEST", `${field} is invalid`);
-  }
+function stringField(value: unknown, field: string, max: number): string {
+  if (typeof value !== "string" || value.length === 0 || value.length > max) throw new ValidationError("INVALID_REQUEST", `${field} is invalid`);
   return value;
 }
 
-function requiredToken(value: unknown, field: string, maxLength: number): string {
-  const result = requiredString(value, field, maxLength);
+function token(value: unknown, field: string): string {
+  const result = stringField(value, field, W01_LIMITS.maxIdLength);
   if (!OPERATION_TOKEN.test(result)) throw new ValidationError("INVALID_REQUEST", `${field} is invalid`);
   return result;
 }
 
-function nonNegativeInteger(value: unknown, field: string): number {
-  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
-    throw new ValidationError("INVALID_BUDGET", `${field} is invalid`);
-  }
-  return value;
-}
+export function parseGatewayEnvelope(raw: unknown, nowMs: number): GatewayEnvelope {
+  if (!record(raw) || !record(raw.request) || !record(raw.contract)) throw new ValidationError("INVALID_REQUEST", "request and contract are required");
+  const request = raw.request;
+  const contract = raw.contract;
 
-export function parseAndValidateBody(raw: unknown, nowMs: number): GatewayRequest {
-  if (!isPlainRecord(raw)) throw new ValidationError("INVALID_REQUEST", "request body must be an object");
-  const requestId = requiredString(raw.requestId, "requestId", MAX_ID_LENGTH);
-  const tenantId = requiredString(raw.tenantId, "tenantId", MAX_ID_LENGTH);
-  const principalScope = requiredString(raw.principalScope, "principalScope", MAX_AUTH_SCOPE_LENGTH);
-  const operation = requiredToken(raw.operation, "operation", MAX_ID_LENGTH);
-  const operationVersion = requiredToken(raw.operationVersion, "operationVersion", MAX_VERSION_LENGTH);
-
-  if (typeof raw.deadlineAt !== "number" || !Number.isSafeInteger(raw.deadlineAt)) {
-    throw new ValidationError("INVALID_DEADLINE", "deadlineAt is invalid");
-  }
-  if (raw.deadlineAt <= nowMs || raw.deadlineAt > nowMs + W01_LIMITS.maxDeadlineMs) {
-    throw new ValidationError("INVALID_DEADLINE", "deadlineAt is outside the allowed window");
-  }
-
-  if (!isPlainRecord(raw.budget)) throw new ValidationError("INVALID_BUDGET", "budget is required");
-  const budget: GatewayBudget = {
-    fanout: nonNegativeInteger(raw.budget.fanout, "fanout"),
-    concurrency: nonNegativeInteger(raw.budget.concurrency, "concurrency"),
-    d1Statements: nonNegativeInteger(raw.budget.d1Statements, "d1Statements"),
-    rowsRead: nonNegativeInteger(raw.budget.rowsRead, "rowsRead"),
-    rowsWritten: nonNegativeInteger(raw.budget.rowsWritten, "rowsWritten"),
-    retries: nonNegativeInteger(raw.budget.retries, "retries"),
+  const normalizedRequest: GatewayRequest = {
+    requestId: stringField(request.requestId, "requestId", W01_LIMITS.maxIdLength),
+    tenantId: stringField(request.tenantId, "tenantId", W01_LIMITS.maxIdLength),
+    principalScope: stringField(request.principalScope, "principalScope", W01_LIMITS.maxScopeLength),
+    operation: token(request.operation, "operation"),
+    operationVersion: token(request.operationVersion, "operationVersion"),
+    deadlineAt: request.deadlineAt as number,
+    budget: request.budget as Record<string, unknown>,
+    payload: request.payload,
   };
+  if (!Number.isSafeInteger(normalizedRequest.deadlineAt) || normalizedRequest.deadlineAt <= nowMs) throw new ValidationError("INVALID_DEADLINE", "deadlineAt is invalid");
+  if (normalizedRequest.deadlineAt > nowMs + W01_LIMITS.maxDeadlineMs) throw new ValidationError("INVALID_DEADLINE", "deadlineAt exceeds gateway ceiling");
+  if (!record(normalizedRequest.budget)) throw new ValidationError("INVALID_REQUEST", "budget is invalid");
 
-  for (const [key, value] of Object.entries(W01_LIMITS)) {
-    if (key === "maxPayloadBytes" || key === "maxDeadlineMs") continue;
-    const budgetKey = key.replace(/^max/, "");
-    const normalizedKey = budgetKey.charAt(0).toLowerCase() + budgetKey.slice(1);
-    if (value === 0 && budget[normalizedKey as keyof GatewayBudget] !== 0) {
-      throw new ValidationError("BUDGET_EXCEEDED", `${normalizedKey} exceeds W01 admission envelope`);
-    }
+  if (contract.contractVersion !== MASTER_CONTRACT_VERSION || contract.mode !== "READ" && contract.mode !== "WRITE") {
+    throw new ValidationError("INVALID_CONTRACT", "execution contract is invalid");
   }
+  const normalizedContract: GatewayContract = {
+    contractId: stringField(contract.contractId, "contractId", W01_LIMITS.maxIdLength),
+    contractVersion: stringField(contract.contractVersion, "contractVersion", W01_LIMITS.maxIdLength),
+    operation: token(contract.operation, "contract.operation"),
+    operationVersion: token(contract.operationVersion, "contract.operationVersion"),
+    mode: contract.mode,
+    maxDeadlineMs: contract.maxDeadlineMs as number,
+    limits: contract.limits as Record<string, unknown>,
+  };
+  if (normalizedContract.operation !== normalizedRequest.operation || normalizedContract.operationVersion !== normalizedRequest.operationVersion) throw new ValidationError("INVALID_CONTRACT", "request and contract operation mismatch");
+  if (!Number.isSafeInteger(normalizedContract.maxDeadlineMs) || normalizedContract.maxDeadlineMs < 0 || !record(normalizedContract.limits)) throw new ValidationError("INVALID_CONTRACT", "contract limits are invalid");
+  if (normalizedContract.maxDeadlineMs > W01_LIMITS.maxDeadlineMs) throw new ValidationError("INVALID_CONTRACT", "contract deadline exceeds gateway ceiling");
 
-  return { requestId, tenantId, principalScope, operation, operationVersion, deadlineAt: raw.deadlineAt, budget, payload: raw.payload };
+  return Object.freeze({ request: normalizedRequest, contract: normalizedContract });
 }
+
+export { ARCHITECTURE_ID, MASTER_CONTRACT_VERSION };
