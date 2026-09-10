@@ -23,6 +23,7 @@ function isWritePayload(value: unknown): value is {
   write: {
     logicalTargetId: string;
     executionEpoch: number;
+    topologyVersion: number;
     operation: Record<string, unknown>;
   };
 } {
@@ -30,6 +31,7 @@ function isWritePayload(value: unknown): value is {
   const write = value.write;
   return typeof write.logicalTargetId === "string" && write.logicalTargetId.length > 0 &&
     Number.isSafeInteger(write.executionEpoch) && (write.executionEpoch as number) > 0 &&
+    Number.isSafeInteger(write.topologyVersion) && (write.topologyVersion as number) > 0 &&
     isPlainRecord(write.operation);
 }
 
@@ -52,6 +54,7 @@ function toWriteRequest(
       operation: plan.operation,
       operationVersion: plan.operationVersion,
       logicalTargetId: write.logicalTargetId,
+      topologyVersion: write.topologyVersion,
       executionEpoch: write.executionEpoch,
       deadlineAt: plan.deadlineAt,
       budget: {
@@ -110,7 +113,7 @@ export default {
     try {
       const plan = compileExecutionPlan(executionRequest as ExecutionRequest, contract as VersionedExecutionContract);
       if (plan.mode !== "WRITE") return response({ status: "COMPILED", plan });
-      if (!isWritePayload(executionRequest?.payload)) return response({ error: "INVALID_REQUEST" }, 400);
+      if (!isWritePayload(executionRequest?.payload)) return response({ error: "ROUTING_REQUIRED" }, 400);
       if (!env?.W05 || typeof env.W05.fetch !== "function") return response({ error: "W05_UNAVAILABLE" }, 503);
 
       const writeRequest = toWriteRequest(executionRequest, contract as VersionedExecutionContract, plan, executionRequest.payload as Record<string, unknown>);
