@@ -98,5 +98,6 @@ test("half-open probe failure immediately reopens the circuit", () => {
   assert.equal(breaker.allow(100), true);
   breaker.recordFailure(100);
   assert.equal(breaker.allow(100), false);
-  assert.equal(breaker.stateAt(200), "open");
+  assert.equal(breaker.stateAt(199), "open");
+  assert.equal(breaker.stateAt(200), "half_open");
 });
