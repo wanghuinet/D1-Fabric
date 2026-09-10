@@ -1,5 +1,3 @@
-import type { BudgetLimits } from "../../contracts/index.ts";
-
 export const W01_LIMITS = Object.freeze({
   maxPayloadBytes: 1_048_576,
   maxDeadlineMs: 25_000,
@@ -16,7 +14,14 @@ const MAX_VERSION_LENGTH = 32;
 const MAX_AUTH_SCOPE_LENGTH = 256;
 const OPERATION_TOKEN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 
-export type GatewayBudget = Omit<BudgetLimits, "payloadBytes">;
+export type GatewayBudget = {
+  fanout: number;
+  concurrency: number;
+  d1Statements: number;
+  rowsRead: number;
+  rowsWritten: number;
+  retries: number;
+};
 
 export type GatewayRequest = {
   requestId: string;
@@ -61,9 +66,7 @@ function requiredString(value: unknown, field: string, maxLength: number): strin
 
 function requiredToken(value: unknown, field: string, maxLength: number): string {
   const result = requiredString(value, field, maxLength);
-  if (!OPERATION_TOKEN.test(result)) {
-    throw new ValidationError("INVALID_REQUEST", `${field} is invalid`);
-  }
+  if (!OPERATION_TOKEN.test(result)) throw new ValidationError("INVALID_REQUEST", `${field} is invalid`);
   return result;
 }
 
@@ -75,28 +78,21 @@ function nonNegativeInteger(value: unknown, field: string): number {
 }
 
 export function parseAndValidateBody(raw: unknown, nowMs: number): GatewayRequest {
-  if (!isPlainRecord(raw)) {
-    throw new ValidationError("INVALID_REQUEST", "request body must be an object");
-  }
-
+  if (!isPlainRecord(raw)) throw new ValidationError("INVALID_REQUEST", "request body must be an object");
   const requestId = requiredString(raw.requestId, "requestId", MAX_ID_LENGTH);
   const tenantId = requiredString(raw.tenantId, "tenantId", MAX_ID_LENGTH);
   const principalScope = requiredString(raw.principalScope, "principalScope", MAX_AUTH_SCOPE_LENGTH);
   const operation = requiredToken(raw.operation, "operation", MAX_ID_LENGTH);
   const operationVersion = requiredToken(raw.operationVersion, "operationVersion", MAX_VERSION_LENGTH);
 
-  const deadlineAt = raw.deadlineAt;
-  if (typeof deadlineAt !== "number" || !Number.isSafeInteger(deadlineAt)) {
+  if (typeof raw.deadlineAt !== "number" || !Number.isSafeInteger(raw.deadlineAt)) {
     throw new ValidationError("INVALID_DEADLINE", "deadlineAt is invalid");
   }
-  if (deadlineAt <= nowMs || deadlineAt > nowMs + W01_LIMITS.maxDeadlineMs) {
+  if (raw.deadlineAt <= nowMs || raw.deadlineAt > nowMs + W01_LIMITS.maxDeadlineMs) {
     throw new ValidationError("INVALID_DEADLINE", "deadlineAt is outside the allowed window");
   }
 
-  if (!isPlainRecord(raw.budget)) {
-    throw new ValidationError("INVALID_BUDGET", "budget is required");
-  }
-
+  if (!isPlainRecord(raw.budget)) throw new ValidationError("INVALID_BUDGET", "budget is required");
   const budget: GatewayBudget = {
     fanout: nonNegativeInteger(raw.budget.fanout, "fanout"),
     concurrency: nonNegativeInteger(raw.budget.concurrency, "concurrency"),
@@ -115,14 +111,5 @@ export function parseAndValidateBody(raw: unknown, nowMs: number): GatewayReques
     }
   }
 
-  return {
-    requestId,
-    tenantId,
-    principalScope,
-    operation,
-    operationVersion,
-    deadlineAt,
-    budget,
-    payload: raw.payload,
-  };
+  return { requestId, tenantId, principalScope, operation, operationVersion, deadlineAt: raw.deadlineAt, budget, payload: raw.payload };
 }
