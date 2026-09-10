@@ -7,7 +7,8 @@ function identity(overrides: Partial<WriteIdentity> = {}): WriteIdentity {
     requestId: "req-1", planId: "plan-1", contractId: "D1F-W03-WRITE-FABRIC-v1.0",
     contractVersion: "D1F-3.0-MASTER-v1.0", architectureId: "D1F-3.0-ARCH-v1.0",
     tenantId: "tenant-a", principalScope: "principal-a", operation: "write", operationVersion: "1",
-    logicalTargetId: "logical-1", topologyVersion: 7, executionEpoch: 1, deadlineAt: Date.now() + 10_000,
+    logicalDatabaseId: "db-1", logicalShardId: "shard-1", logicalTargetId: "logical-1", physicalShardId: "physical-1",
+    topologyVersion: 7, executionEpoch: 1, deadlineAt: Date.now() + 10_000,
     budget: { d1Statements: 8, rowsWritten: 10, payloadBytes: 4096, retries: 2 }, ...overrides,
   };
 }
@@ -79,6 +80,7 @@ test("valid single-target write succeeds", async () => {
   const result = await executeWrite(db, identity(), { statement: "UPDATE business SET value=? WHERE id=?", bindings: ["x", "1"], retryable: false });
   assert.equal(result.status, "COMMITTED");
   assert.equal(result.affectedRows, 1);
+  assert.equal(result.physicalShardId, "physical-1");
   assert.equal(result.topologyVersion, 7);
   assert.equal(result.accounting.d1Statements, 1);
 });
@@ -130,12 +132,14 @@ test("retryable mutation commits through one D1 batch and is replayable", async 
   const first = await executeWrite(db, identity(), retryableOperation);
   assert.equal(first.status, "COMMITTED");
   assert.equal(first.affectedRows, 1);
+  assert.equal(first.physicalShardId, "physical-1");
   assert.equal(first.topologyVersion, 7);
   assert.equal(first.accounting.d1Statements, 5);
   assert.equal(db.mutationRuns, 1);
   const second = await executeWrite(db, identity({ requestId: "req-2" }), retryableOperation);
   assert.equal(second.status, "REPLAYED");
   assert.equal(second.affectedRows, 1);
+  assert.equal(second.physicalShardId, "physical-1");
   assert.equal(second.topologyVersion, 7);
   assert.equal(second.accounting.d1Statements, 1);
   assert.equal(db.mutationRuns, 1);
