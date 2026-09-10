@@ -14,7 +14,6 @@ test("P06.1 bounds active work by concurrency", async () => {
     active -= 1;
     return item * 2;
   });
-
   assert.deepEqual(result.results, [0, 2, 4, 6, 8]);
   assert.equal(maxActive, 2);
   assert.equal(result.state.maxActive, 2);
@@ -24,49 +23,59 @@ test("P06.1 bounds active work by concurrency", async () => {
 
 test("P06.1 rejects work above fanout before execution", async () => {
   let called = 0;
-  await assert.rejects(
-    () => runBounded([1, 2, 3], { fanout: 2, concurrency: 2, deadlineAt: Date.now() + 5000 }, async (item) => {
-      called += 1;
-      return item;
-    }),
-    (error: unknown) => error instanceof SchedulerError && error.code === "FANOUT_EXCEEDED",
-  );
+  await assert.rejects(() => runBounded([1, 2, 3], { fanout: 2, concurrency: 2, deadlineAt: Date.now() + 5000 }, async (item) => { called += 1; return item; }), (error: unknown) => error instanceof SchedulerError && error.code === "FANOUT_EXCEEDED");
   assert.equal(called, 0);
 });
 
 test("P06.1 rejects expired deadline before execution", async () => {
   let called = 0;
-  await assert.rejects(
-    () => runBounded([1], { fanout: 1, concurrency: 1, deadlineAt: Date.now() - 1 }, async (item) => {
-      called += 1;
-      return item;
-    }),
-    (error: unknown) => error instanceof SchedulerError && error.code === "DEADLINE_EXCEEDED",
-  );
+  await assert.rejects(() => runBounded([1], { fanout: 1, concurrency: 1, deadlineAt: Date.now() - 1 }, async (item) => { called += 1; return item; }), (error: unknown) => error instanceof SchedulerError && error.code === "DEADLINE_EXCEEDED");
   assert.equal(called, 0);
 });
 
 test("P06.1 preserves source order in results", async () => {
-  const result = await runBounded([0, 1, 2], { fanout: 3, concurrency: 3, deadlineAt: Date.now() + 5000 }, async (item) => {
-    await wait((2 - item) * 3);
-    return `r${item}`;
-  });
+  const result = await runBounded([0, 1, 2], { fanout: 3, concurrency: 3, deadlineAt: Date.now() + 5000 }, async (item) => { await wait((2 - item) * 3); return `r${item}`; });
   assert.deepEqual(result.results, ["r0", "r1", "r2"]);
 });
 
 test("P06.1 propagates task failure without retry", async () => {
   let attempts = 0;
-  await assert.rejects(
-    () => runBounded([1], { fanout: 1, concurrency: 1, deadlineAt: Date.now() + 5000 }, async () => {
-      attempts += 1;
-      throw new Error("downstream-failure");
-    }),
-    /downstream-failure/,
-  );
+  await assert.rejects(() => runBounded([1], { fanout: 1, concurrency: 1, deadlineAt: Date.now() + 5000 }, async () => { attempts += 1; throw new Error("downstream-failure"); }), /downstream-failure/);
   assert.equal(attempts, 1);
 });
 
 test("P06.1 rejects invalid scheduler budget", () => {
   assert.throws(() => createSchedulerState({ fanout: 0, concurrency: 1, deadlineAt: Date.now() + 1000 }), (error: unknown) => error instanceof SchedulerError && error.code === "INVALID_SCHEDULER_BUDGET");
   assert.throws(() => createSchedulerState({ fanout: 2, concurrency: 0, deadlineAt: Date.now() + 1000 }), (error: unknown) => error instanceof SchedulerError && error.code === "INVALID_SCHEDULER_BUDGET");
+});
+
+test("P06.2 failure settles already-admitted work before returning", async () => {
+  const started: number[] = [];
+  let settled = 0;
+  await assert.rejects(
+    () => runBounded([0, 1, 2, 3], { fanout: 4, concurrency: 2, deadlineAt: Date.now() + 5000 }, async (item) => {
+      started.push(item);
+      await wait(item === 0 ? 2 : 15);
+      settled += 1;
+      if (item === 0) throw new Error("contained-failure");
+      return item;
+    }),
+    /contained-failure/,
+  );
+  assert.deepEqual(started, [0, 1]);
+  assert.equal(settled, 2);
+});
+
+test("P06.2 failure admits no new work after terminal failure", async () => {
+  const started: number[] = [];
+  await assert.rejects(
+    () => runBounded([0, 1, 2, 3], { fanout: 4, concurrency: 2, deadlineAt: Date.now() + 5000 }, async (item) => {
+      started.push(item);
+      if (item === 0) { await wait(2); throw new Error("stop"); }
+      await wait(20);
+      return item;
+    }),
+    /stop/,
+  );
+  assert.deepEqual(started, [0, 1]);
 });
