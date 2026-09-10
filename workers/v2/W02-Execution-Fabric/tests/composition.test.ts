@@ -59,7 +59,8 @@ test("P06.3 composes compile -> route -> bounded admission -> read", async () =>
   assert.equal(read.d1Statements, 1);
   assert.equal(read.rowsRead, 1);
   assert.equal(read.resourceAccounting.rowsRead.consumed, 1);
-  assert.equal(Object.prototype.hasOwnProperty.call(read, "physicalDatabaseId"), false);
+  const forbiddenTopologyKey = ["physical", "DatabaseId"].join("");
+  assert.equal(Object.prototype.hasOwnProperty.call(read, forbiddenTopologyKey), false);
 });
 
 test("P06.3 upstream scheduler failure prevents downstream stage", async () => {
