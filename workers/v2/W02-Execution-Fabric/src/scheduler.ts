@@ -110,12 +110,19 @@ export async function runBounded<T, R>(
     nextIndex += 1;
   }
 
-  while (activePromises.size > 0) {
-    await Promise.race(activePromises);
-    while (nextIndex < items.length && active < valid.concurrency) {
-      launch(nextIndex);
-      nextIndex += 1;
+  try {
+    while (activePromises.size > 0) {
+      await Promise.race(activePromises);
+      while (nextIndex < items.length && active < valid.concurrency) {
+        launch(nextIndex);
+        nextIndex += 1;
+      }
     }
+  } catch (error: unknown) {
+    // No new admissions are permitted after terminal failure. The already-admitted
+    // set is bounded by concurrency, so settling it is itself bounded work.
+    await Promise.allSettled([...activePromises]);
+    throw error;
   }
 
   const state = Object.freeze({
