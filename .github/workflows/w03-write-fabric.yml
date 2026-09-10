@@ -29,5 +29,5 @@ jobs:
       - run: npm run dry-run
       - name: Verify W03 boundary
         run: |
-          ! grep -R -n -E 'from ["'"']\.\./W0[1-2]|from ["'"']\.\./\.\./W0[1-2]|wrangler d1 execute|--d1|D1_DATABASE|D1_BINDING|env\.W02|env\.W04' src
+          ! grep -R -n -E 'from .*W0[1-2]|wrangler d1 execute|--d1|D1_DATABASE|D1_BINDING|env\.W02|env\.W04' src
           ! grep -R -n -E 'article|comment|feed|gallery|question|business logic|content platform' src
