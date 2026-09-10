@@ -1,5 +1,6 @@
 import {
   CircuitBreaker,
+  ReliabilityError,
   classifyFailure,
   executeReliably,
   retryDelayMs,
@@ -10,7 +11,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 const policy: ReliabilityPolicy = {
-  retry: { maxAttempts: 3, baseDelayMs: 10, maxDelayMs: 100, jitterRatio: 0, retryWrites: true },
+  retry: { maxAttempts: 3, maxElapsedMs: 5000, baseDelayMs: 10, maxDelayMs: 100, jitterRatio: 0, retryWrites: true },
   timeout: { timeoutMs: 50 },
   circuit: { failureThreshold: 2, resetTimeoutMs: 1000, halfOpenMaxProbes: 1 },
 };
@@ -24,7 +25,7 @@ test("classifies transient D1/network failures as retryable", () => {
 test("retry delay is bounded and exponential", () => {
   assert.equal(retryDelayMs(policy.retry, 1, () => 0.5), 10);
   assert.equal(retryDelayMs(policy.retry, 2, () => 0.5), 20);
-  assert.equal(retryDelayMs(policy.retry, 10, () => 0.5), 100);
+  assert.equal(retryDelayMs(policy.retry, Number.MAX_SAFE_INTEGER, () => 0.5), 100);
 });
 
 test("non-idempotent writes never retry", async () => {
@@ -88,5 +89,34 @@ test("timeout is surfaced as a typed reliability failure", async () => {
       sleep: async () => undefined,
     }),
     (error: unknown) => error instanceof Error && error.name === "ReliabilityError" && "failure" in error,
+  );
+});
+
+test("retry budget stops before another attempt when remaining time is insufficient", async () => {
+  let nowValue = 1000;
+  let calls = 0;
+  await assert.rejects(
+    executeReliably(async () => {
+      calls += 1;
+      nowValue += 40;
+      throw new Error("Network connection lost");
+    }, {
+      policy: { ...policy, retry: { ...policy.retry, maxElapsedMs: 50, baseDelayMs: 20, maxDelayMs: 20 } },
+      operation: { kind: "read", idempotent: true, target: "db-1" },
+      now: () => nowValue,
+      sleep: async () => undefined,
+    }),
+    (error: unknown) => error instanceof ReliabilityError && error.code === "RETRY_BUDGET_EXCEEDED" && error.attempts === 1,
+  );
+  assert.equal(calls, 1);
+});
+
+test("invalid reliability policy is rejected before execution", async () => {
+  await assert.rejects(
+    executeReliably(async () => "never", {
+      policy: { ...policy, retry: { ...policy.retry, maxElapsedMs: 0 } },
+      operation: { kind: "read", idempotent: true, target: "db-1" },
+    }),
+    (error: unknown) => error instanceof ReliabilityError && error.code === "INVALID_POLICY",
   );
 });
