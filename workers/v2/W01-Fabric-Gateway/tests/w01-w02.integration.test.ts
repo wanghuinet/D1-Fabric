@@ -9,7 +9,7 @@ function envelope() {
     request: {
       requestId: "integration-1", tenantId: "tenant-1", principalScope: "scope-1",
       operation: "query.read", operationVersion: "1", deadlineAt: Date.now() + 5_000,
-      budget: { fanout: 0, concurrency: 0, d1Statements: 0, rowsRead: 0, rowsWritten: 0, retries: 0 }, payload: { query: "bounded" },
+      budget: { fanout: 0, concurrency: 0, d1Statements: 0, rowsRead: 0, rowsWritten: 0, retries: 0, payloadBytes: 128 }, payload: { query: "bounded" },
     },
     contract: {
       contractId: "query-read-v1", contractVersion: "D1F-3.0-MASTER-v1.0", operation: "query.read", operationVersion: "1", mode: "READ", maxDeadlineMs: 25_000,
@@ -18,9 +18,7 @@ function envelope() {
   };
 }
 
-const binding: ServiceBinding = {
-  fetch: (request) => w02.fetch(request),
-};
+const binding: ServiceBinding = { fetch: (request) => w02.fetch(request) };
 
 test("W01 forwards a valid contract and W02 compiles it", async () => {
   const response = await gateway.fetch(new Request("https://gateway.invalid/", {
