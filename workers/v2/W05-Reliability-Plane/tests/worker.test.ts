@@ -1,0 +1,30 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import worker from "../src/index.ts";
+
+test("health endpoint is deterministic and dependency-free", async () => {
+  const response = await worker.fetch(new Request("https://w05.internal/health"));
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    service: "d1-fabric-w05-reliability-plane",
+    status: "ok",
+  });
+});
+
+test("ready endpoint reports readiness without touching business dependencies", async () => {
+  const response = await worker.fetch(new Request("https://w05.internal/ready"));
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    service: "d1-fabric-w05-reliability-plane",
+    ready: true,
+  });
+});
+
+test("unknown routes fail closed", async () => {
+  const response = await worker.fetch(new Request("https://w05.internal/private"));
+  assert.equal(response.status, 404);
+  assert.deepEqual(await response.json(), {
+    error: "NOT_FOUND",
+    service: "d1-fabric-w05-reliability-plane",
+  });
+});
