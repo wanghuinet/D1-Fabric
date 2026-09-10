@@ -220,6 +220,50 @@ test("executeReliably propagates abort to timed-out attempts", async () => {
   assert.equal(signals[0].aborted, true);
 });
 
+test("caller cancellation aborts the active attempt and does not retry", async () => {
+  const controller = new AbortController();
+  const signals: AbortSignal[] = [];
+  let calls = 0;
+  const execution = executeReliably((signal) => {
+    calls += 1;
+    signals.push(signal);
+    return new Promise<string>(() => undefined);
+  }, {
+    policy: { ...policy, retry: { ...policy.retry, maxAttempts: 3 } },
+    operation: { kind: "write", idempotent: true, target: "db-1" },
+    signal: controller.signal,
+    sleep: async () => undefined,
+  });
+
+  await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  controller.abort("client disconnected");
+  await assert.rejects(
+    execution,
+    (error: unknown) => error instanceof ReliabilityError && error.code === "CANCELLED" && error.attempts === 1,
+  );
+  assert.equal(calls, 1);
+  assert.equal(signals.length, 1);
+  assert.equal(signals[0].aborted, true);
+});
+
+test("already-cancelled caller never starts an attempt", async () => {
+  const controller = new AbortController();
+  controller.abort();
+  let calls = 0;
+  await assert.rejects(
+    executeReliably(async () => {
+      calls += 1;
+      return "never";
+    }, {
+      policy,
+      operation: { kind: "read", idempotent: true, target: "db-1" },
+      signal: controller.signal,
+    }),
+    (error: unknown) => error instanceof ReliabilityError && error.code === "CANCELLED" && error.attempts === 0,
+  );
+  assert.equal(calls, 0);
+});
+
 test("timeout is surfaced as a typed reliability failure", async () => {
   await assert.rejects(
     executeReliably(() => new Promise<string>((resolve) => setTimeout(() => resolve("late"), 100)), {
