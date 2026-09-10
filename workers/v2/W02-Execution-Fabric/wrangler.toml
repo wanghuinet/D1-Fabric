@@ -3,8 +3,8 @@ main = "src/index.ts"
 compatibility_date = "2026-09-10"
 
 [[services]]
-binding = "W03"
-service = "w03-write-fabric"
+binding = "W05"
+service = "d1-fabric-w05-reliability-plane"
 
 [observability]
 enabled = false
