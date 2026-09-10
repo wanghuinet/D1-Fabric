@@ -159,6 +159,9 @@ async function expectedCacheIntegrity(input: ReadExecutionInput<unknown>, entry:
 
 async function validateCache<T>(input: ReadExecutionInput<T>, entry: CacheEntry): Promise<boolean> {
   if (!input.cachePolicy.cacheAllowed || !input.cachePolicy.cacheTermination) return false;
+  if (input.cachePolicy.contractVersion !== input.contractVersion || input.cachePolicy.shapeVersion !== input.shapeVersion) {
+    throw new ReadExecutionError("CACHE_BINDING_INVALID", "cache policy version binding is invalid");
+  }
   if (entry.tenantId !== input.tenantId || entry.principalScope !== input.principalScope) {
     throw new ReadExecutionError("CACHE_BINDING_INVALID", "cache security binding is invalid");
   }
