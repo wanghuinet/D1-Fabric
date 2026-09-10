@@ -1,22 +1,24 @@
-name: W01 W02 Full Regression
+name: W01 W02 W03 Full Regression
 
 on:
   push:
     paths:
       - "workers/v2/W01-Fabric-Gateway/**"
       - "workers/v2/W02-Execution-Fabric/**"
+      - "workers/v2/W03-Write-Fabric/**"
       - ".github/workflows/w01-w02-regression.yml"
   pull_request:
     paths:
       - "workers/v2/W01-Fabric-Gateway/**"
       - "workers/v2/W02-Execution-Fabric/**"
+      - "workers/v2/W03-Write-Fabric/**"
       - ".github/workflows/w01-w02-regression.yml"
   workflow_dispatch:
 
 jobs:
   regression:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout exact commit
         uses: actions/checkout@v4
@@ -29,6 +31,7 @@ jobs:
           cache-dependency-path: |
             workers/v2/W01-Fabric-Gateway/package-lock.json
             workers/v2/W02-Execution-Fabric/package-lock.json
+            workers/v2/W03-Write-Fabric/package-lock.json
 
       - name: W01 npm ci
         working-directory: workers/v2/W01-Fabric-Gateway
@@ -36,6 +39,10 @@ jobs:
 
       - name: W02 npm ci
         working-directory: workers/v2/W02-Execution-Fabric
+        run: npm ci
+
+      - name: W03 npm ci
+        working-directory: workers/v2/W03-Write-Fabric
         run: npm ci
 
       - name: W01 typecheck
@@ -62,13 +69,29 @@ jobs:
         working-directory: workers/v2/W02-Execution-Fabric
         run: npm run dry-run
 
+      - name: W03 typecheck
+        working-directory: workers/v2/W03-Write-Fabric
+        run: npm run typecheck
+
+      - name: W03 tests
+        working-directory: workers/v2/W03-Write-Fabric
+        run: npm test
+
+      - name: W03 dry-run
+        working-directory: workers/v2/W03-Write-Fabric
+        run: npm run dry-run
+
       - name: W01 to W02 contract regression
         working-directory: workers/v2/W01-Fabric-Gateway
         run: node --experimental-strip-types --test tests/w01-w02.integration.test.ts
 
+      - name: W01 to W02 to W03 write integration
+        working-directory: workers/v2/W01-Fabric-Gateway
+        run: node --experimental-strip-types --test tests/w01-w03.integration.test.ts
+
       - name: Emit exact verification marker
         run: |
-          echo "W01_W02_FULL_REGRESSION=PASS"
+          echo "W01_W02_W03_FULL_REGRESSION=PASS"
           echo "COMMIT_SHA=${GITHUB_SHA}"
           echo "NODE_VERSION=$(node --version)"
           echo "NPM_VERSION=$(npm --version)"
