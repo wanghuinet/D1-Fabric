@@ -30,6 +30,27 @@ test("failure classification matrix keeps client failures permanent and overload
   }
 });
 
+test("permanent client failures do not trip the circuit breaker", async () => {
+  const breaker = new CircuitBreaker({ failureThreshold: 1, resetTimeoutMs: 1000, halfOpenMaxProbes: 1 });
+  const operation = { kind: "read" as const, idempotent: true, target: "db-client-error" };
+  const clientErrorPolicy = { ...policy, retry: { ...policy.retry, maxAttempts: 1 } };
+
+  for (let i = 0; i < 3; i += 1) {
+    await assert.rejects(
+      executeReliably(async () => {
+        throw Object.assign(new Error("bad request"), { status: 400 });
+      }, {
+        policy: clientErrorPolicy,
+        breaker,
+        operation,
+        sleep: async () => undefined,
+      }),
+      (error: unknown) => error instanceof ReliabilityError && error.failure.class === "permanent",
+    );
+    assert.equal(breaker.stateAt(i), "closed");
+  }
+}
+
 test("repeated transient failures cannot create an unbounded retry storm", async () => {
   const budget = new RetryBudget({ capacity: 2, refillRate: 0 }, () => 0);
   let calls = 0;
