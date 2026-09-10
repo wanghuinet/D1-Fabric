@@ -112,7 +112,8 @@ test("SQLite commit-then-transport-loss replays real multi-row affectedRows with
   assert.equal(db.batchCalls, 1);
 
   const business = db.db.prepare("SELECT COUNT(*) AS count, SUM(CASE WHEN value='new' THEN 1 ELSE 0 END) AS updated FROM business").get() as { count: number; updated: number };
-  assert.deepEqual(business, { count: 3, updated: 3 });
+  assert.equal(Number(business.count), 3);
+  assert.equal(Number(business.updated), 3);
 
   const replay = await executeWrite(db, identity({ requestId: "req-2" }), retryableOperation);
   assert.equal(replay.status, "REPLAYED");
