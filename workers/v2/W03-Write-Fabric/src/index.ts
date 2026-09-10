@@ -7,7 +7,7 @@ import {
 } from "./write.ts";
 
 interface ServiceBinding { fetch(request: Request): Promise<Response> }
-interface Env { DB: D1DatabaseLike; W04?: ServiceBinding }
+interface Env { DB: D1DatabaseLike; W04: ServiceBinding }
 
 const MAX_BODY_BYTES = 1024 * 1024;
 
@@ -43,8 +43,7 @@ async function parseBody(request: Request): Promise<{ identity: WriteIdentity; o
   return { identity: record.identity as WriteIdentity, operation: record.operation as WriteOperation };
 }
 
-async function assertControlEpoch(identity: WriteIdentity, binding?: ServiceBinding): Promise<void> {
-  if (!binding) return;
+async function assertControlEpoch(identity: WriteIdentity, binding: ServiceBinding): Promise<void> {
   const response = await binding.fetch(new Request(`https://w04/v1/control/epoch?epoch=${identity.executionEpoch}`));
   if (response.ok) return;
   if (response.status === 409) {
