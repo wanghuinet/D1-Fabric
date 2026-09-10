@@ -4,6 +4,7 @@ import gateway from "../src/index.ts";
 import w02 from "../../W02-Execution-Fabric/src/index.ts";
 import w03 from "../../W03-Write-Fabric/src/index.ts";
 import w04 from "../../W04-Control-Plane/src/index.ts";
+import w05 from "../../W05-Reliability-Plane/src/index.ts";
 import type { ServiceBinding as W01Binding } from "../src/index.ts";
 import type { ServiceBinding as W02Binding } from "../../W02-Execution-Fabric/src/index.ts";
 import type { D1DatabaseLike, PreparedStatementLike, D1ResultLike, D1Value } from "../../W03-Write-Fabric/src/write.ts";
@@ -97,8 +98,11 @@ const w04Binding = {
 const w03Binding: W02Binding = {
   fetch: (request) => w03.fetch(request, { DB: new FakeDb(), W04: w04Binding }),
 };
+const w05Binding = {
+  fetch: (request: Request) => w05.fetch(request, { W03: w03Binding }),
+};
 const w02Binding: W01Binding = {
-  fetch: (request) => w02.fetch(request, { W03: w03Binding }),
+  fetch: (request) => w02.fetch(request, { W05: w05Binding }),
 };
 
 function writeEnvelope(epoch = 1) {
@@ -134,7 +138,7 @@ async function publishEpoch(epoch: number): Promise<void> {
   assert.equal(response.status, 201);
 }
 
-test("W01 -> W02 -> W03 -> W04 control epoch gate commits a write", async () => {
+test("W01 -> W02 -> W05 -> W03 -> W04 control epoch gate commits a write", async () => {
   await publishEpoch(1);
   const response = await gateway.fetch(new Request("https://gateway.invalid/", {
     method: "POST", body: JSON.stringify(writeEnvelope(1)), headers: { "content-type": "application/json" },
@@ -147,7 +151,7 @@ test("W01 -> W02 -> W03 -> W04 control epoch gate commits a write", async () => 
   });
 });
 
-test("W01 -> W02 -> W03 rejects a stale W04 control epoch", async () => {
+test("W01 -> W02 -> W05 -> W03 rejects a stale W04 control epoch", async () => {
   const response = await gateway.fetch(new Request("https://gateway.invalid/", {
     method: "POST", body: JSON.stringify(writeEnvelope(2)), headers: { "content-type": "application/json" },
   }), { W02: w02Binding });
@@ -155,10 +159,13 @@ test("W01 -> W02 -> W03 rejects a stale W04 control epoch", async () => {
   assert.deepEqual(await response.json(), { status: "ERROR", code: "STALE_EXECUTION_EPOCH", message: "epoch is not the active control epoch" });
 });
 
-test("W01 -> W02 rejects a write when W03 binding is unavailable", async () => {
+test("W01 -> W02 -> W05 rejects a write when W03 binding is unavailable", async () => {
+  const unavailableW05 = {
+    fetch: (request: Request) => w05.fetch(request, {}),
+  };
   const response = await gateway.fetch(new Request("https://gateway.invalid/", {
     method: "POST", body: JSON.stringify(writeEnvelope()), headers: { "content-type": "application/json" },
-  }), { W02: { fetch: (request) => w02.fetch(request, {}) } });
+  }), { W02: { fetch: (request) => w02.fetch(request, { W05: unavailableW05 }) } });
   assert.equal(response.status, 503);
   assert.deepEqual(await response.json(), { error: "W03_UNAVAILABLE" });
 });
