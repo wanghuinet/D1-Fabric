@@ -1,0 +1,33 @@
+name: W03 Write Fabric
+
+on:
+  push:
+    paths:
+      - 'workers/v2/W03-Write-Fabric/**'
+      - '.github/workflows/w03-write-fabric.yml'
+  pull_request:
+    paths:
+      - 'workers/v2/W03-Write-Fabric/**'
+      - '.github/workflows/w03-write-fabric.yml'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: workers/v2/W03-Write-Fabric
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: workers/v2/W03-Write-Fabric/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run dry-run
+      - name: Verify W03 boundary
+        run: |
+          ! grep -R -n -E 'from ["'"']\.\./W0[1-2]|from ["'"']\.\./\.\./W0[1-2]|wrangler d1 execute|--d1|D1_DATABASE|D1_BINDING|env\.W02|env\.W04' src tests
+          ! grep -R -n -E 'article|comment|feed|gallery|question|business logic|content platform' src
