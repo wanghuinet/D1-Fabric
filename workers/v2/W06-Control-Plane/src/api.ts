@@ -9,8 +9,7 @@ export type W06ApiErrorCode =
   | "INVALID_REQUEST"
   | "PAYLOAD_TOO_LARGE"
   | "UNSUPPORTED_MEDIA_TYPE"
-  | "NOT_FOUND"
-  | "CONTROL_PLANE_FAILURE";
+  | "NOT_FOUND";
 
 export class W06ApiError extends Error {
   readonly code: W06ApiErrorCode;
@@ -26,6 +25,11 @@ export class W06ApiError extends Error {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function requireRecord(value: unknown, field: string): Record<string, unknown> {
+  if (!isRecord(value)) throw new W06ApiError("INVALID_REQUEST", `${field} must be an object`, 400);
+  return value;
 }
 
 async function readJson(request: Request): Promise<unknown> {
@@ -45,7 +49,12 @@ async function readJson(request: Request): Promise<unknown> {
     }
   }
 
-  const text = await request.text();
+  let text: string;
+  try {
+    text = await request.text();
+  } catch {
+    throw new W06ApiError("INVALID_REQUEST", "request body could not be read", 400);
+  }
   if (new TextEncoder().encode(text).byteLength > MAX_BODY_BYTES) {
     throw new W06ApiError("PAYLOAD_TOO_LARGE", "request body exceeds 1 MiB", 413);
   }
@@ -67,30 +76,29 @@ function json(value: unknown, status = 200): Response {
 function errorResponse(error: unknown): Response {
   if (error instanceof W06ApiError) return json({ status: "ERROR", code: error.code, message: error.message }, error.status);
 
-  if (error && typeof error === "object" && "code" in error && error instanceof Error) {
-    const code = (error as { code?: unknown }).code;
-    if (typeof code === "string") return json({ status: "ERROR", code, message: error.message }, 400);
+  if (error instanceof Error && typeof (error as { code?: unknown }).code === "string") {
+    return json({ status: "ERROR", code: (error as { code: string }).code, message: error.message }, 400);
   }
 
   return json({ status: "ERROR", code: "CONTROL_PLANE_FAILURE", message: "control-plane operation failed" }, 500);
 }
 
 export async function handleW06(request: Request): Promise<Response> {
-  if (request.method === "GET" && new URL(request.url).pathname === "/health") return json({ status: "ok" });
-  if (request.method === "GET" && new URL(request.url).pathname === "/ready") return json({ status: "ready" });
+  const pathname = new URL(request.url).pathname;
+  if (request.method === "GET" && pathname === "/health") return json({ status: "ok" });
+  if (request.method === "GET" && pathname === "/ready") return json({ status: "ready" });
   if (request.method !== "POST") return json({ status: "ERROR", code: "METHOD_NOT_ALLOWED", message: "POST required" }, 405);
 
-  const pathname = new URL(request.url).pathname;
-  const body = await readJson(request);
-  if (!isRecord(body)) throw new W06ApiError("INVALID_REQUEST", "request body must be an object", 400);
-
   try {
+    const body = requireRecord(await readJson(request), "request body");
     switch (pathname) {
       case "/v1/placement/resolve": {
-        const requestBody = body.request as PlacementRequest;
-        const metadata = body.metadata;
-        if (!Array.isArray(metadata)) throw new W06ApiError("INVALID_REQUEST", "metadata must be an array", 400);
-        return json({ status: "RESOLVED", result: resolvePlacement(requestBody, metadata as ShardMetadata[]) });
+        const requestBody = requireRecord(body.request, "request");
+        if (!Array.isArray(body.metadata)) throw new W06ApiError("INVALID_REQUEST", "metadata must be an array", 400);
+        return json({
+          status: "RESOLVED",
+          result: resolvePlacement(requestBody as unknown as PlacementRequest, body.metadata as ShardMetadata[]),
+        });
       }
       case "/v1/expansion/plan":
         return json({ status: "PLANNED", plan: await planExpansion(body as unknown as ExpansionRequest) });
@@ -99,7 +107,7 @@ export async function handleW06(request: Request): Promise<Response> {
       case "/v1/rebalance/plan":
         return json({ status: "PLANNED", plan: await planRebalance(body as unknown as RebalanceRequest) });
       default:
-        throw new W06ApiError("NOT_FOUND", "control-plane route not found", 404);
+        return json({ status: "ERROR", code: "NOT_FOUND", message: "control-plane route not found" }, 404);
     }
   } catch (error) {
     return errorResponse(error);
