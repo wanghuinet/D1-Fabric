@@ -1,4 +1,8 @@
 name = "w01-fabric-gateway"
 main = "src/index.ts"
-compatibility_date = "2026-09-09"
+compatibility_date = "2026-09-10"
 workers_dev = true
+
+[[services]]
+binding = "W02"
+service = "w02-execution-fabric"
