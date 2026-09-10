@@ -105,10 +105,12 @@ export async function executeWrite(db: D1DatabaseLike, identity: WriteIdentity, 
     const mutation = db.prepare(protocol.guardedMutation.sql).bind(...protocol.guardedMutation.bindings);
     const commit = db.prepare(COMMIT_SQL).bind(identity.tenantId, identity.principalScope, identity.operation, identity.operationVersion, key, identity.requestId);
     let batch: D1ResultLike[];
-    try { batch = await db.batch([claim, mutation, commit]); } catch { 
+    try { batch = await db.batch([claim, mutation, commit]); } catch {
       try {
         const state = await replayState(db, identity, key);
-        if (state?.state === "COMMITTED") return { status: "COMMITTED", requestId: identity.requestId, contractId: identity.contractId, contractVersion: identity.contractVersion, logicalTargetId: identity.logicalTargetId, executionEpoch: identity.executionEpoch, accounting: { d1Statements: 5, rowsWritten: state.affectedRows, payloadBytes: payloadSize({ affectedRows: state.affectedRows }), retries: 0 }, affectedRows: state.affectedRows, idempotencyState: "COMMITTED" };
+        if (state?.state === "COMMITTED") {
+          return { status: "COMMITTED", requestId: identity.requestId, contractId: identity.contractId, contractVersion: identity.contractVersion, logicalTargetId: identity.logicalTargetId, executionEpoch: identity.executionEpoch, accounting: { d1Statements: 5, rowsWritten: state.affectedRows, payloadBytes: payloadSize({ affectedRows: state.affectedRows }), retries: 0 }, affectedRows: state.affectedRows, idempotencyState: "COMMITTED" };
+        }
       } catch { /* transport remains indeterminate */ }
       throw new WriteExecutionError("COMMIT_UNKNOWN", "transaction outcome could not be confirmed");
     }
@@ -120,7 +122,7 @@ export async function executeWrite(db: D1DatabaseLike, identity: WriteIdentity, 
     if (operation.expectedWriteCount !== undefined && affectedRows !== operation.expectedWriteCount) throw new WriteExecutionError("D1_RESULT_INVALID", "affected row count does not match expectedWriteCount");
     const state = await replayState(db, identity, key);
     if (!state || state.state !== "COMMITTED") throw new WriteExecutionError("COMMIT_UNKNOWN", "authoritative commit state could not be confirmed");
-    return { status: "COMMITTED", requestId: identity.requestId, contractId: identity.contractId, contractVersion: identity.contractVersion, logicalTargetId: identity.logicalTargetId, executionEpoch: identity.executionEpoch, accounting: { d1Statements: 4, rowsWritten, payloadBytes, retries: 0 }, affectedRows, idempotencyState: "COMMITTED" };
+    return { status: "COMMITTED", requestId: identity.requestId, contractId: identity.contractId, contractVersion: identity.contractVersion, logicalTargetId: identity.logicalTargetId, executionEpoch: identity.executionEpoch, accounting: { d1Statements: 5, rowsWritten, payloadBytes, retries: 0 }, affectedRows, idempotencyState: "COMMITTED" };
   }
 
   ensureBudget(identity, 1, 0, 0, 0); checkAbort(signal);
