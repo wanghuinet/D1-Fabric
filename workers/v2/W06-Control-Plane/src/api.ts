@@ -38,6 +38,7 @@ function errorResponse(error: unknown): Response {
   if (error instanceof Error) {
     const code = (error as unknown as { code?: unknown }).code;
     if (code === "AUTHORITATIVE_METADATA_UNAVAILABLE") return json({ status: "ERROR", code, message: error.message }, 503);
+    if (code === "TOPOLOGY_VERSION_NOT_PUBLISHED") return json({ status: "ERROR", code, message: error.message }, 409);
     if (typeof code === "string") return json({ status: "ERROR", code, message: error.message }, 400);
   }
   return json({ status: "ERROR", code: "CONTROL_PLANE_FAILURE", message: "control-plane operation failed" }, 500);
