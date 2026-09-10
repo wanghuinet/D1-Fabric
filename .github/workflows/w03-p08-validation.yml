@@ -26,7 +26,7 @@ jobs:
       - name: Atomicity marker
         shell: bash
         run: |
-          grep -q "db.batch(statements)" src/write.ts
-          grep -q "INSERT INTO __d1_fabric_idempotency" src/write.ts
-          grep -q "state = 'COMMITTED'" src/write.ts
-          grep -q "RESPONSE_LOST_AFTER_COMMIT" tests/write.test.ts
+          grep -qF 'db.batch(statements)' src/write.ts
+          grep -qF 'INSERT INTO __d1_fabric_idempotency' src/write.ts
+          grep -qF "state = 'COMMITTED'" src/write.ts
+          grep -qF 'RESPONSE_LOST_AFTER_COMMIT' tests/write.test.ts
