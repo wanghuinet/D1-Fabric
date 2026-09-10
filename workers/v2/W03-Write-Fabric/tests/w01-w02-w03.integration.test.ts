@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { handleGateway } from "../../W01-Fabric-Gateway/src/index.ts";
 import { compileExecutionPlan, type ExecutionRequest, type VersionedExecutionContract } from "../../W02-Execution-Fabric/src/plan.ts";
 import { handleWrite } from "../src/index.ts";
-import { executeWrite, type D1DatabaseLike, type D1ResultLike, type PreparedStatementLike, type WriteIdentity } from "../src/write.ts";
+import { D1DatabaseLike, type D1ResultLike, type PreparedStatementLike, type WriteIdentity } from "../src/write.ts";
 
 class IntegrationStatement implements PreparedStatementLike {
   private readonly db: IntegrationDb;
@@ -34,6 +34,21 @@ const contract: VersionedExecutionContract = {
 const activeW04 = {
   fetch: async (_incoming: Request) => new Response(JSON.stringify({ epoch: 1 }), { status: 200, headers: { "content-type": "application/json; charset=utf-8" } }),
 };
+
+const physicalTargetCatalog = JSON.stringify({
+  version: 1,
+  targets: [{
+    logicalDatabaseId: "db-1",
+    logicalShardId: "shard-1",
+    physicalShardId: "physical-1",
+    topologyVersion: 1,
+    physicalTargetId: "target-1",
+    bindingName: "DB",
+    admitted: true,
+  }],
+});
+
+const integrationEnv = { DB: new IntegrationDb(), W04: activeW04, PHYSICAL_TARGET_CATALOG_JSON: physicalTargetCatalog };
 
 test("W01 -> W02 plan -> W03 write preserves execution identity", async () => {
   let compiled: ReturnType<typeof compileExecutionPlan> | undefined;
@@ -67,7 +82,7 @@ test("W01 -> W02 plan -> W03 write preserves execution identity", async () => {
         operation: { statement: "UPDATE app_table SET value=? WHERE id=?", bindings: ["ok", "1"], retryable: false },
       }),
     }),
-    { DB: new IntegrationDb(), W04: activeW04 },
+    integrationEnv,
   );
   assert.equal(response.status, 200);
   const result = await response.json() as { status: string; requestId: string; contractVersion: string; logicalTargetId: string; physicalShardId: string };
