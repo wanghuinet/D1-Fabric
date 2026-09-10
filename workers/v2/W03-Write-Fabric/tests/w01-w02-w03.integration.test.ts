@@ -39,6 +39,13 @@ const contract: VersionedExecutionContract = {
   limits: { fanout: 1, concurrency: 1, d1Statements: 8, rowsRead: 0, rowsWritten: 10, retries: 2, payloadBytes: 4096 },
 };
 
+const activeW04 = {
+  fetch: async (_incoming: Request) => new Response(JSON.stringify({ epoch: 1 }), {
+    status: 200,
+    headers: { "content-type": "application/json; charset=utf-8" },
+  }),
+};
+
 test("W01 -> W02 plan -> W03 write preserves execution identity", async () => {
   let compiled: ReturnType<typeof compileExecutionPlan> | undefined;
   const gateway = await handleGateway(
@@ -55,14 +62,26 @@ test("W01 -> W02 plan -> W03 write preserves execution identity", async () => {
   assert.equal(compiled.tenantId, request.tenantId);
 
   const plan = compiled;
-  const result = await executeWrite(new IntegrationDb(), {
-    requestId: plan.requestId, planId: plan.planId, contractId: plan.contractId,
-    contractVersion: plan.contractVersion, architectureId: plan.architectureId,
-    tenantId: plan.tenantId, principalScope: plan.principalScope, operation: plan.operation,
-    operationVersion: plan.operationVersion, logicalTargetId: "logical-1", executionEpoch: 1,
-    deadlineAt: plan.deadlineAt,
-    budget: { d1Statements: plan.requestedBudget.d1Statements, rowsWritten: plan.requestedBudget.rowsWritten, payloadBytes: plan.requestedBudget.payloadBytes, retries: plan.requestedBudget.retries },
-  }, { statement: "UPDATE app_table SET value=? WHERE id=?", bindings: ["ok", "1"], retryable: false });
+  const response = await handleWrite(
+    new Request("https://w03.test/", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        identity: {
+          requestId: plan.requestId, planId: plan.planId, contractId: plan.contractId,
+          contractVersion: plan.contractVersion, architectureId: plan.architectureId,
+          tenantId: plan.tenantId, principalScope: plan.principalScope, operation: plan.operation,
+          operationVersion: plan.operationVersion, logicalTargetId: "logical-1", executionEpoch: 1,
+          deadlineAt: plan.deadlineAt,
+          budget: { d1Statements: plan.requestedBudget.d1Statements, rowsWritten: plan.requestedBudget.rowsWritten, payloadBytes: plan.requestedBudget.payloadBytes, retries: plan.requestedBudget.retries },
+        },
+        operation: { statement: "UPDATE app_table SET value=? WHERE id=?", bindings: ["ok", "1"], retryable: false },
+      }),
+    }),
+    { DB: new IntegrationDb(), W04: activeW04 },
+  );
+  assert.equal(response.status, 200);
+  const result = await response.json() as { status: string; requestId: string; contractVersion: string; logicalTargetId: string };
   assert.equal(result.status, "COMMITTED");
   assert.equal(result.requestId, request.requestId);
   assert.equal(result.contractVersion, contract.contractVersion);
