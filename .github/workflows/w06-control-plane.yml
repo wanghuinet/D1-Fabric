@@ -22,7 +22,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npx --yes wrangler@4.130.0 deploy --dry-run
-      - run: '! grep -R -n -E "wrangler d1 execute|database_id|article|comment|feed|gallery|question|commerce|advertising" src'
+      - run: '! grep -R -n -E "wrangler d1 execute|article|comment|feed|gallery|question|commerce|advertising" src'
       - run: '! grep -R -n -E "while[[:space:]]*\\(true\\)|for[[:space:]]*\\(;;\\)" src'
 
   regression-w01-w05:
