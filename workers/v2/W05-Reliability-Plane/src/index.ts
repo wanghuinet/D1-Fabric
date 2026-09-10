@@ -1,13 +1,12 @@
 import {
-  executeReliably,
-  classifyFailure,
-  retryDelayMs,
-  RetryBudget,
   CircuitBreaker,
   ReliabilityError,
-  type ExecuteOptions,
+  RetryBudget,
+  classifyFailure,
+  executeReliably,
+  retryDelayMs,
+  withTimeout,
   type ReliabilityPolicy,
-  type OperationDescriptor,
 } from "./reliability.ts";
 
 export {
@@ -18,7 +17,7 @@ export {
   CircuitBreaker,
   ReliabilityError,
 };
-export type { ExecuteOptions, ReliabilityPolicy, OperationDescriptor };
+export type { ExecuteOptions, ReliabilityPolicy, OperationDescriptor } from "./reliability.ts";
 
 interface ServiceBinding {
   fetch(request: Request): Promise<Response>;
@@ -102,7 +101,7 @@ function reliabilityPolicy(identity: Record<string, unknown>): ReliabilityPolicy
   if (!Number.isSafeInteger(deadlineAt)) {
     throw new ReliabilityError("INVALID_REQUEST", "identity deadline is invalid", { class: "permanent", retryable: false });
   }
-  const remaining = deadlineAt - Date.now();
+  const remaining = (deadlineAt as number) - Date.now();
   if (!Number.isFinite(remaining) || remaining <= 0) {
     throw new ReliabilityError("TIMEOUT", "request deadline has expired", { class: "timeout", retryable: false });
   }
