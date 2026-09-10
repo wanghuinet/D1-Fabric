@@ -117,11 +117,14 @@ export async function executeWrite(db: D1DatabaseLike, identity: WriteIdentity, 
       ensureBudget(identity, 1, 0, 0, 1);
       return { status: "REPLAYED", requestId: identity.requestId, contractId: identity.contractId, contractVersion: identity.contractVersion, logicalTargetId: identity.logicalTargetId, topologyVersion: identity.topologyVersion, executionEpoch: identity.executionEpoch, accounting: { d1Statements: 1, rowsWritten: 0, payloadBytes: 0, retries: 1 }, affectedRows: existing.affectedRows, idempotencyState: "COMMITTED" };
     }
+
+    const payloadBytes = payloadSize(operation);
+    ensureBudget(identity, 5, Math.min(operation.expectedWriteCount ?? identity.budget.rowsWritten, identity.budget.rowsWritten), payloadBytes, 0);
+
     const claim = db.prepare(CLAIM_SQL).bind(identity.tenantId, identity.principalScope, identity.operation, identity.operationVersion, key, identity.requestId);
     const claimGuarded = operation.atomicIdempotency!.guardedMutation;
     const mutation = db.prepare(claimGuarded.sql).bind(...claimGuarded.bindings);
     const commit = db.prepare(COMMIT_SQL).bind(identity.tenantId, identity.principalScope, identity.operation, identity.operationVersion, key, identity.requestId);
-    ensureBudget(identity, 5, Math.min(operation.expectedWriteCount ?? identity.budget.rowsWritten, identity.budget.rowsWritten), payloadSize(operation), 0);
     try {
       const results = await db.batch([claim, mutation, commit]);
       const mutationResult = results[1];
@@ -135,10 +138,14 @@ export async function executeWrite(db: D1DatabaseLike, identity: WriteIdentity, 
         await db.prepare(FAILED_SQL).bind(identity.tenantId, identity.principalScope, identity.operation, identity.operationVersion, key, identity.requestId).run().catch(() => undefined);
         throw new WriteExecutionError("D1_RESULT_INVALID", "affected row count is invalid or unexpected");
       }
-      ensureBudget(identity, 5, affectedRows, payloadSize(operation), 0);
-      return { status: "COMMITTED", requestId: identity.requestId, contractId: identity.contractId, contractVersion: identity.contractVersion, logicalTargetId: identity.logicalTargetId, topologyVersion: identity.topologyVersion, executionEpoch: identity.executionEpoch, accounting: { d1Statements: 5, rowsWritten: affectedRows, payloadBytes: payloadSize(operation), retries: 0 }, affectedRows };
+      ensureBudget(identity, 5, affectedRows, payloadBytes, 0);
+      return { status: "COMMITTED", requestId: identity.requestId, contractId: identity.contractId, contractVersion: identity.contractVersion, logicalTargetId: identity.logicalTargetId, topologyVersion: identity.topologyVersion, executionEpoch: identity.executionEpoch, accounting: { d1Statements: 5, rowsWritten: affectedRows, payloadBytes, retries: 0 }, affectedRows };
     } catch (error) {
       if (error instanceof WriteExecutionError) throw error;
+      const committed = await replayState(db, identity, key).catch(() => undefined);
+      if (committed?.state === "COMMITTED") {
+        return { status: "COMMITTED", requestId: identity.requestId, contractId: identity.contractId, contractVersion: identity.contractVersion, logicalTargetId: identity.logicalTargetId, topologyVersion: identity.topologyVersion, executionEpoch: identity.executionEpoch, accounting: { d1Statements: 5, rowsWritten: committed.affectedRows, payloadBytes, retries: 0 }, affectedRows: committed.affectedRows };
+      }
       throw new WriteExecutionError("COMMIT_UNKNOWN", "write outcome is unknown after transport failure");
     }
   }
@@ -149,8 +156,9 @@ export async function executeWrite(db: D1DatabaseLike, identity: WriteIdentity, 
     if (!result.success) throw new WriteExecutionError("D1_EXECUTION_FAILED", "write execution failed");
     const affectedRows = Number(result.meta?.changes ?? 0);
     if (!Number.isSafeInteger(affectedRows) || affectedRows < 0 || (operation.expectedWriteCount !== undefined && affectedRows !== operation.expectedWriteCount)) throw new WriteExecutionError("D1_RESULT_INVALID", "affected row count is invalid or unexpected");
-    ensureBudget(identity, 1, affectedRows, payloadSize(operation), 0);
-    return { status: "COMMITTED", requestId: identity.requestId, contractId: identity.contractId, contractVersion: identity.contractVersion, logicalTargetId: identity.logicalTargetId, topologyVersion: identity.topologyVersion, executionEpoch: identity.executionEpoch, accounting: { d1Statements: 1, rowsWritten: affectedRows, payloadBytes: payloadSize(operation), retries: 0 }, affectedRows };
+    const payloadBytes = payloadSize(operation);
+    ensureBudget(identity, 1, affectedRows, payloadBytes, 0);
+    return { status: "COMMITTED", requestId: identity.requestId, contractId: identity.contractId, contractVersion: identity.contractVersion, logicalTargetId: identity.logicalTargetId, topologyVersion: identity.topologyVersion, executionEpoch: identity.executionEpoch, accounting: { d1Statements: 1, rowsWritten: affectedRows, payloadBytes, retries: 0 }, affectedRows };
   } catch (error) {
     if (error instanceof WriteExecutionError) throw error;
     throw new WriteExecutionError("D1_EXECUTION_FAILED", "write execution failed");
