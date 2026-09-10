@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { handleGateway } from "../../W01-Fabric-Gateway/src/index.ts";
 import { compileExecutionPlan, type ExecutionRequest, type VersionedExecutionContract } from "../../W02-Execution-Fabric/src/plan.ts";
-import { executeWrite, type D1DatabaseLike, type D1ResultLike, type PreparedStatementLike } from "../src/write.ts";
+import { handleWrite } from "../src/index.ts";
+import { executeWrite, type D1DatabaseLike, type D1ResultLike, type PreparedStatementLike, type WriteIdentity } from "../src/write.ts";
 
 class IntegrationStatement implements PreparedStatementLike {
   private readonly db: IntegrationDb;
@@ -66,4 +67,32 @@ test("W01 -> W02 plan -> W03 write preserves execution identity", async () => {
   assert.equal(result.requestId, request.requestId);
   assert.equal(result.contractVersion, contract.contractVersion);
   assert.equal(result.logicalTargetId, "logical-1");
+});
+
+test("W03 fails closed when W04 control-plane binding is absent", async () => {
+  const identity: WriteIdentity = {
+    requestId: "control-plane-required-1",
+    planId: "plan-1",
+    contractId: "D1F-W03-WRITE-FABRIC-v1.0",
+    contractVersion: "D1F-3.0-MASTER-v1.0",
+    architectureId: "D1F-3.0-ARCH-v1.0",
+    tenantId: "tenant-a",
+    principalScope: "principal-a",
+    operation: "write",
+    operationVersion: "1",
+    logicalTargetId: "logical-1",
+    executionEpoch: 1,
+    deadlineAt: Date.now() + 10_000,
+    budget: { d1Statements: 1, rowsWritten: 1, payloadBytes: 1024, retries: 0 },
+  };
+  const response = await handleWrite(
+    new Request("https://w03.test/", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ identity, operation: { statement: "UPDATE app_table SET value=? WHERE id=?", bindings: ["x", "1"], retryable: false } }),
+    }),
+    { DB: new IntegrationDb() },
+  );
+  assert.equal(response.status, 502);
+  assert.equal((await response.json() as { code: string }).code, "D1_EXECUTION_FAILED");
 });
