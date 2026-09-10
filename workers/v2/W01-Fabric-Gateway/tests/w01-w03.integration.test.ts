@@ -10,24 +10,42 @@ import type { D1DatabaseLike, PreparedStatementLike, D1ResultLike, D1Value } fro
 import type { D1DatabaseLike as W04Db } from "../../W04-Control-Plane/src/store.ts";
 
 class FakeStatement implements PreparedStatementLike {
-  constructor(private readonly sql: string) {}
+  private readonly sql: string;
+
+  constructor(sql: string) {
+    this.sql = sql;
+  }
+
   bind(..._values: D1Value[]): PreparedStatementLike { return new FakeStatement(this.sql); }
+
   async run(): Promise<D1ResultLike> {
     return { success: true, meta: { changes: this.sql.startsWith("UPDATE") ? 1 : 0, rows_written: this.sql.startsWith("UPDATE") ? 1 : 0 } };
   }
+
   async all<T = Record<string, unknown>>(): Promise<{ results: T[] }> { return { results: [] }; }
 }
 
 class FakeDb implements D1DatabaseLike {
   prepare(sql: string): PreparedStatementLike { return new FakeStatement(sql); }
+
   async batch(statements: PreparedStatementLike[]): Promise<D1ResultLike[]> {
     return statements.map(() => ({ success: true, meta: { changes: 1, rows_written: 1 } }));
   }
 }
 
 class ControlStatement {
-  constructor(private readonly db: ControlDb, private readonly query: string, private readonly values: unknown[]) {}
+  private readonly db: ControlDb;
+  private readonly query: string;
+  private readonly values: unknown[];
+
+  constructor(db: ControlDb, query: string, values: unknown[]) {
+    this.db = db;
+    this.query = query;
+    this.values = values;
+  }
+
   bind(...values: unknown[]): ControlStatement { return new ControlStatement(this.db, this.query, values); }
+
   async first<T = unknown>(): Promise<T | null> {
     if (this.query.includes("FROM control_head")) return (this.db.head ?? null) as T | null;
     if (this.query.includes("FROM control_snapshots WHERE config_version = ? AND epoch = ?")) {
@@ -42,13 +60,16 @@ class ControlStatement {
     }
     return null;
   }
+
   async run(): Promise<unknown> { return { meta: { changes: 1 } }; }
 }
 
 class ControlDb implements W04Db {
   readonly snapshots = new Map<string, any>();
   head: { config_version: number; epoch: number } | null = null;
+
   prepare(query: string): ControlStatement { return new ControlStatement(this, query, []); }
+
   async batch(statements: Array<unknown>): Promise<unknown[]> {
     const typed = statements as ControlStatement[];
     const insert = typed[0];
@@ -122,7 +143,7 @@ test("W01 -> W02 -> W03 rejects a stale W04 control epoch", async () => {
   const response = await gateway.fetch(new Request("https://gateway.invalid/", {
     method: "POST", body: JSON.stringify(writeEnvelope(2)), headers: { "content-type": "application/json" },
   }), { W02: w02Binding });
-  assert.equal(response.status, 400);
+  assert.equal(response.status, 409);
   assert.deepEqual(await response.json(), { status: "ERROR", code: "STALE_EXECUTION_EPOCH", message: "epoch is not the active control epoch" });
 });
 
