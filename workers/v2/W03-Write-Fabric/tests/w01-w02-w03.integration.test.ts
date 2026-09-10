@@ -8,12 +8,7 @@ import { executeWrite, type D1DatabaseLike, type D1ResultLike, type PreparedStat
 class IntegrationStatement implements PreparedStatementLike {
   private readonly db: IntegrationDb;
   private readonly sql: string;
-
-  constructor(db: IntegrationDb, sql: string) {
-    this.db = db;
-    this.sql = sql;
-  }
-
+  constructor(db: IntegrationDb, sql: string) { this.db = db; this.sql = sql; }
   bind(..._values: (string | number | null | ArrayBuffer)[]): PreparedStatementLike { return this; }
   async run(): Promise<D1ResultLike> { return { success: true, meta: { changes: 1, rows_written: 1 } }; }
   async all<T = Record<string, unknown>>(): Promise<{ results: T[] }> {
@@ -23,9 +18,7 @@ class IntegrationStatement implements PreparedStatementLike {
 }
 class IntegrationDb implements D1DatabaseLike {
   prepare(sql: string): PreparedStatementLike { return new IntegrationStatement(this, sql); }
-  async batch(statements: PreparedStatementLike[]): Promise<D1ResultLike[]> {
-    return statements.map(() => ({ success: true, meta: { changes: 1, rows_written: 1 } }));
-  }
+  async batch(statements: PreparedStatementLike[]): Promise<D1ResultLike[]> { return statements.map(() => ({ success: true, meta: { changes: 1, rows_written: 1 } })); }
 }
 
 const request: ExecutionRequest = {
@@ -38,12 +31,8 @@ const contract: VersionedExecutionContract = {
   operationVersion: "1", mode: "WRITE", maxDeadlineMs: 25_000,
   limits: { fanout: 1, concurrency: 1, d1Statements: 8, rowsRead: 0, rowsWritten: 10, retries: 2, payloadBytes: 4096 },
 };
-
 const activeW04 = {
-  fetch: async (_incoming: Request) => new Response(JSON.stringify({ epoch: 1 }), {
-    status: 200,
-    headers: { "content-type": "application/json; charset=utf-8" },
-  }),
+  fetch: async (_incoming: Request) => new Response(JSON.stringify({ epoch: 1 }), { status: 200, headers: { "content-type": "application/json; charset=utf-8" } }),
 };
 
 test("W01 -> W02 plan -> W03 write preserves execution identity", async () => {
@@ -64,14 +53,13 @@ test("W01 -> W02 plan -> W03 write preserves execution identity", async () => {
   const plan = compiled;
   const response = await handleWrite(
     new Request("https://w03.test/", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
+      method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({
         identity: {
           requestId: plan.requestId, planId: plan.planId, contractId: plan.contractId,
           contractVersion: plan.contractVersion, architectureId: plan.architectureId,
           tenantId: plan.tenantId, principalScope: plan.principalScope, operation: plan.operation,
-          operationVersion: plan.operationVersion, logicalTargetId: "logical-1", executionEpoch: 1,
+          operationVersion: plan.operationVersion, logicalTargetId: "logical-1", topologyVersion: 1, executionEpoch: 1,
           deadlineAt: plan.deadlineAt,
           budget: { d1Statements: plan.requestedBudget.d1Statements, rowsWritten: plan.requestedBudget.rowsWritten, payloadBytes: plan.requestedBudget.payloadBytes, retries: plan.requestedBudget.retries },
         },
@@ -90,24 +78,15 @@ test("W01 -> W02 plan -> W03 write preserves execution identity", async () => {
 
 test("W03 fails closed when W04 control-plane binding is absent", async () => {
   const identity: WriteIdentity = {
-    requestId: "control-plane-required-1",
-    planId: "plan-1",
-    contractId: "D1F-W03-WRITE-FABRIC-v1.0",
-    contractVersion: "D1F-3.0-MASTER-v1.0",
-    architectureId: "D1F-3.0-ARCH-v1.0",
-    tenantId: "tenant-a",
-    principalScope: "principal-a",
-    operation: "write",
-    operationVersion: "1",
-    logicalTargetId: "logical-1",
-    executionEpoch: 1,
-    deadlineAt: Date.now() + 10_000,
+    requestId: "control-plane-required-1", planId: "plan-1", contractId: "D1F-W03-WRITE-FABRIC-v1.0",
+    contractVersion: "D1F-3.0-MASTER-v1.0", architectureId: "D1F-3.0-ARCH-v1.0", tenantId: "tenant-a",
+    principalScope: "principal-a", operation: "write", operationVersion: "1", logicalTargetId: "logical-1",
+    topologyVersion: 1, executionEpoch: 1, deadlineAt: Date.now() + 10_000,
     budget: { d1Statements: 1, rowsWritten: 1, payloadBytes: 1024, retries: 0 },
   };
   const response = await handleWrite(
     new Request("https://w03.test/", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
+      method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ identity, operation: { statement: "UPDATE app_table SET value=? WHERE id=?", bindings: ["x", "1"], retryable: false } }),
     }),
     { DB: new IntegrationDb() } as Parameters<typeof handleWrite>[1],
