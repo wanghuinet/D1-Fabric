@@ -68,11 +68,12 @@ All other transitions are rejected unless a future contract explicitly adds them
 
 ## 5. Shard metadata
 
-Shard metadata is the authoritative control-plane description of a physical shard.
+Shard metadata is the authoritative control-plane description of a physical shard and its logical ownership.
 
 Minimum metadata:
 
 - logical database ID;
+- logical shard ID;
 - physical shard ID;
 - topology version;
 - lifecycle state;
@@ -80,7 +81,7 @@ Minimum metadata:
 - creation timestamp;
 - last transition timestamp.
 
-Metadata must be validated before publication. Partial metadata is never published.
+Metadata must be validated before publication. Partial metadata is never published. All shard records in a published snapshot must belong to the same logical database and topology version.
 
 ## 6. Expansion
 
