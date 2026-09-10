@@ -55,9 +55,16 @@ export type ReadExecutionInput<T = unknown> = Readonly<{
   budget: ReadBudget;
   cachePolicy: CachePolicy;
   cacheEntry?: CacheEntry;
+  cacheIntegrityKey: CryptoKey;
   statement: string;
   bindings?: readonly unknown[];
   db: D1DatabaseLike;
+}>;
+
+export type ResourceAccounting = Readonly<{
+  d1Statements: Readonly<{ requested: number; reserved: number; consumed: number; released: number }>;
+  rowsRead: Readonly<{ requested: number; reserved: number; consumed: number; released: number }>;
+  payloadBytes: Readonly<{ requested: number; reserved: number; consumed: number; released: number }>;
 }>;
 
 export type ReadExecutionResult<T = unknown> = Readonly<{
@@ -74,6 +81,7 @@ export type ReadExecutionResult<T = unknown> = Readonly<{
   payloadBytes: number;
   actualFanout: 0 | 1;
   results: readonly T[];
+  resourceAccounting: ResourceAccounting;
 }>;
 
 export class ReadExecutionError extends Error {
@@ -127,18 +135,8 @@ function validatePlacement(placement: ReadPlacement): void {
   if (Date.now() >= placement.expiresAt) throw new ReadExecutionError("CONTROL_SNAPSHOT_EXPIRED", "execution epoch is expired");
 }
 
-function fingerprint(value: unknown): string {
-  let hash = 2166136261;
-  const text = JSON.stringify(value);
-  for (let index = 0; index < text.length; index += 1) {
-    hash ^= text.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0).toString(16).padStart(8, "0");
-}
-
-function expectedCacheIntegrity(input: ReadExecutionInput<unknown>, entry: CacheEntry): string {
-  return fingerprint({
+function canonicalCacheData(entry: CacheEntry): string {
+  return JSON.stringify({
     tenantId: entry.tenantId,
     principalScope: entry.principalScope,
     operation: entry.operation,
@@ -149,7 +147,17 @@ function expectedCacheIntegrity(input: ReadExecutionInput<unknown>, entry: Cache
   });
 }
 
-function validateCache<T>(input: ReadExecutionInput<T>, entry: CacheEntry): boolean {
+function hex(bytes: Uint8Array): string {
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function expectedCacheIntegrity(input: ReadExecutionInput<unknown>, entry: CacheEntry): Promise<string> {
+  const data = new TextEncoder().encode(canonicalCacheData(entry));
+  const signature = await crypto.subtle.sign("HMAC", input.cacheIntegrityKey, data);
+  return hex(new Uint8Array(signature));
+}
+
+async function validateCache<T>(input: ReadExecutionInput<T>, entry: CacheEntry): Promise<boolean> {
   if (!input.cachePolicy.cacheAllowed || !input.cachePolicy.cacheTermination) return false;
   if (entry.tenantId !== input.tenantId || entry.principalScope !== input.principalScope) {
     throw new ReadExecutionError("CACHE_BINDING_INVALID", "cache security binding is invalid");
@@ -158,7 +166,7 @@ function validateCache<T>(input: ReadExecutionInput<T>, entry: CacheEntry): bool
     throw new ReadExecutionError("CACHE_BINDING_INVALID", "cache contract binding is invalid");
   }
   boundedToken(entry.integrity, "cache integrity");
-  if (entry.integrity !== expectedCacheIntegrity(input, entry)) {
+  if (entry.integrity !== await expectedCacheIntegrity(input, entry)) {
     throw new ReadExecutionError("CACHE_BINDING_INVALID", "cache integrity is invalid");
   }
   if (Date.now() >= entry.expiresAt) return false;
@@ -167,6 +175,14 @@ function validateCache<T>(input: ReadExecutionInput<T>, entry: CacheEntry): bool
 
 function serializedBytes(value: unknown): number {
   return new TextEncoder().encode(JSON.stringify(value)).byteLength;
+}
+
+function accounting(requested: ReadBudget, d1: Readonly<{ reserved: number; consumed: number; released: number }>, rows: Readonly<{ reserved: number; consumed: number; released: number }>, payload: Readonly<{ reserved: number; consumed: number; released: number }>): ResourceAccounting {
+  return Object.freeze({
+    d1Statements: Object.freeze({ requested: requested.d1Statements, ...d1 }),
+    rowsRead: Object.freeze({ requested: requested.rowsRead, ...rows }),
+    payloadBytes: Object.freeze({ requested: requested.payloadBytes, ...payload }),
+  });
 }
 
 export async function executeBoundedRead<T = unknown>(input: ReadExecutionInput<T>): Promise<ReadExecutionResult<T>> {
@@ -182,7 +198,7 @@ export async function executeBoundedRead<T = unknown>(input: ReadExecutionInput<
 
   if (Date.now() >= input.deadlineAt) throw new ReadExecutionError("DEADLINE_EXCEEDED", "read deadline has expired");
 
-  if (input.cacheEntry !== undefined && validateCache(input, input.cacheEntry)) {
+  if (input.cacheEntry !== undefined && await validateCache(input, input.cacheEntry)) {
     const payloadBytes = serializedBytes(input.cacheEntry.payload);
     if (payloadBytes > budget.payloadBytes) throw new ReadExecutionError("BUDGET_EXCEEDED", "cache payload exceeds budget");
     const cached = Array.isArray(input.cacheEntry.payload) ? input.cacheEntry.payload as readonly T[] : [input.cacheEntry.payload as T];
@@ -201,12 +217,16 @@ export async function executeBoundedRead<T = unknown>(input: ReadExecutionInput<
       payloadBytes,
       actualFanout: 0 as const,
       results: Object.freeze(cached),
+      resourceAccounting: accounting(budget, { reserved: 0, consumed: 0, released: 0 }, { reserved: 0, consumed: 0, released: 0 }, { reserved: payloadBytes, consumed: payloadBytes, released: 0 }),
     });
   }
 
   if (budget.d1Statements < 1) throw new ReadExecutionError("BUDGET_EXCEEDED", "statement budget is insufficient");
   if (Date.now() >= input.deadlineAt) throw new ReadExecutionError("DEADLINE_EXCEEDED", "read deadline expired before D1 dispatch");
 
+  const reservedD1 = 1;
+  const reservedRows = budget.rowsRead;
+  const reservedPayload = budget.payloadBytes;
   let result: D1Result<T>;
   try {
     result = await input.db.prepare<T>(input.statement).bind(...(input.bindings ?? [])).all();
@@ -216,7 +236,7 @@ export async function executeBoundedRead<T = unknown>(input: ReadExecutionInput<
 
   const rowsRead = result.results.length;
   const payloadBytes = serializedBytes(result.results);
-  if (rowsRead > budget.rowsRead || payloadBytes > budget.payloadBytes) {
+  if (rowsRead > reservedRows || payloadBytes > reservedPayload) {
     throw new ReadExecutionError("BUDGET_EXCEEDED", "read result exceeds budget");
   }
 
@@ -234,5 +254,11 @@ export async function executeBoundedRead<T = unknown>(input: ReadExecutionInput<
     payloadBytes,
     actualFanout: 1 as const,
     results: Object.freeze([...result.results]),
+    resourceAccounting: accounting(
+      budget,
+      { reserved: 0, consumed: 1, released: reservedD1 - 1 },
+      { reserved: 0, consumed: rowsRead, released: reservedRows - rowsRead },
+      { reserved: 0, consumed: payloadBytes, released: reservedPayload - payloadBytes },
+    ),
   });
 }
