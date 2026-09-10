@@ -22,6 +22,7 @@ const requestBody = {
     payload: {
       write: {
         logicalTargetId: "target-1",
+        topologyVersion: 7,
         executionEpoch: 1,
         operation: {
           statement: "UPDATE items SET value = ?",
@@ -57,7 +58,7 @@ const requestBody = {
   },
 };
 
-test("routes compiled writes through W05 instead of calling W03 directly", async () => {
+test("routes compiled writes through W05 with topology version preserved", async () => {
   let w05Calls = 0;
   const w05Body = new Response(JSON.stringify({ status: "COMMITTED" }), { status: 200 });
   const response = await worker.fetch(new Request("https://w02/", {
@@ -70,8 +71,9 @@ test("routes compiled writes through W05 instead of calling W03 directly", async
         w05Calls += 1;
         assert.equal(new URL(request.url).pathname, "/v1/execute");
         assert.equal(request.method, "POST");
-        const forwarded = await request.json() as { identity?: { logicalTargetId?: string }; operation?: { retryable?: boolean } };
+        const forwarded = await request.json() as { identity?: { logicalTargetId?: string; topologyVersion?: number }; operation?: { retryable?: boolean } };
         assert.equal(forwarded.identity?.logicalTargetId, "target-1");
+        assert.equal(forwarded.identity?.topologyVersion, 7);
         assert.equal(forwarded.operation?.retryable, true);
         return w05Body;
       },
@@ -81,6 +83,20 @@ test("routes compiled writes through W05 instead of calling W03 directly", async
   assert.equal(response.status, 200);
   assert.equal(w05Calls, 1);
   assert.deepEqual(await response.json(), { status: "COMMITTED" });
+});
+
+test("rejects a write that has no resolved topology version", async () => {
+  const body = structuredClone(requestBody) as typeof requestBody;
+  delete (body.request.payload.write as { topologyVersion?: number }).topologyVersion;
+  const response = await worker.fetch(new Request("https://w02/", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  }), {
+    W05: { fetch: async () => { throw new Error("must not dispatch"); } },
+  });
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), { error: "ROUTING_REQUIRED" });
 });
 
 test("fails closed when W05 is unavailable for a write", async () => {
