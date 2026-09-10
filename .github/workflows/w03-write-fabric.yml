@@ -9,6 +9,7 @@ on:
     paths:
       - 'workers/v2/W03-Write-Fabric/**'
       - '.github/workflows/w03-write-fabric.yml'
+  workflow_dispatch:
 
 jobs:
   verify:
@@ -36,12 +37,22 @@ jobs:
   production-target-attestation:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: workers/v2/W03-Write-Fabric
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Require real deployment manifest
+      - name: Install Wrangler
+        run: npm install --no-save --no-package-lock wrangler@4.130.0
+      - name: Query Cloudflare D1 inventory
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --no-install wrangler d1 list --json > /tmp/d1-inventory.json
+      - name: Attest deployment identities
         env:
           D1_FABRIC_STRICT_DEPLOYMENT: '1'
-        run: node workers/v2/W03-Write-Fabric/scripts/validate-deployment-targets.mjs workers/v2/W03-Write-Fabric/deployment/targets.json workers/v2/W03-Write-Fabric/wrangler.toml
+        run: node scripts/validate-deployment-targets.mjs deployment/targets.json wrangler.toml /tmp/d1-inventory.json
