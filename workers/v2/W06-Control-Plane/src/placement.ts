@@ -5,12 +5,15 @@ export type ShardLifecycle =
   | "MIGRATING"
   | "RETIRED";
 
+export type PlacementCapacityState = "ADMITTED" | "BLOCKED";
+
 export interface ShardMetadata {
   logicalDatabaseId: string;
   logicalShardId: string;
   physicalShardId: string;
   topologyVersion: number;
   lifecycle: ShardLifecycle;
+  capacityState?: PlacementCapacityState;
 }
 
 export interface PlacementRequest {
@@ -31,7 +34,8 @@ export type PlacementErrorCode =
   | "INVALID_METADATA"
   | "STALE_VERSION"
   | "MISSING_PLACEMENT"
-  | "AMBIGUOUS_PLACEMENT";
+  | "AMBIGUOUS_PLACEMENT"
+  | "CAPACITY_BLOCKED";
 
 export class PlacementError extends Error {
   readonly code: PlacementErrorCode;
@@ -53,7 +57,8 @@ function validateMetadata(metadata: ShardMetadata): void {
     !validIdentifier(metadata.logicalShardId) ||
     !validIdentifier(metadata.physicalShardId) ||
     !Number.isSafeInteger(metadata.topologyVersion) ||
-    metadata.topologyVersion < 1
+    metadata.topologyVersion < 1 ||
+    (metadata.capacityState !== undefined && metadata.capacityState !== "ADMITTED" && metadata.capacityState !== "BLOCKED")
   ) {
     throw new PlacementError("INVALID_METADATA", "invalid shard metadata");
   }
@@ -98,10 +103,15 @@ export function resolvePlacement(
     throw new PlacementError("AMBIGUOUS_PLACEMENT", "placement must resolve to exactly one active physical shard");
   }
 
+  const selected = activeMatches[0];
+  if (selected.capacityState === "BLOCKED") {
+    throw new PlacementError("CAPACITY_BLOCKED", "placement target is currently blocked by capacity admission state");
+  }
+
   return {
     logicalDatabaseId: request.logicalDatabaseId,
     logicalShardId: request.logicalShardId,
-    physicalShardId: activeMatches[0].physicalShardId,
+    physicalShardId: selected.physicalShardId,
     topologyVersion: request.topologyVersion,
   };
 }
