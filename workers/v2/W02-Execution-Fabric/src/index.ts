@@ -58,17 +58,22 @@ async function resolveAuthoritativePlacement(
   binding: ServiceBinding,
   write: ParsedWritePayload,
 ): Promise<RoutingSelection> {
-  const upstream = await binding.fetch(new Request("https://w06/v1/placement/resolve", {
-    method: "POST",
-    headers: { "content-type": "application/json; charset=utf-8" },
-    body: JSON.stringify({
-      request: {
-        logicalDatabaseId: write.logicalDatabaseId,
-        logicalShardId: write.logicalShardId,
-        topologyVersion: write.topologyVersion,
-      },
-    }),
-  }));
+  let upstream: Response;
+  try {
+    upstream = await binding.fetch(new Request("https://w06/v1/placement/resolve", {
+      method: "POST",
+      headers: { "content-type": "application/json; charset=utf-8" },
+      body: JSON.stringify({
+        request: {
+          logicalDatabaseId: write.logicalDatabaseId,
+          logicalShardId: write.logicalShardId,
+          topologyVersion: write.topologyVersion,
+        },
+      }),
+    }));
+  } catch {
+    throw new Error("W06_UNAVAILABLE");
+  }
 
   if (!upstream.ok) {
     if (upstream.status === 503) throw new Error("W06_UNAVAILABLE");
@@ -79,7 +84,11 @@ async function resolveAuthoritativePlacement(
   try { body = await upstream.json(); } catch { throw new Error("W06_INVALID_RESPONSE"); }
   if (!isPlainRecord(body) || body.status !== "RESOLVED") throw new Error("W06_INVALID_RESPONSE");
   const result = (body as Record<string, unknown>).result;
-  validateRoutingSelection(result);
+  try {
+    validateRoutingSelection(result);
+  } catch {
+    throw new Error("W06_INVALID_RESPONSE");
+  }
   const route = result as RoutingSelection;
   if (route.logicalDatabaseId !== write.logicalDatabaseId || route.logicalShardId !== write.logicalShardId || route.topologyVersion !== write.topologyVersion) {
     throw new Error("W06_ROUTING_CONFLICT");
