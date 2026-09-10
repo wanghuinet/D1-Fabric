@@ -1,17 +1,10 @@
-export interface Env {}
+import { handleW06 } from "./api.ts";
+export { handleW06 } from "./api.ts";
+export * from "./expansion.ts";
+export * from "./metadata.ts";
+export * from "./migration.ts";
+export * from "./placement.ts";
+export * from "./rebalance.ts";
+export * from "./topology.ts";
 
-export default {
-  async fetch(request: Request, _env: Env): Promise<Response> {
-    const url = new URL(request.url);
-    if (request.method !== "GET") {
-      return new Response("method not allowed", { status: 405 });
-    }
-    if (url.pathname === "/health") {
-      return new Response("ok", { status: 200 });
-    }
-    if (url.pathname === "/ready") {
-      return new Response("ready", { status: 200 });
-    }
-    return new Response("not found", { status: 404 });
-  },
-};
+export default { fetch: handleW06 };
