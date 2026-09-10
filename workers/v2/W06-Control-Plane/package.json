@@ -1,0 +1,8 @@
+{
+  "name": "d1-fabric-w06-control-plane",
+  "private": true,
+  "scripts": {
+    "typecheck": "npx --yes typescript@7.0.2 --noEmit",
+    "test": "node --experimental-strip-types --test tests/*.test.ts"
+  }
+}
