@@ -4,6 +4,7 @@ export type CapacityAdmissionState = "ADMITTED" | "BLOCKED";
 
 export interface AuthoritativeShardMetadata {
   logicalDatabaseId: string;
+  logicalShardId: string;
   physicalShardId: string;
   topologyVersion: number;
   lifecycle: ShardLifecycle;
@@ -65,6 +66,7 @@ export function validateShardMetadata(
     snapshotVersion < 1 ||
     !validIdentifier(shard.logicalDatabaseId) ||
     shard.logicalDatabaseId !== logicalDatabaseId ||
+    !validIdentifier(shard.logicalShardId) ||
     !validIdentifier(shard.physicalShardId) ||
     !Number.isSafeInteger(shard.topologyVersion) ||
     shard.topologyVersion !== snapshotVersion ||
