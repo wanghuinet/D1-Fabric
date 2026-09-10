@@ -113,11 +113,12 @@ function assertPolicy(policy: ReliabilityPolicy): void {
 }
 
 export function retryDelayMs(policy: RetryPolicy, attempt: number, random = Math.random): number {
-  if (!Number.isFinite(random())) throw new ReliabilityError("INVALID_RANDOM", "random source must return a finite value", { class: "permanent", retryable: false });
+  const sample = random();
+  if (!Number.isFinite(sample)) throw new ReliabilityError("INVALID_RANDOM", "random source must return a finite value", { class: "permanent", retryable: false });
   const exponent = Math.min(30, Math.max(0, attempt - 1));
   const exponential = Math.min(policy.maxDelayMs, policy.baseDelayMs * (2 ** exponent));
   const spread = exponential * policy.jitterRatio;
-  return Math.max(0, Math.min(policy.maxDelayMs, exponential - spread + (2 * spread * random())));
+  return Math.max(0, Math.min(policy.maxDelayMs, exponential - spread + (2 * spread * sample)));
 }
 
 export class CircuitBreaker {
