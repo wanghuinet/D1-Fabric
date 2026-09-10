@@ -24,6 +24,7 @@ jobs:
           cache: npm
           cache-dependency-path: workers/v2/W03-Write-Fabric/package-lock.json
       - run: npm ci
+      - run: npm run validate-deployment
       - run: npm run typecheck
       - run: npm test
       - run: npm run dry-run
@@ -31,3 +32,16 @@ jobs:
         run: |
           ! grep -R -n -E 'from .*W0[1-2]|wrangler d1 execute|--d1|D1_DATABASE|D1_BINDING|env\.W02|env\.W04' src
           ! grep -R -n -E 'article|comment|feed|gallery|question|business logic|content platform' src
+
+  production-target-attestation:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Require real deployment manifest
+        env:
+          D1_FABRIC_STRICT_DEPLOYMENT: '1'
+        run: node workers/v2/W03-Write-Fabric/scripts/validate-deployment-targets.mjs workers/v2/W03-Write-Fabric/deployment/targets.json workers/v2/W03-Write-Fabric/wrangler.toml
