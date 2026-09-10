@@ -1,0 +1,7 @@
+name = "d1-fabric-w04-control-plane"
+main = "src/index.ts"
+compatibility_date = "2026-09-10"
+
+# The CONTROL_DB binding is intentionally not hard-coded here because
+# the deployment-specific D1 database ID belongs to the environment.
+# Until it is configured, the Worker fails closed with CONTROL_PLANE_NOT_CONFIGURED.
