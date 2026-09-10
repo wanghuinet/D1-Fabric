@@ -5,11 +5,11 @@ import w02 from "../../W02-Execution-Fabric/src/index.ts";
 import w03 from "../../W03-Write-Fabric/src/index.ts";
 import type { ServiceBinding as W01Binding } from "../src/index.ts";
 import type { ServiceBinding as W02Binding } from "../../W02-Execution-Fabric/src/index.ts";
-import type { D1DatabaseLike, PreparedStatementLike, D1ResultLike } from "../../W03-Write-Fabric/src/write.ts";
+import type { D1DatabaseLike, PreparedStatementLike, D1ResultLike, D1Value } from "../../W03-Write-Fabric/src/write.ts";
 
 class FakeStatement implements PreparedStatementLike {
-  constructor(private readonly sql: string, private readonly values: unknown[]) {}
-  bind(...values: never[]): PreparedStatementLike { return new FakeStatement(this.sql, values); }
+  constructor(private readonly sql: string) {}
+  bind(..._values: D1Value[]): PreparedStatementLike { return new FakeStatement(this.sql); }
   async run(): Promise<D1ResultLike> {
     return { success: true, meta: { changes: this.sql.startsWith("UPDATE") ? 1 : 0, rows_written: this.sql.startsWith("UPDATE") ? 1 : 0 } };
   }
@@ -19,7 +19,7 @@ class FakeStatement implements PreparedStatementLike {
 }
 
 class FakeDb implements D1DatabaseLike {
-  prepare(sql: string): PreparedStatementLike { return new FakeStatement(sql, []); }
+  prepare(sql: string): PreparedStatementLike { return new FakeStatement(sql); }
   async batch(statements: PreparedStatementLike[]): Promise<D1ResultLike[]> {
     return statements.map(() => ({ success: true, meta: { changes: 1, rows_written: 1 } }));
   }
