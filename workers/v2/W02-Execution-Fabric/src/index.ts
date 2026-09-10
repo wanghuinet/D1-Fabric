@@ -1,4 +1,4 @@
-import { compileExecutionPlan, PlanCompileError, type ExecutionRequest, type VersionedExecutionContract } from "./plan.ts";
+import { compileExecutionPlan, PlanCompileError, validateRoutingSelection, type ExecutionRequest, type VersionedExecutionContract, type RoutingSelection } from "./plan.ts";
 
 export interface ServiceBinding {
   fetch(input: Request): Promise<Response>;
@@ -6,6 +6,7 @@ export interface ServiceBinding {
 
 interface Env {
   W05?: ServiceBinding;
+  W06?: ServiceBinding;
 }
 
 const JSON_HEADERS = { "content-type": "application/json; charset=utf-8" };
@@ -21,6 +22,8 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 
 function isWritePayload(value: unknown): value is {
   write: {
+    logicalDatabaseId: string;
+    logicalShardId: string;
     logicalTargetId: string;
     executionEpoch: number;
     topologyVersion: number;
@@ -29,19 +32,68 @@ function isWritePayload(value: unknown): value is {
 } {
   if (!isPlainRecord(value) || !isPlainRecord(value.write)) return false;
   const write = value.write;
-  return typeof write.logicalTargetId === "string" && write.logicalTargetId.length > 0 &&
+  return typeof write.logicalDatabaseId === "string" && write.logicalDatabaseId.length > 0 &&
+    typeof write.logicalShardId === "string" && write.logicalShardId.length > 0 &&
+    typeof write.logicalTargetId === "string" && write.logicalTargetId.length > 0 &&
     Number.isSafeInteger(write.executionEpoch) && (write.executionEpoch as number) > 0 &&
     Number.isSafeInteger(write.topologyVersion) && (write.topologyVersion as number) > 0 &&
     isPlainRecord(write.operation);
+}
+
+interface ParsedWritePayload {
+  readonly logicalDatabaseId: string;
+  readonly logicalShardId: string;
+  readonly logicalTargetId: string;
+  readonly executionEpoch: number;
+  readonly topologyVersion: number;
+  readonly operation: Record<string, unknown>;
+}
+
+function extractWritePayload(payload: Record<string, unknown>): ParsedWritePayload {
+  if (!isWritePayload(payload)) throw new PlanCompileError("INVALID_REQUEST", "write payload must include logical database, logical shard, logical target, topologyVersion, and executionEpoch");
+  return payload.write;
+}
+
+async function resolveAuthoritativePlacement(
+  binding: ServiceBinding,
+  write: ParsedWritePayload,
+): Promise<RoutingSelection> {
+  const upstream = await binding.fetch(new Request("https://w06/v1/placement/resolve", {
+    method: "POST",
+    headers: { "content-type": "application/json; charset=utf-8" },
+    body: JSON.stringify({
+      request: {
+        logicalDatabaseId: write.logicalDatabaseId,
+        logicalShardId: write.logicalShardId,
+        topologyVersion: write.topologyVersion,
+      },
+    }),
+  }));
+
+  if (!upstream.ok) {
+    if (upstream.status === 503) throw new Error("W06_UNAVAILABLE");
+    throw new Error(`W06_ROUTING_FAILED:${upstream.status}`);
+  }
+
+  let body: unknown;
+  try { body = await upstream.json(); } catch { throw new Error("W06_INVALID_RESPONSE"); }
+  if (!isPlainRecord(body) || body.status !== "RESOLVED") throw new Error("W06_INVALID_RESPONSE");
+  const result = (body as Record<string, unknown>).result;
+  validateRoutingSelection(result);
+  const route = result as RoutingSelection;
+  if (route.logicalDatabaseId !== write.logicalDatabaseId || route.logicalShardId !== write.logicalShardId || route.topologyVersion !== write.topologyVersion) {
+    throw new Error("W06_ROUTING_CONFLICT");
+  }
+  return Object.freeze(route);
 }
 
 function toWriteRequest(
   executionRequest: ExecutionRequest,
   contract: VersionedExecutionContract,
   plan: ReturnType<typeof compileExecutionPlan>,
-  payload: Record<string, unknown>,
+  write: ParsedWritePayload,
+  route: RoutingSelection,
 ): Record<string, unknown> {
-  const write = payload.write as Record<string, unknown>;
   return {
     identity: {
       requestId: plan.requestId,
@@ -53,8 +105,11 @@ function toWriteRequest(
       principalScope: plan.principalScope,
       operation: plan.operation,
       operationVersion: plan.operationVersion,
+      logicalDatabaseId: route.logicalDatabaseId,
+      logicalShardId: route.logicalShardId,
       logicalTargetId: write.logicalTargetId,
-      topologyVersion: write.topologyVersion,
+      physicalShardId: route.physicalShardId,
+      topologyVersion: route.topologyVersion,
       executionEpoch: write.executionEpoch,
       deadlineAt: plan.deadlineAt,
       budget: {
@@ -113,10 +168,12 @@ export default {
     try {
       const plan = compileExecutionPlan(executionRequest as ExecutionRequest, contract as VersionedExecutionContract);
       if (plan.mode !== "WRITE") return response({ status: "COMPILED", plan });
-      if (!isWritePayload(executionRequest?.payload)) return response({ error: "ROUTING_REQUIRED" }, 400);
+      const write = extractWritePayload(executionRequest?.payload as Record<string, unknown>);
+      if (!env?.W06 || typeof env.W06.fetch !== "function") return response({ error: "W06_UNAVAILABLE" }, 503);
       if (!env?.W05 || typeof env.W05.fetch !== "function") return response({ error: "W05_UNAVAILABLE" }, 503);
 
-      const writeRequest = toWriteRequest(executionRequest, contract as VersionedExecutionContract, plan, executionRequest.payload as Record<string, unknown>);
+      const route = await resolveAuthoritativePlacement(env.W06, write);
+      const writeRequest = toWriteRequest(executionRequest, contract as VersionedExecutionContract, plan, write, route);
       const upstream = await env.W05.fetch(new Request(new URL("/v1/execute", request.url), {
         method: "POST",
         headers: {
@@ -130,6 +187,9 @@ export default {
     } catch (error) {
       if (error instanceof PlanCompileError) return response({ error: error.code }, 400);
       if (error instanceof TypeError || error instanceof RangeError || error instanceof SyntaxError) return response({ error: "INVALID_REQUEST" }, 400);
+      if (error instanceof Error && error.message === "W06_UNAVAILABLE") return response({ error: "W06_UNAVAILABLE" }, 503);
+      if (error instanceof Error && error.message.startsWith("W06_ROUTING_FAILED:")) return response({ error: "W06_ROUTING_FAILED" }, 502);
+      if (error instanceof Error && ["W06_INVALID_RESPONSE", "W06_ROUTING_CONFLICT"].includes(error.message)) return response({ error: error.message }, 502);
       return response({ error: "W05_UNAVAILABLE" }, 503);
     }
   },
