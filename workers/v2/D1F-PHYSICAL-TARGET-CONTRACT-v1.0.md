@@ -81,6 +81,21 @@ A Worker MUST NOT construct a D1 target from a string, hash, ordinal, database n
 
 Version 1.0 does not claim arbitrary runtime creation of new D1 bindings. Adding a new concrete D1 binding is an explicit deployment/configuration operation and MUST pass the target-catalog validation gate before the corresponding topology version is admitted.
 
+### 5.1 Deployment target manifest
+
+The W03 deployment target manifest is a declarative deployment-time attestation input. For every concrete target it records:
+
+- `physicalTargetId`;
+- `bindingName`;
+- `databaseName`;
+- `databaseId`.
+
+The manifest MUST agree with `wrangler.toml` for binding name, database name, and database ID. A physical target or database ID MUST NOT be duplicated within the manifest.
+
+Repository CI MAY use placeholder database IDs only in non-strict validation. Any production attestation MUST reject placeholders.
+
+A production deployment MUST additionally compare the manifest database IDs against the current Cloudflare D1 inventory. A target is not production-attested merely because the repository files agree with each other.
+
 ## 6. Fail-closed rules
 
 Target resolution MUST fail closed on:
@@ -169,7 +184,9 @@ The implementation is not PASS until tests prove:
 9. no execution path can select a default/fallback D1;
 10. W01-W06 regression remains green;
 11. `wrangler deploy --dry-run` passes for every affected Worker;
-12. real Cloudflare D1 acceptance proves that two concrete bindings execute against two distinct databases without cross-target writes.
+12. production deployment manifest agrees with Wrangler configuration;
+13. production attestation proves manifest database IDs exist in the target Cloudflare account;
+14. real Cloudflare D1 acceptance proves that two concrete bindings execute against two distinct databases without cross-target writes.
 
 ## 12. Production invariants
 
@@ -184,4 +201,5 @@ The implementation is not PASS until tests prove:
 - target resolution failures are fail-closed;
 - W03 does not own placement or migration planning;
 - no hidden dual-write behavior;
-- no claim of dynamic D1 binding creation in v1.0.
+- no claim of dynamic D1 binding creation in v1.0;
+- production deployment identity is externally attested against the Cloudflare D1 inventory.
