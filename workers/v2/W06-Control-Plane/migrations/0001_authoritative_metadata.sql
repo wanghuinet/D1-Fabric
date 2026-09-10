@@ -16,5 +16,12 @@ CREATE TABLE IF NOT EXISTS d1f_w06_shard_metadata (
   CHECK (last_transition_timestamp >= creation_timestamp)
 );
 
+CREATE TABLE IF NOT EXISTS d1f_w06_topology_head (
+  logical_database_id TEXT PRIMARY KEY,
+  topology_version INTEGER NOT NULL CHECK (topology_version > 0),
+  FOREIGN KEY (logical_database_id, topology_version, topology_version)
+    REFERENCES d1f_w06_shard_metadata(logical_database_id, topology_version, logical_shard_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_d1f_w06_shard_metadata_lookup
   ON d1f_w06_shard_metadata (logical_database_id, topology_version, lifecycle, capacity_state);
