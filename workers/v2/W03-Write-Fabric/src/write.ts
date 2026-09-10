@@ -91,6 +91,7 @@ export async function executeWrite(db: D1DatabaseLike, identity: WriteIdentity, 
 
   if (operation.retryable) {
     const key = operation.idempotencyKey as string;
+    ensureBudget(identity, 1, 0, 0, 0);
     const existing = await replayState(db, identity, key);
     if (existing?.state === "COMMITTED") {
       ensureBudget(identity, 1, 0, 0, 1);
@@ -98,18 +99,24 @@ export async function executeWrite(db: D1DatabaseLike, identity: WriteIdentity, 
     }
     if (existing?.state === "IN_FLIGHT") throw new WriteExecutionError("IDEMPOTENCY_CONFLICT", "idempotency key is already in flight");
 
-    ensureBudget(identity, 3, 0, 0, 0); checkAbort(signal);
+    ensureBudget(identity, 5, 0, 0, 0); checkAbort(signal);
     const protocol = operation.atomicIdempotency as AtomicIdempotencyProtocol;
     const claim = db.prepare(CLAIM_SQL).bind(identity.tenantId, identity.principalScope, identity.operation, identity.operationVersion, key, identity.requestId);
     const mutation = db.prepare(protocol.guardedMutation.sql).bind(...protocol.guardedMutation.bindings);
     const commit = db.prepare(COMMIT_SQL).bind(identity.tenantId, identity.principalScope, identity.operation, identity.operationVersion, key, identity.requestId);
     let batch: D1ResultLike[];
-    try { batch = await db.batch([claim, mutation, commit]); } catch { throw new WriteExecutionError("D1_EXECUTION_FAILED", "write transaction failed"); }
+    try { batch = await db.batch([claim, mutation, commit]); } catch { 
+      try {
+        const state = await replayState(db, identity, key);
+        if (state?.state === "COMMITTED") return { status: "COMMITTED", requestId: identity.requestId, contractId: identity.contractId, contractVersion: identity.contractVersion, logicalTargetId: identity.logicalTargetId, executionEpoch: identity.executionEpoch, accounting: { d1Statements: 5, rowsWritten: state.affectedRows, payloadBytes: payloadSize({ affectedRows: state.affectedRows }), retries: 0 }, affectedRows: state.affectedRows, idempotencyState: "COMMITTED" };
+      } catch { /* transport remains indeterminate */ }
+      throw new WriteExecutionError("COMMIT_UNKNOWN", "transaction outcome could not be confirmed");
+    }
     const mutationResult = batch[1];
     const affectedRows = mutationResult?.meta?.changes ?? 0;
     const rowsWritten = mutationResult?.meta?.rows_written ?? affectedRows;
     const payloadBytes = payloadSize({ affectedRows });
-    ensureBudget(identity, 3, rowsWritten, payloadBytes, 0);
+    ensureBudget(identity, 5, rowsWritten, payloadBytes, 0);
     if (operation.expectedWriteCount !== undefined && affectedRows !== operation.expectedWriteCount) throw new WriteExecutionError("D1_RESULT_INVALID", "affected row count does not match expectedWriteCount");
     const state = await replayState(db, identity, key);
     if (!state || state.state !== "COMMITTED") throw new WriteExecutionError("COMMIT_UNKNOWN", "authoritative commit state could not be confirmed");
