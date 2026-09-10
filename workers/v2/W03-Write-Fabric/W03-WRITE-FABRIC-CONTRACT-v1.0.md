@@ -136,6 +136,10 @@ idempotencyKey (required when retryable)
 expectedWriteCount (optional bounded assertion)
 ```
 
+For retryable writes, the descriptor MUST also provide an explicit `atomicIdempotency.guardedMutation` prepared-statement descriptor. This descriptor is implementation data, not business logic: W03 MUST execute it exactly as supplied and MUST NOT synthesize, parse, or silently rewrite application SQL to add idempotency predicates.
+
+The guarded mutation MUST be semantically constrained by the caller to mutate only when the current idempotency record is owned by the current request and is `IN_FLIGHT`.
+
 W03 MUST NOT construct application SQL from business fields.
 
 W03 MUST NOT silently rewrite SQL semantics merely to satisfy a budget.
@@ -161,6 +165,16 @@ Before D1 dispatch:
 ```text
 required <= remaining admitted budget
 ```
+
+For a retryable mutation, the minimum statement reservation for the v1.0 implementation is **5 D1 statements**:
+
+```text
+1  initial idempotency-state read
+3  atomic claim + guarded mutation + commit batch
+1  authoritative idempotency-state confirmation read
+```
+
+A committed replay uses **1 D1 statement** for the replay-state read and MUST NOT execute the authoritative mutation.
 
 After completion:
 
@@ -342,7 +356,8 @@ Before W03 can be marked PASS, tests MUST prove at minimum:
 - maximum payload;
 - deadline boundary;
 - expected write-count boundary;
-- repeated committed idempotency key.
+- repeated committed idempotency key;
+- retryable mutation is rejected before any D1 dispatch when admitted statement budget is below 5.
 
 ### Failure
 
