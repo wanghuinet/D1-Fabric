@@ -1,4 +1,5 @@
-import { parseAndValidateBody, ValidationError, W01_LIMITS } from "./validation.ts";
+import { ENVELOPE_VERSION, MASTER_CONTRACT_VERSION, ARCHITECTURE_ID, freezeEnvelope, type ExecutionEnvelope } from "../../contracts/index.ts";
+import { parseAndValidateBody, ValidationError, W01_LIMITS, type GatewayRequest } from "./validation.ts";
 
 const JSON_HEADERS = Object.freeze({ "content-type": "application/json; charset=utf-8" });
 const JSON_CONTENT_TYPE = /^application\/json(?:\s*;\s*charset\s*=\s*[^;]+)?\s*$/i;
@@ -15,7 +16,7 @@ function isJsonContentType(request: Request): boolean {
   return contentType !== null && JSON_CONTENT_TYPE.test(contentType);
 }
 
-async function readBoundedBody(request: Request): Promise<string> {
+async function readBoundedBody(request: Request): Promise<{ rawBody: string; payloadBytes: number }> {
   const declaredLength = request.headers.get("content-length");
   if (declaredLength !== null) {
     const parsedLength = Number(declaredLength);
@@ -27,7 +28,7 @@ async function readBoundedBody(request: Request): Promise<string> {
     }
   }
 
-  if (!request.body) return "";
+  if (!request.body) return { rawBody: "", payloadBytes: 0 };
 
   const reader = request.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -55,7 +56,26 @@ async function readBoundedBody(request: Request): Promise<string> {
     merged.set(chunk, offset);
     offset += chunk.byteLength;
   }
-  return new TextDecoder().decode(merged);
+  return { rawBody: new TextDecoder().decode(merged), payloadBytes: total };
+}
+
+function buildEnvelope(request: GatewayRequest, payloadBytes: number): ExecutionEnvelope {
+  return freezeEnvelope({
+    envelopeVersion: ENVELOPE_VERSION,
+    contractVersion: MASTER_CONTRACT_VERSION,
+    architectureId: ARCHITECTURE_ID,
+    requestId: request.requestId,
+    tenantId: request.tenantId,
+    principalScope: request.principalScope,
+    operation: request.operation,
+    operationVersion: request.operationVersion,
+    deadlineAt: request.deadlineAt,
+    budget: {
+      ...request.budget,
+      payloadBytes,
+    },
+    payload: request.payload,
+  });
 }
 
 export default {
@@ -68,42 +88,30 @@ export default {
       return jsonResponse({ error: "UNSUPPORTED_MEDIA_TYPE" }, 415);
     }
 
-    let rawBody: string;
+    let body: { rawBody: string; payloadBytes: number };
     try {
-      rawBody = await readBoundedBody(request);
+      body = await readBoundedBody(request);
     } catch (error) {
-      if (error instanceof ValidationError) {
-        return jsonResponse({ error: error.code }, error.status);
-      }
+      if (error instanceof ValidationError) return jsonResponse({ error: error.code }, error.status);
       return jsonResponse({ error: "INVALID_REQUEST" }, 400);
     }
 
     let parsed: unknown;
     try {
-      parsed = JSON.parse(rawBody);
+      parsed = JSON.parse(body.rawBody);
     } catch {
       return jsonResponse({ error: "INVALID_REQUEST" }, 400);
     }
 
     try {
       const normalized = parseAndValidateBody(parsed, Date.now());
-      return jsonResponse(
-        {
-          status: "ADMITTED",
-          requestId: normalized.requestId,
-          operation: normalized.operation,
-          operationVersion: normalized.operationVersion,
-          contractVersion: "D1F-3.0-MASTER-v1.0",
-        },
-        200,
-      );
+      const envelope = buildEnvelope(normalized, body.payloadBytes);
+      return jsonResponse({ status: "ADMITTED", next: "W02", envelope }, 200);
     } catch (error) {
-      if (error instanceof ValidationError) {
-        return jsonResponse({ error: error.code }, error.status);
-      }
+      if (error instanceof ValidationError) return jsonResponse({ error: error.code }, error.status);
       return jsonResponse({ error: "INVALID_REQUEST" }, 400);
     }
   },
 };
 
-export { isJsonContentType, readBoundedBody };
+export { buildEnvelope, isJsonContentType, readBoundedBody };
