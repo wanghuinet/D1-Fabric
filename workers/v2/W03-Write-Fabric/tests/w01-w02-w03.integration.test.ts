@@ -42,7 +42,7 @@ test("W01 -> W02 plan -> W03 write preserves execution identity", async () => {
     } } },
   );
   assert.equal(gateway.status, 200);
-  assert.ok(compiled);
+  if (!compiled) throw new Error("W02 compilation did not produce a plan");
   assert.equal(compiled.requestId, request.requestId);
   assert.equal(compiled.tenantId, request.tenantId);
 
