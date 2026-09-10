@@ -65,6 +65,8 @@ now < expiryTime
 
 An expired or revoked snapshot is never eligible as LKG.
 
+LKG is a recovery source. Selecting an LKG snapshot MUST NOT silently bypass epoch fencing. If the active head is invalid or revoked, normal writes remain blocked until a valid snapshot with a new active epoch is published.
+
 ## 5. Epoch fencing
 
 An execution captures exactly one immutable epoch.
@@ -79,7 +81,9 @@ Revocation is monotonic. A revoked snapshot cannot become active again. Revocati
 
 ## 7. Recovery
 
-Recovery may select the newest valid LKG snapshot. Normal write admission MUST remain blocked until a valid non-expired non-revoked snapshot is available.
+Recovery may select the newest valid LKG snapshot as recovery input. It MUST NOT reactivate an older epoch. A recovery implementation MUST publish a new monotonically increasing control version/epoch before normal write admission resumes.
+
+Normal write admission MUST remain blocked until a valid non-expired non-revoked snapshot is available as the active head.
 
 ## 8. Resource limits
 
@@ -94,7 +98,7 @@ LKG scan: bounded by the indexed control table
 
 W04 MUST NOT perform unbounded fan-out, retries, or synchronous telemetry hops.
 
-## 9. Public API
+## 9. Public API and security boundary
 
 The Worker MUST NOT expose:
 
@@ -105,6 +109,8 @@ The Worker MUST NOT expose:
 - raw control database rows.
 
 The API exposes only bounded generic control metadata.
+
+Mutating control-plane operations (`publish`, `revoke`) MUST fail closed unless a deployment-provided administrator credential is configured. The credential MUST be supplied through an environment secret and MUST NOT be stored in source control or request payloads. Production deployments SHOULD expose W04 through Cloudflare Service Bindings rather than a public route; authentication remains required as defense in depth.
 
 ## 10. Acceptance
 
@@ -119,4 +125,5 @@ W04 PASS requires tests for:
 - payload bounds;
 - atomic head advancement semantics;
 - no executable extension metadata;
-- Worker method/path/body bounds.
+- Worker method/path/body bounds;
+- mutation authorization and fail-closed behavior.
