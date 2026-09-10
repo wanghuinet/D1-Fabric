@@ -18,5 +18,5 @@ test("unknown and unsupported requests fail closed", async () => {
   const getUnknown = await worker.fetch(new Request("https://example.com/nope"), {});
   assert.equal(getUnknown.status, 405);
   const postHealth = await worker.fetch(new Request("https://example.com/health", { method: "POST" }), {});
-  assert.equal(postHealth.status, 400);
+  assert.equal(postHealth.status, 415);
 });
