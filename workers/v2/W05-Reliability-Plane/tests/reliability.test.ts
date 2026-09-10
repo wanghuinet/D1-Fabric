@@ -43,7 +43,7 @@ test("retry budget token bucket consumes capacity and refills over time", () => 
   assert.equal(budget.allow(), true);
   assert.equal(budget.available(), 0);
   now = 3000;
-  assert.equal(budget.available(), 1);
+  assert.equal(budget.available(), 2);
 });
 
 test("non-idempotent writes never retry or consume retry budget", async () => {
