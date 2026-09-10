@@ -240,9 +240,10 @@ export function withTimeout<T>(operation: (signal: AbortSignal) => Promise<T>, t
   return new Promise<T>((resolve, reject) => {
     const controller = new AbortController();
     let settled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     let parentAbort: (() => void) | undefined;
     const cleanup = () => {
-      clearTimeout(timer);
+      if (timer !== undefined) clearTimeout(timer);
       if (parentSignal && parentAbort) parentSignal.removeEventListener("abort", parentAbort);
     };
     const abortFromParent = () => {
@@ -261,7 +262,7 @@ export function withTimeout<T>(operation: (signal: AbortSignal) => Promise<T>, t
     parentAbort = abortFromParent;
     parentSignal?.addEventListener("abort", parentAbort, { once: true });
 
-    const timer = setTimeout(() => {
+    timer = setTimeout(() => {
       if (settled) return;
       controller.abort();
       settled = true;
