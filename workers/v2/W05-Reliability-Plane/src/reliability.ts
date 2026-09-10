@@ -236,14 +236,36 @@ export class CircuitBreaker {
   }
 }
 
-export function withTimeout<T>(operation: (signal: AbortSignal) => Promise<T>, timeoutMs: number): Promise<T> {
+export function withTimeout<T>(operation: (signal: AbortSignal) => Promise<T>, timeoutMs: number, parentSignal?: AbortSignal): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const controller = new AbortController();
     let settled = false;
+    let parentAbort: (() => void) | undefined;
+    const cleanup = () => {
+      clearTimeout(timer);
+      if (parentSignal && parentAbort) parentSignal.removeEventListener("abort", parentAbort);
+    };
+    const abortFromParent = () => {
+      if (settled) return;
+      controller.abort(parentSignal?.reason);
+      settled = true;
+      cleanup();
+      reject(new ReliabilityError("CANCELLED", "operation cancelled by caller", { class: "permanent", retryable: false, code: "CANCELLED" }));
+    };
+
+    if (parentSignal?.aborted) {
+      abortFromParent();
+      return;
+    }
+
+    parentAbort = abortFromParent;
+    parentSignal?.addEventListener("abort", parentAbort, { once: true });
+
     const timer = setTimeout(() => {
       if (settled) return;
       controller.abort();
       settled = true;
+      cleanup();
       reject(new ReliabilityError("TIMEOUT", `operation exceeded ${timeoutMs}ms`, { class: "timeout", retryable: true, code: "TIMEOUT" }));
     }, timeoutMs);
 
@@ -252,20 +274,20 @@ export function withTimeout<T>(operation: (signal: AbortSignal) => Promise<T>, t
         (value) => {
           if (settled) return;
           settled = true;
-          clearTimeout(timer);
+          cleanup();
           resolve(value);
         },
         (error) => {
           if (settled) return;
           settled = true;
-          clearTimeout(timer);
+          cleanup();
           reject(error);
         },
       );
     } catch (error) {
       if (settled) return;
       settled = true;
-      clearTimeout(timer);
+      cleanup();
       reject(error);
     }
   });
@@ -279,6 +301,7 @@ export interface ExecuteOptions {
   random?: () => number;
   breaker?: CircuitBreaker;
   retryBudget?: RetryBudget;
+  signal?: AbortSignal;
 }
 
 export async function executeReliably<T>(fn: (signal: AbortSignal) => Promise<T>, options: ExecuteOptions): Promise<T> {
@@ -294,6 +317,9 @@ export async function executeReliably<T>(fn: (signal: AbortSignal) => Promise<T>
   let attempt = 0;
 
   while (attempt < options.policy.retry.maxAttempts) {
+    if (options.signal?.aborted) {
+      throw new ReliabilityError("CANCELLED", "operation cancelled by caller", { class: "permanent", retryable: false, code: "CANCELLED" }, attempt);
+    }
     const current = finiteNow(now(), "reliability");
     const elapsed = Math.max(0, current - startedAt);
     if (elapsed >= options.policy.retry.maxElapsedMs) {
@@ -305,7 +331,7 @@ export async function executeReliably<T>(fn: (signal: AbortSignal) => Promise<T>
     attempt += 1;
     try {
       const remaining = Math.min(options.policy.timeout.timeoutMs, Math.max(1, options.policy.retry.maxElapsedMs - Math.max(0, finiteNow(now(), "reliability") - startedAt)));
-      const result = await withTimeout(fn, remaining);
+      const result = await withTimeout(fn, remaining, options.signal);
       breaker.recordSuccess(finiteNow(now(), "reliability"));
       return result;
     } catch (error) {
@@ -320,10 +346,13 @@ export async function executeReliably<T>(fn: (signal: AbortSignal) => Promise<T>
         breaker.recordFailure(finiteNow(now(), "reliability"));
         throw new ReliabilityError("RETRY_RATE_LIMITED", "retry budget exhausted", { class: "transient", retryable: false, code: "RETRY_RATE_LIMITED" }, attempt);
       }
+      if (options.signal?.aborted) {
+        throw new ReliabilityError("CANCELLED", "operation cancelled by caller", { class: "permanent", retryable: false, code: "CANCELLED" }, attempt);
+      }
       const delay = retryDelayMs(options.policy.retry, attempt, random);
-      const remaining = options.policy.retry.maxElapsedMs - Math.max(0, finiteNow(now(), "reliability") - startedAt);
+      const remaining = options.policy.retry.maxElapsedMs - Math.max(0, finiteNow(now, "reliability") - startedAt);
       if (delay >= remaining) {
-        breaker.recordFailure(finiteNow(now(), "reliability"));
+        breaker.recordFailure(finiteNow(now, "reliability"));
         throw new ReliabilityError("RETRY_BUDGET_EXCEEDED", "reliability time budget exhausted before next retry", { class: "transient", retryable: false }, attempt);
       }
       await sleep(delay);
