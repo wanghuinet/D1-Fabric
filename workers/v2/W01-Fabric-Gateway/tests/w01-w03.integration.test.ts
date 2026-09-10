@@ -87,8 +87,12 @@ class ControlDb implements W04Db {
 }
 
 const controlDb = new ControlDb();
+const CONTROL_PLANE_ADMIN_TOKEN = "integration-control-plane-admin";
 const w04Binding = {
-  fetch: (request: Request) => w04.fetch(request, { CONTROL_DB: controlDb }),
+  fetch: (request: Request) => w04.fetch(request, {
+    CONTROL_DB: controlDb,
+    CONTROL_PLANE_ADMIN_TOKEN,
+  }),
 };
 const w03Binding: W02Binding = {
   fetch: (request) => w03.fetch(request, { DB: new FakeDb(), W04: w04Binding }),
@@ -119,10 +123,14 @@ function writeEnvelope(epoch = 1) {
 
 async function publishEpoch(epoch: number): Promise<void> {
   const now = Date.now();
-  const response = await w04.fetch(new Request("https://w04/v1/control/publish", {
-    method: "POST", headers: { "content-type": "application/json" },
+  const response = await w04Binding.fetch(new Request("https://w04/v1/control/publish", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${CONTROL_PLANE_ADMIN_TOKEN}`,
+    },
     body: JSON.stringify({ configVersion: epoch, epoch, activationTime: now - 1_000, expiryTime: now + 60_000, source: "integration", payload: { placement: { logical: 64 } } }),
-  }), { CONTROL_DB: controlDb });
+  }));
   assert.equal(response.status, 201);
 }
 
