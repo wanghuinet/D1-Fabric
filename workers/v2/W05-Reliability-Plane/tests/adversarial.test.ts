@@ -49,7 +49,7 @@ test("permanent client failures do not trip the circuit breaker", async () => {
     );
     assert.equal(breaker.stateAt(i), "closed");
   }
-}
+});
 
 test("repeated transient failures cannot create an unbounded retry storm", async () => {
   const budget = new RetryBudget({ capacity: 2, refillRate: 0 }, () => 0);
