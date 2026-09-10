@@ -50,6 +50,30 @@ test("W06 API maps malformed payloads to client errors", async () => {
   assert.equal(malformedShape.status, 400);
 });
 
+test("W06 API rejects placement metadata without authoritative capacity state", async () => {
+  const response = await handleW06(new Request("https://w06/v1/placement/resolve", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      request: { logicalDatabaseId: "db-1", logicalShardId: "ls-1", topologyVersion: 1 },
+      metadata: [{
+        logicalDatabaseId: "db-1",
+        logicalShardId: "ls-1",
+        physicalShardId: "ps-1",
+        topologyVersion: 1,
+        lifecycle: "ACTIVE",
+      }],
+    }),
+  }));
+
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), {
+    status: "ERROR",
+    code: "INVALID_REQUEST",
+    message: "placement metadata must include an authoritative capacityState",
+  });
+});
+
 test("W06 API rejects oversized requests before planning", async () => {
   const payload = JSON.stringify({ logicalDatabaseId: "db", blob: "x".repeat(1_100_000) });
   const response = await handleW06(new Request("https://w06/v1/expansion/plan", {
