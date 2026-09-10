@@ -132,8 +132,12 @@ export function retryDelayMs(policy: RetryPolicy, attempt: number, random = Math
 export class RetryBudget {
   private tokens: number;
   private lastRefill: number;
+  private readonly policy: RetryBudgetPolicy;
+  private readonly now: () => number;
 
-  constructor(private readonly policy: RetryBudgetPolicy, private readonly now = () => Date.now()) {
+  constructor(policy: RetryBudgetPolicy, now = () => Date.now()) {
+    this.policy = policy;
+    this.now = now;
     this.tokens = policy.capacity;
     this.lastRefill = this.now();
   }
