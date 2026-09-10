@@ -82,11 +82,12 @@ function writeOperation(body: Record<string, unknown>): { identity: Record<strin
   }
   const identity = body.identity;
   const operation = body.operation;
+  const deadlineAt = identity.deadlineAt;
   if (
     typeof identity.requestId !== "string" ||
     typeof identity.logicalTargetId !== "string" ||
-    !Number.isSafeInteger(identity.deadlineAt) ||
-    identity.deadlineAt <= Date.now()
+    !Number.isSafeInteger(deadlineAt) ||
+    (deadlineAt as number) <= Date.now()
   ) {
     throw new ReliabilityError("INVALID_REQUEST", "identity deadline or target is invalid", { class: "permanent", retryable: false });
   }
@@ -97,7 +98,11 @@ function writeOperation(body: Record<string, unknown>): { identity: Record<strin
 }
 
 function reliabilityPolicy(identity: Record<string, unknown>): ReliabilityPolicy {
-  const remaining = Number(identity.deadlineAt) - Date.now();
+  const deadlineAt = identity.deadlineAt;
+  if (!Number.isSafeInteger(deadlineAt)) {
+    throw new ReliabilityError("INVALID_REQUEST", "identity deadline is invalid", { class: "permanent", retryable: false });
+  }
+  const remaining = deadlineAt - Date.now();
   if (!Number.isFinite(remaining) || remaining <= 0) {
     throw new ReliabilityError("TIMEOUT", "request deadline has expired", { class: "timeout", retryable: false });
   }
