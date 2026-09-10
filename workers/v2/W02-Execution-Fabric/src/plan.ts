@@ -1,17 +1,7 @@
-export const MASTER_CONTRACT_VERSION = "D1F-3.0-MASTER-v1.0" as const;
-export const ARCHITECTURE_ID = "D1F-3.0-ARCH-v1.0" as const;
+import { MASTER_CONTRACT_VERSION, ARCHITECTURE_ID, freezeBudget, type BudgetLimits, type ExecutionMode } from "../../contracts/index.ts";
 
-export type ExecutionMode = "READ" | "WRITE";
-
-export interface BudgetLimits {
-  readonly fanout: number;
-  readonly concurrency: number;
-  readonly d1Statements: number;
-  readonly rowsRead: number;
-  readonly rowsWritten: number;
-  readonly retries: number;
-  readonly payloadBytes: number;
-}
+export { MASTER_CONTRACT_VERSION, ARCHITECTURE_ID };
+export type { BudgetLimits, ExecutionMode };
 
 export interface ExecutionRequest {
   readonly requestId: string;
@@ -37,6 +27,7 @@ export interface ExecutionPlan {
   readonly planId: string;
   readonly contractId: string;
   readonly contractVersion: string;
+  readonly architectureId: typeof ARCHITECTURE_ID;
   readonly operation: string;
   readonly operationVersion: string;
   readonly requestId: string;
@@ -123,21 +114,6 @@ function assertContract(contract: VersionedExecutionContract): void {
   assertBudget(contract.limits, "contract.limits");
 }
 
-function cloneBudget(value: BudgetLimits): BudgetLimits {
-  return Object.freeze({ ...value });
-}
-
-function stableFingerprint(parts: readonly string[]): string {
-  let hash = 2166136261;
-  for (const part of parts) {
-    for (let index = 0; index < part.length; index += 1) {
-      hash ^= part.charCodeAt(index);
-      hash = Math.imul(hash, 16777619);
-    }
-  }
-  return (hash >>> 0).toString(16).padStart(8, "0");
-}
-
 export function compileExecutionPlan(
   request: ExecutionRequest,
   contract: VersionedExecutionContract,
@@ -145,30 +121,23 @@ export function compileExecutionPlan(
   assertRequest(request);
   assertContract(contract);
 
-  if (
-    request.operation !== contract.operation ||
-    request.operationVersion !== contract.operationVersion
-  ) {
+  if (contract.contractVersion !== MASTER_CONTRACT_VERSION) {
+    throw new PlanCompileError("INVALID_CONTRACT", "contractVersion does not match master contract");
+  }
+  if (request.operation !== contract.operation || request.operationVersion !== contract.operationVersion) {
     throw new PlanCompileError("INVALID_CONTRACT", "request operation does not match execution contract");
   }
 
   for (const key of LIMIT_KEYS) {
     if (request.budget[key] > contract.limits[key]) {
-      throw new PlanCompileError(
-        "BUDGET_EXCEEDED",
-        `${key} exceeds contract ceiling`,
-      );
+      throw new PlanCompileError("BUDGET_EXCEEDED", `${key} exceeds contract ceiling`);
     }
   }
 
   const now = Date.now();
   const remainingMs = request.deadlineAt - now;
-  if (!Number.isSafeInteger(request.deadlineAt) || remainingMs <= 0) {
-    throw new PlanCompileError("DEADLINE_EXCEEDED", "request deadline is not in the future");
-  }
-  if (remainingMs > contract.maxDeadlineMs) {
-    throw new PlanCompileError("DEADLINE_EXCEEDED", "request deadline exceeds contract ceiling");
-  }
+  if (remainingMs <= 0) throw new PlanCompileError("DEADLINE_EXCEEDED", "request deadline is not in the future");
+  if (remainingMs > contract.maxDeadlineMs) throw new PlanCompileError("DEADLINE_EXCEEDED", "request deadline exceeds contract ceiling");
 
   const planId = stableFingerprint([
     request.requestId,
@@ -180,10 +149,11 @@ export function compileExecutionPlan(
     String(request.deadlineAt),
   ]);
 
-  const plan: ExecutionPlan = {
+  return Object.freeze({
     planId,
     contractId: contract.contractId,
     contractVersion: contract.contractVersion,
+    architectureId: ARCHITECTURE_ID,
     operation: request.operation,
     operationVersion: request.operationVersion,
     requestId: request.requestId,
@@ -191,11 +161,20 @@ export function compileExecutionPlan(
     principalScope: request.principalScope,
     mode: contract.mode,
     deadlineAt: request.deadlineAt,
-    budgetCeiling: cloneBudget(contract.limits),
-    requestedBudget: cloneBudget(request.budget),
+    budgetCeiling: freezeBudget(contract.limits),
+    requestedBudget: freezeBudget(request.budget),
     routingRequired: true,
     routingResolved: false,
-  };
+  });
+}
 
-  return Object.freeze(plan);
+function stableFingerprint(parts: readonly string[]): string {
+  let hash = 2166136261;
+  for (const part of parts) {
+    for (let index = 0; index < part.length; index += 1) {
+      hash ^= part.charCodeAt(index);
+      hash = Math.imul(hash, 16777619);
+    }
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
 }
