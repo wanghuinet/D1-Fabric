@@ -221,15 +221,16 @@ export async function executeReliably<T>(fn: () => Promise<T>, options: ExecuteO
       return result;
     } catch (error) {
       const failure = classifyFailure(error);
-      breaker.recordFailure(now());
       const canRetry = failure.retryable && retriesAllowed && attempt < options.policy.retry.maxAttempts;
       if (!canRetry) {
+        breaker.recordFailure(now());
         if (error instanceof ReliabilityError) throw new ReliabilityError(error.code, error.message, failure, attempt);
         throw new ReliabilityError("OPERATION_FAILED", messageOf(error), failure, attempt);
       }
       const delay = retryDelayMs(options.policy.retry, attempt, random);
       const remaining = options.policy.retry.maxElapsedMs - Math.max(0, now() - startedAt);
       if (delay >= remaining) {
+        breaker.recordFailure(now());
         throw new ReliabilityError("RETRY_BUDGET_EXCEEDED", "reliability time budget exhausted before next retry", { class: "transient", retryable: false }, attempt);
       }
       await sleep(delay);
