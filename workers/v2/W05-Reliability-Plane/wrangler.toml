@@ -1,0 +1,3 @@
+name = "d1-fabric-w05-reliability-plane"
+main = "src/reliability.ts"
+compatibility_date = "2026-09-10"

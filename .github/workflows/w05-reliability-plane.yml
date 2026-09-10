@@ -1,0 +1,33 @@
+name: W05 Reliability Plane
+
+on:
+  push:
+    paths:
+      - 'workers/v2/W05-Reliability-Plane/**'
+      - '.github/workflows/w05-reliability-plane.yml'
+  pull_request:
+    paths:
+      - 'workers/v2/W05-Reliability-Plane/**'
+      - '.github/workflows/w05-reliability-plane.yml'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: workers/v2/W05-Reliability-Plane
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: workers/v2/W05-Reliability-Plane/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run dry-run
+      - name: Verify W05 boundary
+        run: |
+          ! grep -R -n -E 'database_id|databaseId|shard|placement|routing|wrangler d1 execute|article|comment|feed|gallery|question|commerce|advertising' src
+          ! grep -R -n -E 'while[[:space:]]*\(true\)|for[[:space:]]*\(;;\)' src
