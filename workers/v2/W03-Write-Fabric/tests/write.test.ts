@@ -13,15 +13,11 @@ function identity(overrides: Partial<WriteIdentity> = {}): WriteIdentity {
 }
 
 class MockStatement implements PreparedStatementLike {
-  private readonly sql: string;
-  private readonly db: MockDb;
-  private readonly values: D1Value[];
-
-  constructor(sql: string, db: MockDb, values: D1Value[] = []) {
-    this.sql = sql;
-    this.db = db;
-    this.values = values;
-  }
+  constructor(
+    readonly sql: string,
+    private readonly db: MockDb,
+    readonly values: D1Value[] = [],
+  ) {}
 
   bind(...values: D1Value[]): PreparedStatementLike { return new MockStatement(this.sql, this.db, values); }
   async run(): Promise<D1ResultLike> { return this.db.run(this.sql, this.values); }
@@ -34,25 +30,34 @@ class MockStatement implements PreparedStatementLike {
 class MockDb implements D1DatabaseLike {
   mutationRuns = 0;
   prepared: string[] = [];
-  nextCommittedKey = "idem-1";
-  nextCommittedTenant = "tenant-a";
   protected readonly committedKeys = new Set<string>();
+  protected readonly failedKeys = new Set<string>();
   prepare(sql: string): PreparedStatementLike { this.prepared.push(sql); return new MockStatement(sql, this); }
   async run(sql: string, values: D1Value[]): Promise<D1ResultLike> {
-    if (sql.startsWith("SELECT state")) return { success: true, results: this.committedKeys.has(this.key(values)) ? [{ state: "COMMITTED", affected_rows: 1 }] : [] };
+    if (sql.startsWith("SELECT state")) {
+      const key = this.key(values);
+      if (this.failedKeys.has(key)) return { success: true, results: [{ state: "FAILED", affected_rows: null }] };
+      if (this.committedKeys.has(key)) return { success: true, results: [{ state: "COMMITTED", affected_rows: 1 }] };
+      return { success: true, results: [] };
+    }
+    if (sql.startsWith("UPDATE __d1f_idempotency SET state = 'FAILED'")) {
+      this.failedKeys.add(this.key(values));
+      return { success: true, meta: { changes: 1, rows_written: 1 } };
+    }
     return { success: true, meta: { changes: sql.includes("UPDATE business") ? 1 : 0, rows_written: sql.includes("UPDATE business") ? 1 : 0 } };
   }
   async all<T = Record<string, unknown>>(sql: string, values: D1Value[]): Promise<{ results: T[] }> {
-    if (sql.startsWith("SELECT state") && this.committedKeys.has(this.key(values))) return { results: [{ state: "COMMITTED", affected_rows: 1 } as T] };
-    return { results: [] };
+    return (await this.run(sql, values)) as { results: T[] };
   }
   async batch(statements: PreparedStatementLike[]): Promise<D1ResultLike[]> {
     this.mutationRuns += 1;
-    this.markCommitted(this.nextCommittedTenant, "principal-a", "write", "1", this.nextCommittedKey);
-    return statements.map((_, index) => index === 1 ? { success: true, meta: { changes: 1, rows_written: 1 } } : { success: true, meta: { changes: 1, rows_written: 1 } });
+    const claim = statements[0] as MockStatement;
+    const [tenant, principal, operation, version, key] = claim.values;
+    this.committedKeys.add([String(tenant), String(principal), String(operation), String(version), String(key)].join("|"));
+    this.failedKeys.delete([String(tenant), String(principal), String(operation), String(version), String(key)].join("|"));
+    return statements.map(() => ({ success: true, meta: { changes: 1, rows_written: 1 } }));
   }
-  markCommitted(tenant: string, principal: string, operation: string, version: string, key: string): void { this.committedKeys.add([tenant, principal, operation, version, key].join("|")); }
-  private key(values: D1Value[]): string { return values.slice(0, 5).map(String).join("|"); }
+  protected key(values: D1Value[]): string { return values.slice(0, 5).map(String).join("|"); }
 }
 
 const retryableOperation = {
@@ -79,6 +84,12 @@ test("cancelled request is rejected before D1", async () => {
   const db = new MockDb();
   const controller = new AbortController(); controller.abort();
   await assert.rejects(() => executeWrite(db, identity(), { statement: "UPDATE x SET y=1", bindings: [], retryable: false }, controller.signal), (error: unknown) => error instanceof WriteExecutionError && error.code === "CANCELLED");
+  assert.equal(db.prepared.length, 0);
+});
+
+test("zero execution epoch is rejected as stale before D1", async () => {
+  const db = new MockDb();
+  await assert.rejects(() => executeWrite(db, identity({ executionEpoch: 0 }), { statement: "UPDATE x SET y=1", bindings: [], retryable: false }), (error: unknown) => error instanceof WriteExecutionError && error.code === "STALE_EXECUTION_EPOCH");
   assert.equal(db.prepared.length, 0);
 });
 
@@ -115,13 +126,34 @@ test("retryable mutation commits through one D1 batch and is replayable", async 
 
 test("tenant isolation prevents cross-tenant replay", async () => {
   const db = new MockDb();
-  db.markCommitted("tenant-a", "principal-a", "write", "1", "same");
-  db.nextCommittedKey = "same";
-  db.nextCommittedTenant = "tenant-b";
+  db["committedKeys"].add(["tenant-a", "principal-a", "write", "1", "same"].join("|"));
   const op = { ...retryableOperation, idempotencyKey: "same" } as const;
   const b = await executeWrite(db, identity({ tenantId: "tenant-b", requestId: "req-b" }), op);
   assert.equal(b.status, "COMMITTED");
   assert.equal(db.mutationRuns, 1);
+});
+
+test("known failed batch records FAILED and permits a safe later claim", async () => {
+  class FailedOnceDb extends MockDb {
+    private fail = true;
+    override async batch(statements: PreparedStatementLike[]): Promise<D1ResultLike[]> {
+      if (this.fail) { this.fail = false; this.mutationRuns += 1; return statements.map(() => ({ success: false })); }
+      return super.batch(statements);
+    }
+  }
+  const db = new FailedOnceDb();
+  await assert.rejects(() => executeWrite(db, identity(), retryableOperation), (error: unknown) => error instanceof WriteExecutionError && error.code === "D1_EXECUTION_FAILED");
+  const result = await executeWrite(db, identity({ requestId: "req-2" }), retryableOperation);
+  assert.equal(result.status, "COMMITTED");
+  assert.equal(db.mutationRuns, 2);
+});
+
+test("unknown transport outcome is not converted into a second mutation", async () => {
+  class FailingDb extends MockDb {
+    override async batch(_statements: PreparedStatementLike[]): Promise<D1ResultLike[]> { throw new Error("network closed"); }
+  }
+  const db = new FailingDb();
+  await assert.rejects(() => executeWrite(db, identity(), retryableOperation), (error: unknown) => error instanceof WriteExecutionError && error.code === "COMMIT_UNKNOWN");
 });
 
 test("expected write count mismatch is rejected", async () => {
@@ -135,10 +167,8 @@ test("zero D1 statement budget stops admission", async () => {
   assert.equal(db.prepared.length, 0);
 });
 
-test("retryable transport failure is classified as unknown outcome", async () => {
-  class FailingDb extends MockDb {
-    override async batch(_statements: PreparedStatementLike[]): Promise<D1ResultLike[]> { throw new Error("network closed"); }
-  }
-  const db = new FailingDb();
-  await assert.rejects(() => executeWrite(db, identity(), retryableOperation), (error: unknown) => error instanceof WriteExecutionError && error.code === "COMMIT_UNKNOWN");
+test("semicolon inside a quoted SQL literal is accepted", async () => {
+  const db = new MockDb();
+  const result = await executeWrite(db, identity(), { statement: "UPDATE business SET value='a;b' WHERE id=?", bindings: ["1"], retryable: false });
+  assert.equal(result.status, "COMMITTED");
 });
