@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { compileExecutionPlan, PlanCompileError, MASTER_CONTRACT_VERSION, type BudgetLimits, type ExecutionRequest, type VersionedExecutionContract } from "../src/plan.ts";
+import { compileExecutionPlan, PlanCompileError, MASTER_CONTRACT_VERSION, validateRoutingSelection, type BudgetLimits, type ExecutionRequest, type VersionedExecutionContract } from "../src/plan.ts";
 
 const budget: BudgetLimits = {
   fanout: 4,
@@ -45,6 +45,19 @@ test("P04.1 compiles deterministically for identical validated identity", () => 
   assert.equal(a.routingResolved, false);
   assert.equal(a.routingRequired, true);
   assert.equal(a.contractVersion, MASTER_CONTRACT_VERSION);
+});
+
+test("P04.1 validates the W06-compatible routing selection shape", () => {
+  assert.doesNotThrow(() => validateRoutingSelection({
+    logicalDatabaseId: "db-1",
+    logicalShardId: "ls-1",
+    physicalShardId: "ps-1",
+    topologyVersion: 3,
+  }));
+  assert.throws(
+    () => validateRoutingSelection({ logicalDatabaseId: "db-1", logicalShardId: "ls-1", physicalShardId: "ps-1", topologyVersion: 0 }),
+    (error: unknown) => error instanceof PlanCompileError && error.code === "INVALID_REQUEST",
+  );
 });
 
 test("P04.1 rejects budget above contract ceiling", () => {
