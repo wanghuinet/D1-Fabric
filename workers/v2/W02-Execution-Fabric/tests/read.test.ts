@@ -3,9 +3,9 @@ import { test } from "node:test";
 import { executeBoundedRead, ReadExecutionError, type CacheEntry, type D1DatabaseLike, type ReadExecutionInput } from "../src/read.ts";
 
 const now = () => Date.now();
+const cacheKey = await crypto.subtle.generateKey({ name: "HMAC", hash: "SHA-256" }, true, ["sign", "verify"]);
 
-function integrity(entry: Omit<CacheEntry, "integrity">): string {
-  let hash = 2166136261;
+async function integrity(entry: Omit<CacheEntry, "integrity">): Promise<string> {
   const text = JSON.stringify({
     tenantId: entry.tenantId,
     principalScope: entry.principalScope,
@@ -15,11 +15,8 @@ function integrity(entry: Omit<CacheEntry, "integrity">): string {
     expiresAt: entry.expiresAt,
     payload: entry.payload,
   });
-  for (let i = 0; i < text.length; i += 1) {
-    hash ^= text.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0).toString(16).padStart(8, "0");
+  const signature = await crypto.subtle.sign("HMAC", cacheKey, new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(signature), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 const db: D1DatabaseLike = {
@@ -43,6 +40,7 @@ function makeInput(overrides: Partial<ReadExecutionInput<{ id: string }>> = {}):
     deadlineAt: now() + 5_000,
     budget: { d1Statements: 1, rowsRead: 10, payloadBytes: 1024 },
     cachePolicy: { cacheAllowed: true, cacheTermination: true, contractVersion: "D1F-3.0-MASTER-v1.0", shapeVersion: "shape-1" },
+    cacheIntegrityKey: cacheKey,
     statement: "SELECT id FROM content WHERE tenant_id = ?",
     bindings: ["tenant-1"],
     db,
@@ -50,7 +48,7 @@ function makeInput(overrides: Partial<ReadExecutionInput<{ id: string }>> = {}):
   };
 }
 
-function cache(payload: unknown, overrides: Partial<CacheEntry> = {}): CacheEntry {
+async function cache(payload: unknown, overrides: Partial<CacheEntry> = {}): Promise<CacheEntry> {
   const base: Omit<CacheEntry, "integrity"> = {
     tenantId: "tenant-1",
     principalScope: "content:read",
@@ -61,7 +59,7 @@ function cache(payload: unknown, overrides: Partial<CacheEntry> = {}): CacheEntr
     payload,
     ...overrides,
   };
-  return { ...base, integrity: integrity(base) };
+  return { ...base, integrity: await integrity(base) };
 }
 
 test("P07.1 valid bounded D1 read executes once", async () => {
@@ -78,7 +76,7 @@ test("P07.1 valid bounded D1 read executes once", async () => {
 test("P07.1 valid cache HIT terminates with zero D1 work", async () => {
   let calls = 0;
   const neverDb: D1DatabaseLike = { prepare() { calls += 1; throw new Error("must not execute D1"); } };
-  const result = await executeBoundedRead(makeInput({ db: neverDb, cacheEntry: cache([{ id: "cached" }]) }));
+  const result = await executeBoundedRead(makeInput({ db: neverDb, cacheEntry: await cache([{ id: "cached" }]) }));
   assert.equal(result.status, "CACHE_TERMINATED");
   assert.equal(result.cacheResult, "HIT");
   assert.equal(result.cacheTermination, true);
@@ -86,10 +84,11 @@ test("P07.1 valid cache HIT terminates with zero D1 work", async () => {
   assert.equal(result.rowsRead, 0);
   assert.equal(result.rowsWritten, 0);
   assert.equal(calls, 0);
+  assert.equal(result.resourceAccounting.d1Statements.consumed, 0);
 });
 
 test("P07.1 cache miss continues to approved D1 path", async () => {
-  const expired = cache([{ id: "old" }], { expiresAt: now() - 1 });
+  const expired = await cache([{ id: "old" }], { expiresAt: now() - 1 });
   const result = await executeBoundedRead(makeInput({ cacheEntry: expired }));
   assert.equal(result.status, "READ_EXECUTED");
   assert.equal(result.cacheResult, "MISS");
@@ -126,15 +125,24 @@ test("P07.1 D1 failure is propagated without retry", async () => {
 });
 
 test("P07.1 rejects cross-tenant, cross-principal, cross-operation and version-mismatched cache", async () => {
-  await assert.rejects(() => executeBoundedRead(makeInput({ cacheEntry: cache(["x"], { tenantId: "tenant-2" }) })), (e: unknown) => e instanceof ReadExecutionError && e.code === "CACHE_BINDING_INVALID");
-  await assert.rejects(() => executeBoundedRead(makeInput({ cacheEntry: cache(["x"], { principalScope: "other" }) })), (e: unknown) => e instanceof ReadExecutionError && e.code === "CACHE_BINDING_INVALID");
-  await assert.rejects(() => executeBoundedRead(makeInput({ cacheEntry: cache(["x"], { operation: "other" }) })), (e: unknown) => e instanceof ReadExecutionError && e.code === "CACHE_BINDING_INVALID");
-  await assert.rejects(() => executeBoundedRead(makeInput({ cacheEntry: cache(["x"], { contractVersion: "old" }) })), (e: unknown) => e instanceof ReadExecutionError && e.code === "CACHE_BINDING_INVALID");
+  await assert.rejects(() => executeBoundedRead(makeInput({ cacheEntry: await cache(["x"], { tenantId: "tenant-2" }) })), (e: unknown) => e instanceof ReadExecutionError && e.code === "CACHE_BINDING_INVALID");
+  await assert.rejects(() => executeBoundedRead(makeInput({ cacheEntry: await cache(["x"], { principalScope: "other" }) })), (e: unknown) => e instanceof ReadExecutionError && e.code === "CACHE_BINDING_INVALID");
+  await assert.rejects(() => executeBoundedRead(makeInput({ cacheEntry: await cache(["x"], { operation: "other" }) })), (e: unknown) => e instanceof ReadExecutionError && e.code === "CACHE_BINDING_INVALID");
+  await assert.rejects(() => executeBoundedRead(makeInput({ cacheEntry: await cache(["x"], { contractVersion: "old" }) })), (e: unknown) => e instanceof ReadExecutionError && e.code === "CACHE_BINDING_INVALID");
 });
 
 test("P07.1 rejects tampered cache integrity", async () => {
-  const entry = cache([{ id: "cached" }]);
+  const entry = await cache([{ id: "cached" }]);
   await assert.rejects(() => executeBoundedRead(makeInput({ cacheEntry: { ...entry, integrity: "tampered" } })), (e: unknown) => e instanceof ReadExecutionError && e.code === "CACHE_BINDING_INVALID");
+});
+
+test("P07.1 records reservation consumption and release", async () => {
+  const result = await executeBoundedRead(makeInput({ cacheEntry: undefined }));
+  assert.deepEqual(result.resourceAccounting.d1Statements, { requested: 1, reserved: 0, consumed: 1, released: 0 });
+  assert.equal(result.resourceAccounting.rowsRead.consumed, 2);
+  assert.equal(result.resourceAccounting.rowsRead.released, 8);
+  assert.equal(result.resourceAccounting.payloadBytes.consumed, result.payloadBytes);
+  assert.equal(result.resourceAccounting.payloadBytes.released, 1024 - result.payloadBytes);
 });
 
 test("P07.1 does not expose physical topology", async () => {
