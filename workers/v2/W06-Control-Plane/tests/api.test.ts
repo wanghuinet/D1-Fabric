@@ -36,6 +36,15 @@ test("W06 API rejects placement metadata without authoritative capacity state", 
   assert.deepEqual(await response.json(), { status: "ERROR", code: "INVALID_REQUEST", message: "placement metadata must include an authoritative capacityState" });
 });
 
+test("W06 placement rejects caller-supplied complete metadata", async () => {
+  const response = await handleW06(new Request("https://w06/v1/placement/resolve", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ request: { logicalDatabaseId: "db-1", logicalShardId: "ls-1", topologyVersion: 1 }, metadata: [{ logicalDatabaseId: "db-1", logicalShardId: "ls-1", physicalShardId: "ps-1", topologyVersion: 1, lifecycle: "ACTIVE", capacityState: "ADMITTED" }] }),
+  }));
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), { status: "ERROR", code: "INVALID_REQUEST", message: "caller-supplied placement metadata is forbidden" });
+});
+
 test("W06 placement fails closed when no authoritative store is configured", async () => {
   const response = await handleW06(new Request("https://w06/v1/placement/resolve", {
     method: "POST", headers: { "content-type": "application/json" },
