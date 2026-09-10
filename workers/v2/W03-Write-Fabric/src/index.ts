@@ -21,7 +21,8 @@ function json(value: unknown, status = 200): Response {
 function errorResponse(error: WriteExecutionError): Response {
   const status = error.code === "D1_EXECUTION_FAILED" || error.code === "COMMIT_UNKNOWN" ? 502 :
     error.code === "DEADLINE_EXCEEDED" || error.code === "CANCELLED" ? 408 :
-    error.code === "BUDGET_EXCEEDED" ? 429 : 400;
+    error.code === "BUDGET_EXCEEDED" ? 429 :
+    error.code === "STALE_EXECUTION_EPOCH" ? 409 : 400;
   return json({ status: "ERROR", code: error.code, message: error.message }, status);
 }
 
@@ -47,7 +48,7 @@ async function assertControlEpoch(identity: WriteIdentity, binding?: ServiceBind
   const response = await binding.fetch(new Request(`https://w04/v1/control/epoch?epoch=${identity.executionEpoch}`));
   if (response.ok) return;
   if (response.status === 409) {
-    const body = await response.json().catch(() => ({})) as { code?: string; message?: string };
+    const body = await response.json().catch(() => ({})) as { message?: string };
     throw new WriteExecutionError("STALE_EXECUTION_EPOCH", body.message ?? "execution epoch is not active");
   }
   throw new WriteExecutionError("D1_EXECUTION_FAILED", "control-plane validation failed");
