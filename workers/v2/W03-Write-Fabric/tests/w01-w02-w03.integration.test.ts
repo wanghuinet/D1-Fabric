@@ -59,7 +59,8 @@ test("W01 -> W02 plan -> W03 write preserves execution identity", async () => {
           requestId: plan.requestId, planId: plan.planId, contractId: plan.contractId,
           contractVersion: plan.contractVersion, architectureId: plan.architectureId,
           tenantId: plan.tenantId, principalScope: plan.principalScope, operation: plan.operation,
-          operationVersion: plan.operationVersion, logicalTargetId: "logical-1", topologyVersion: 1, executionEpoch: 1,
+          operationVersion: plan.operationVersion, logicalDatabaseId: "db-1", logicalShardId: "shard-1", logicalTargetId: "logical-1",
+          physicalShardId: "physical-1", topologyVersion: 1, executionEpoch: 1,
           deadlineAt: plan.deadlineAt,
           budget: { d1Statements: plan.requestedBudget.d1Statements, rowsWritten: plan.requestedBudget.rowsWritten, payloadBytes: plan.requestedBudget.payloadBytes, retries: plan.requestedBudget.retries },
         },
@@ -69,19 +70,20 @@ test("W01 -> W02 plan -> W03 write preserves execution identity", async () => {
     { DB: new IntegrationDb(), W04: activeW04 },
   );
   assert.equal(response.status, 200);
-  const result = await response.json() as { status: string; requestId: string; contractVersion: string; logicalTargetId: string };
+  const result = await response.json() as { status: string; requestId: string; contractVersion: string; logicalTargetId: string; physicalShardId: string };
   assert.equal(result.status, "COMMITTED");
   assert.equal(result.requestId, request.requestId);
   assert.equal(result.contractVersion, contract.contractVersion);
   assert.equal(result.logicalTargetId, "logical-1");
+  assert.equal(result.physicalShardId, "physical-1");
 });
 
 test("W03 fails closed when W04 control-plane binding is absent", async () => {
   const identity: WriteIdentity = {
     requestId: "control-plane-required-1", planId: "plan-1", contractId: "D1F-W03-WRITE-FABRIC-v1.0",
     contractVersion: "D1F-3.0-MASTER-v1.0", architectureId: "D1F-3.0-ARCH-v1.0", tenantId: "tenant-a",
-    principalScope: "principal-a", operation: "write", operationVersion: "1", logicalTargetId: "logical-1",
-    topologyVersion: 1, executionEpoch: 1, deadlineAt: Date.now() + 10_000,
+    principalScope: "principal-a", operation: "write", operationVersion: "1", logicalDatabaseId: "db-1", logicalShardId: "shard-1",
+    logicalTargetId: "logical-1", physicalShardId: "physical-1", topologyVersion: 1, executionEpoch: 1, deadlineAt: Date.now() + 10_000,
     budget: { d1Statements: 1, rowsWritten: 1, payloadBytes: 1024, retries: 0 },
   };
   const response = await handleWrite(
