@@ -15,7 +15,7 @@ function identity(overrides: Partial<WriteIdentity> = {}): WriteIdentity {
     requestId: "req-1", planId: "plan-1", contractId: "D1F-W03-WRITE-FABRIC-v1.0",
     contractVersion: "D1F-3.0-MASTER-v1.0", architectureId: "D1F-3.0-ARCH-v1.0",
     tenantId: "tenant-a", principalScope: "principal-a", operation: "write", operationVersion: "1",
-    logicalTargetId: "logical-1", executionEpoch: 1, deadlineAt: Date.now() + 10_000,
+    logicalTargetId: "logical-1", topologyVersion: 1, executionEpoch: 1, deadlineAt: Date.now() + 10_000,
     budget: { d1Statements: 8, rowsWritten: 10, payloadBytes: 4096, retries: 2 }, ...overrides,
   };
 }
