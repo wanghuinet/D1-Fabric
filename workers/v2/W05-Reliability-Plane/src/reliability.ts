@@ -236,15 +236,38 @@ export class CircuitBreaker {
   }
 }
 
-export function withTimeout<T>(operation: Promise<T>, timeoutMs: number): Promise<T> {
+export function withTimeout<T>(operation: (signal: AbortSignal) => Promise<T>, timeoutMs: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
+    const controller = new AbortController();
+    let settled = false;
     const timer = setTimeout(() => {
+      if (settled) return;
+      controller.abort();
+      settled = true;
       reject(new ReliabilityError("TIMEOUT", `operation exceeded ${timeoutMs}ms`, { class: "timeout", retryable: true, code: "TIMEOUT" }));
     }, timeoutMs);
-    operation.then(
-      (value) => { clearTimeout(timer); resolve(value); },
-      (error) => { clearTimeout(timer); reject(error); },
-    );
+
+    try {
+      void operation(controller.signal).then(
+        (value) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          resolve(value);
+        },
+        (error) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          reject(error);
+        },
+      );
+    } catch (error) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(error);
+    }
   });
 }
 
@@ -258,7 +281,7 @@ export interface ExecuteOptions {
   retryBudget?: RetryBudget;
 }
 
-export async function executeReliably<T>(fn: () => Promise<T>, options: ExecuteOptions): Promise<T> {
+export async function executeReliably<T>(fn: (signal: AbortSignal) => Promise<T>, options: ExecuteOptions): Promise<T> {
   assertPolicy(options.policy);
   const now = options.now ?? (() => Date.now());
   const sleep = options.sleep ?? ((ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
@@ -281,8 +304,8 @@ export async function executeReliably<T>(fn: () => Promise<T>, options: ExecuteO
     }
     attempt += 1;
     try {
-      const remaining = Math.min(options.policy.timeout.timeoutMs, Math.max(1, options.policy.retry.maxElapsedMs - Math.max(0, finiteNow(now(), "reliability") - startedAt)));
-      const result = await withTimeout(fn(), remaining);
+      const remaining = Math.min(options.policy.timeout.timeoutMs, Math.max(1, options.policy.retry.maxElapsedMs - Math.max(0, finiteNow(now, "reliability" as unknown as number) - startedAt)));
+      const result = await withTimeout(fn, remaining);
       breaker.recordSuccess(finiteNow(now(), "reliability"));
       return result;
     } catch (error) {
