@@ -4,16 +4,32 @@ import { D1AuthoritativeMetadataStore } from "../src/authoritative-store.ts";
 
 class FakeStatement {
   private values: unknown[] = [];
-  constructor(private readonly rows: Record<string, unknown>[]) {}
-  bind(...values: unknown[]): FakeStatement { this.values = values; return this; }
+  private readonly rows: Record<string, unknown>[];
+
+  constructor(rows: Record<string, unknown>[]) {
+    this.rows = rows;
+  }
+
+  bind(...values: unknown[]): FakeStatement {
+    this.values = values;
+    return this;
+  }
+
   async all<T = Record<string, unknown>>(): Promise<{ results: T[] }> {
-    assert.deepEqual(this.values, ["db-1", 4]);
+    if (this.rows.length === 1 && "topology_version" in this.rows[0] && Object.keys(this.rows[0]).length === 1) {
+      assert.deepEqual(this.values, ["db-1"]);
+    } else {
+      assert.deepEqual(this.values, ["db-1", 4]);
+    }
     return { results: this.rows as T[] };
   }
 }
 
 class FakeDb {
-  prepare(_sql: string): FakeStatement {
+  prepare(sql: string): FakeStatement {
+    if (sql.includes("FROM d1f_w06_topology_head")) {
+      return new FakeStatement([{ topology_version: 4 }]);
+    }
     return new FakeStatement([{
       logical_database_id: "db-1",
       logical_shard_id: "ls-7",
@@ -27,7 +43,7 @@ class FakeDb {
   }
 }
 
-test("authoritative store resolves only from persisted topology metadata", async () => {
+test("authoritative store resolves only from the published topology head", async () => {
   const store = new D1AuthoritativeMetadataStore(new FakeDb());
   const result = await store.resolve({ logicalDatabaseId: "db-1", logicalShardId: "ls-7", topologyVersion: 4 });
   assert.deepEqual(result, {
@@ -38,13 +54,16 @@ test("authoritative store resolves only from persisted topology metadata", async
   });
 });
 
-test("authoritative store fails closed when the requested version is absent", async () => {
-  class EmptyDb {
-    prepare(_sql: string): FakeStatement { return new FakeStatement([]); }
+test("authoritative store rejects an unpublished requested version", async () => {
+  class HeadDb {
+    prepare(sql: string): FakeStatement {
+      if (sql.includes("FROM d1f_w06_topology_head")) return new FakeStatement([{ topology_version: 5 }]);
+      throw new Error("metadata query must not execute after unpublished head rejection");
+    }
   }
-  const store = new D1AuthoritativeMetadataStore(new EmptyDb());
+  const store = new D1AuthoritativeMetadataStore(new HeadDb());
   await assert.rejects(
     () => store.resolve({ logicalDatabaseId: "db-1", logicalShardId: "ls-7", topologyVersion: 4 }),
-    /invalid metadata snapshot/,
+    (error: unknown) => error instanceof Error && error.message === "requested topology version is not the published head",
   );
 });
