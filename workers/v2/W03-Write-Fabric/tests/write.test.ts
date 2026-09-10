@@ -13,11 +13,15 @@ function identity(overrides: Partial<WriteIdentity> = {}): WriteIdentity {
 }
 
 class MockStatement implements PreparedStatementLike {
-  constructor(
-    readonly sql: string,
-    private readonly db: MockDb,
-    readonly values: D1Value[] = [],
-  ) {}
+  readonly sql: string;
+  private readonly db: MockDb;
+  readonly values: D1Value[];
+
+  constructor(sql: string, db: MockDb, values: D1Value[] = []) {
+    this.sql = sql;
+    this.db = db;
+    this.values = values;
+  }
 
   bind(...values: D1Value[]): PreparedStatementLike { return new MockStatement(this.sql, this.db, values); }
   async run(): Promise<D1ResultLike> { return this.db.run(this.sql, this.values); }
