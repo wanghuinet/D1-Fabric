@@ -84,18 +84,20 @@ export async function runBounded<T, R>(
     active += 1;
     maxActive = Math.max(maxActive, active);
     maxReservedConcurrency = Math.max(maxReservedConcurrency, active);
-    const operation = task(items[index], index).then(
-      (result) => {
-        results[index] = result;
-        completed += 1;
-        active -= 1;
-        return index;
-      },
-      (error: unknown) => {
-        active -= 1;
-        throw error;
-      },
-    );
+    const operation = Promise.resolve()
+      .then(() => task(items[index], index))
+      .then(
+        (result) => {
+          results[index] = result;
+          completed += 1;
+          active -= 1;
+          return index;
+        },
+        (error: unknown) => {
+          active -= 1;
+          throw error;
+        },
+      );
     activePromises.add(operation);
     void operation.then(
       () => activePromises.delete(operation),
