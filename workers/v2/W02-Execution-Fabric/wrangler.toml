@@ -1,0 +1,6 @@
+name = "w02-execution-fabric"
+main = "src/index.ts"
+compatibility_date = "2026-09-10"
+
+[observability]
+enabled = false

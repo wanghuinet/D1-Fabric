@@ -1,0 +1,13 @@
+{
+  "name": "d1-fabric-w02-execution-fabric",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npx --yes wrangler@4.130.0 dev",
+    "deploy": "npx --yes wrangler@4.130.0 deploy",
+    "dry-run": "npx --yes wrangler@4.130.0 deploy --dry-run",
+    "types": "npx --yes wrangler@4.130.0 types",
+    "typecheck": "npx --yes typescript@7.0.2 --noEmit",
+    "test": "node --experimental-strip-types --test tests/*.test.ts"
+  }
+}
