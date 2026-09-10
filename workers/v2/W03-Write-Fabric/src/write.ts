@@ -51,15 +51,35 @@ function safeInteger(value: unknown, field: string): asserts value is number {
 function validateBudget(budget: WriteBudget): void { for (const key of ["d1Statements", "rowsWritten", "payloadBytes", "retries"] as const) safeInteger(budget[key], `budget.${key}`); }
 function validateIdentity(identity: WriteIdentity): void {
   for (const [key, value] of Object.entries(identity)) if (key !== "executionEpoch" && key !== "deadlineAt" && key !== "budget") boundedString(value, key);
-  safeInteger(identity.executionEpoch, "executionEpoch"); safeInteger(identity.deadlineAt, "deadlineAt"); validateBudget(identity.budget);
+  safeInteger(identity.executionEpoch, "executionEpoch");
+  if (identity.executionEpoch === 0) throw new WriteExecutionError("STALE_EXECUTION_EPOCH", "executionEpoch must be a positive admissible epoch");
+  safeInteger(identity.deadlineAt, "deadlineAt"); validateBudget(identity.budget);
   if (identity.contractVersion !== MASTER_CONTRACT_VERSION) throw new WriteExecutionError("CONTRACT_MISMATCH", "contractVersion does not match master contract");
   if (identity.architectureId !== ARCHITECTURE_ID) throw new WriteExecutionError("CONTRACT_MISMATCH", "architectureId does not match architecture contract");
   if (identity.deadlineAt <= Date.now()) throw new WriteExecutionError("DEADLINE_EXCEEDED", "deadline has expired");
 }
+function hasUnquotedSemicolon(statement: string): boolean {
+  let quote: "'" | '"' | "`" | "]" | undefined;
+  for (let i = 0; i < statement.length; i += 1) {
+    const char = statement[i];
+    if (quote) {
+      if (quote === "]") { if (char === "]") quote = undefined; continue; }
+      if (char === quote) {
+        if (statement[i + 1] === quote) { i += 1; continue; }
+        quote = undefined;
+      }
+      continue;
+    }
+    if (char === "'" || char === '"' || char === "`") { quote = char; continue; }
+    if (char === "[") { quote = "]"; continue; }
+    if (char === ";") return true;
+  }
+  return false;
+}
 function validateStatement(statement: string): void {
   const firstToken = statement.trim().match(/^[A-Za-z]+/)?.[0]?.toUpperCase();
   if (!firstToken || !["INSERT", "UPDATE", "DELETE", "REPLACE"].includes(firstToken)) throw new WriteExecutionError("INVALID_REQUEST", "statement must be a single DML write operation");
-  if (statement.includes(";")) throw new WriteExecutionError("INVALID_REQUEST", "multi-statement SQL is forbidden");
+  if (hasUnquotedSemicolon(statement)) throw new WriteExecutionError("INVALID_REQUEST", "multi-statement SQL is forbidden");
 }
 function validateOperation(operation: WriteOperation): void {
   boundedString(operation.statement, "statement"); validateStatement(operation.statement);
@@ -76,8 +96,9 @@ function ensureBudget(identity: WriteIdentity, statements: number, rows: number,
 function payloadSize(value: unknown): number { return JSON.stringify(value).length; }
 function checkAbort(signal?: AbortSignal): void { if (signal?.aborted) throw new WriteExecutionError("CANCELLED", "execution cancelled before admission"); }
 
-const CLAIM_SQL = `INSERT INTO ${IDEMPOTENCY_TABLE} (tenant_id, principal_scope, operation, operation_version, idempotency_key, owner_request_id, state, affected_rows) VALUES (?, ?, ?, ?, ?, ?, 'IN_FLIGHT', NULL) ON CONFLICT (tenant_id, principal_scope, operation, operation_version, idempotency_key) DO NOTHING`;
+const CLAIM_SQL = `INSERT INTO ${IDEMPOTENCY_TABLE} (tenant_id, principal_scope, operation, operation_version, idempotency_key, owner_request_id, state, affected_rows) VALUES (?, ?, ?, ?, ?, ?, 'IN_FLIGHT', NULL) ON CONFLICT (tenant_id, principal_scope, operation, operation_version, idempotency_key) DO UPDATE SET owner_request_id = excluded.owner_request_id, state = 'IN_FLIGHT', affected_rows = NULL, created_at = unixepoch() WHERE ${IDEMPOTENCY_TABLE}.state = 'FAILED'`;
 const COMMIT_SQL = `UPDATE ${IDEMPOTENCY_TABLE} SET state = 'COMMITTED', affected_rows = changes(), committed_at = unixepoch() WHERE tenant_id = ? AND principal_scope = ? AND operation = ? AND operation_version = ? AND idempotency_key = ? AND owner_request_id = ? AND state = 'IN_FLIGHT'`;
+const FAILED_SQL = `UPDATE ${IDEMPOTENCY_TABLE} SET state = 'FAILED', affected_rows = NULL, committed_at = NULL WHERE tenant_id = ? AND principal_scope = ? AND operation = ? AND operation_version = ? AND idempotency_key = ? AND owner_request_id = ? AND state = 'IN_FLIGHT'`;
 const REPLAY_SQL = `SELECT state, owner_request_id, affected_rows FROM ${IDEMPOTENCY_TABLE} WHERE tenant_id = ? AND principal_scope = ? AND operation = ? AND operation_version = ? AND idempotency_key = ?`;
 
 async function replayState(db: D1DatabaseLike, identity: WriteIdentity, key: string): Promise<{ state: string; affectedRows: number } | undefined> {
@@ -114,6 +135,14 @@ export async function executeWrite(db: D1DatabaseLike, identity: WriteIdentity, 
       } catch { /* transport remains indeterminate */ }
       throw new WriteExecutionError("COMMIT_UNKNOWN", "transaction outcome could not be confirmed");
     }
+    if (batch.some((result) => !result.success)) {
+      try {
+        await db.prepare(FAILED_SQL).bind(identity.tenantId, identity.principalScope, identity.operation, identity.operationVersion, key, identity.requestId).run();
+      } catch {
+        throw new WriteExecutionError("D1_EXECUTION_FAILED", "write transaction failed and failure state could not be recorded");
+      }
+      throw new WriteExecutionError("D1_EXECUTION_FAILED", "write transaction failed");
+    }
     const mutationResult = batch[1];
     const affectedRows = mutationResult?.meta?.changes ?? 0;
     const rowsWritten = mutationResult?.meta?.rows_written ?? affectedRows;
@@ -128,6 +157,7 @@ export async function executeWrite(db: D1DatabaseLike, identity: WriteIdentity, 
   ensureBudget(identity, 1, 0, 0, 0); checkAbort(signal);
   let result: D1ResultLike;
   try { result = await db.prepare(operation.statement).bind(...operation.bindings).run(); } catch { throw new WriteExecutionError("D1_EXECUTION_FAILED", "write execution failed"); }
+  if (!result.success) throw new WriteExecutionError("D1_EXECUTION_FAILED", "write execution failed");
   const affectedRows = result.meta?.changes ?? 0;
   const rowsWritten = result.meta?.rows_written ?? affectedRows;
   const payloadBytes = payloadSize({ affectedRows });
