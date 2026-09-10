@@ -43,7 +43,11 @@ function fromRow(row: SnapshotRow): ControlSnapshot {
 }
 
 export class D1ControlStore implements ControlStore {
-  constructor(private readonly db: D1DatabaseLike) {}
+  private readonly db: D1DatabaseLike;
+
+  constructor(db: D1DatabaseLike) {
+    this.db = db;
+  }
 
   async currentHead(): Promise<{ configVersion: number; epoch: number } | null> {
     const row = await this.db.prepare(
