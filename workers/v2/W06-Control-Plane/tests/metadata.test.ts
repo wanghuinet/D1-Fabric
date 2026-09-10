@@ -32,9 +32,12 @@ const snapshot = (overrides: Partial<MetadataSnapshot> = {}): MetadataSnapshot =
 
 test("publishes and reads one exact metadata version deterministically", () => {
   const registry = new MetadataRegistry();
-  registry.publish(snapshot());
-  assert.deepEqual(registry.read("db-1", 7), registry.read("db-1", 7));
-  assert.equal(registry.read("db-1", 7).shards[0].logicalShardId, "ls-1");
+  const input = snapshot();
+  registry.publish(input);
+  const first = registry.read("db-1", 7);
+  const second = registry.read("db-1", 7);
+  assert.deepEqual(first, second);
+  assert.equal(first.topologyVersion, 7);
 });
 
 test("published metadata is immutable", () => {
@@ -52,7 +55,12 @@ test("rejects partial metadata with a version mismatch", () => {
     () =>
       registry.publish(
         snapshot({
-          shards: [{ ...snapshot().shards[0], topologyVersion: 6 }],
+          shards: [
+            {
+              ...snapshot().shards[0],
+              topologyVersion: 6,
+            },
+          ],
         }),
       ),
     (error: unknown) => error instanceof MetadataError && error.code === "INVALID_SHARD_METADATA",
@@ -65,10 +73,29 @@ test("rejects duplicate physical ownership", () => {
     () =>
       registry.publish(
         snapshot({
-          shards: [snapshot().shards[0], { ...snapshot().shards[1], physicalShardId: "ps-1" }],
+          shards: [
+            snapshot().shards[0],
+            { ...snapshot().shards[1], physicalShardId: "ps-1" },
+          ],
         }),
       ),
     (error: unknown) => error instanceof MetadataError && error.code === "DUPLICATE_PHYSICAL_SHARD",
+  );
+});
+
+test("rejects duplicate logical ownership", () => {
+  const registry = new MetadataRegistry();
+  assert.throws(
+    () =>
+      registry.publish(
+        snapshot({
+          shards: [
+            snapshot().shards[0],
+            { ...snapshot().shards[1], logicalShardId: "ls-1" },
+          ],
+        }),
+      ),
+    (error: unknown) => error instanceof MetadataError && error.code === "DUPLICATE_LOGICAL_SHARD",
   );
 });
 
