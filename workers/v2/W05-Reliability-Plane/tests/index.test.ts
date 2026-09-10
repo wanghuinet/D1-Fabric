@@ -6,6 +6,12 @@ function writeBody(overrides: Record<string, unknown> = {}): string {
   return JSON.stringify({
     identity: {
       requestId: "req-1",
+      logicalDatabaseId: "db-1",
+      logicalShardId: "shard-1",
+      physicalShardId: "physical-7",
+      physicalTargetId: "target-1",
+      topologyVersion: 7,
+      executionEpoch: 11,
       logicalTargetId: "target-1",
       deadlineAt: Date.now() + 5_000,
       budget: { retries: 2 },
@@ -52,6 +58,36 @@ test("retries an explicitly retryable write through W03", async () => {
   assert.equal(response.status, 200);
   assert.equal(calls, 2);
   assert.deepEqual(await response.json(), { status: "COMMITTED" });
+});
+
+test("retries preserve admitted physical target, topology, and epoch identities", async () => {
+  let calls = 0;
+  const observed: Record<string, unknown>[] = [];
+  const body = writeBody();
+  const response = await worker.fetch(request(body), {
+    W03: {
+      fetch: async (downstream) => {
+        calls += 1;
+        const payload = await downstream.clone().json() as Record<string, unknown>;
+        const identity = payload.identity as Record<string, unknown>;
+        observed.push({
+          physicalShardId: identity.physicalShardId,
+          physicalTargetId: identity.physicalTargetId,
+          topologyVersion: identity.topologyVersion,
+          executionEpoch: identity.executionEpoch,
+        });
+        return calls === 1
+          ? new Response(JSON.stringify({ status: "ERROR", code: "OVERLOADED" }), { status: 503 })
+          : new Response(JSON.stringify({ status: "COMMITTED" }), { status: 200 });
+      },
+    },
+  });
+  assert.equal(response.status, 200);
+  assert.equal(calls, 2);
+  assert.deepEqual(observed, [
+    { physicalShardId: "physical-7", physicalTargetId: "target-1", topologyVersion: 7, executionEpoch: 11 },
+    { physicalShardId: "physical-7", physicalTargetId: "target-1", topologyVersion: 7, executionEpoch: 11 },
+  ]);
 });
 
 test("does not retry a non-idempotent write even after a transient upstream failure", async () => {
