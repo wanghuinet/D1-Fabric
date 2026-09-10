@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { handleGateway } from "../../W01-Fabric-Gateway/src/index.ts";
 import { compileExecutionPlan, type ExecutionRequest, type VersionedExecutionContract } from "../../W02-Execution-Fabric/src/plan.ts";
 import { handleWrite } from "../src/index.ts";
-import { D1DatabaseLike, type D1ResultLike, type PreparedStatementLike, type WriteIdentity } from "../src/write.ts";
+import type { D1DatabaseLike, D1ResultLike, PreparedStatementLike, WriteIdentity } from "../src/write.ts";
 
 class IntegrationStatement implements PreparedStatementLike {
   private readonly db: IntegrationDb;
