@@ -1,6 +1,7 @@
 import {
   CircuitBreaker,
   ReliabilityError,
+  RetryBudget,
   classifyFailure,
   executeReliably,
   retryDelayMs,
@@ -12,6 +13,7 @@ import test from "node:test";
 
 const policy: ReliabilityPolicy = {
   retry: { maxAttempts: 3, maxElapsedMs: 5000, baseDelayMs: 10, maxDelayMs: 100, jitterRatio: 0, retryWrites: true },
+  retryBudget: { capacity: 10, refillRate: 1 },
   timeout: { timeoutMs: 50 },
   circuit: { failureThreshold: 2, resetTimeoutMs: 1000, halfOpenMaxProbes: 1 },
 };
@@ -28,19 +30,38 @@ test("retry delay is bounded and exponential", () => {
   assert.equal(retryDelayMs(policy.retry, Number.MAX_SAFE_INTEGER, () => 0.5), 100);
 });
 
-test("non-idempotent writes never retry", async () => {
+test("retry budget token bucket consumes capacity and refills over time", () => {
+  let now = 0;
+  const budget = new RetryBudget({ capacity: 2, refillRate: 1 }, () => now);
+  assert.equal(budget.available(), 2);
+  assert.equal(budget.allow(), true);
+  assert.equal(budget.allow(), true);
+  assert.equal(budget.allow(), false);
+  now = 500;
+  assert.equal(budget.allow(), false);
+  now = 1000;
+  assert.equal(budget.allow(), true);
+  assert.equal(budget.available(), 0);
+  now = 3000;
+  assert.equal(budget.available(), 1);
+});
+
+test("non-idempotent writes never retry or consume retry budget", async () => {
+  const budget = new RetryBudget({ capacity: 1, refillRate: 0 }, () => 0);
   let calls = 0;
   await assert.rejects(
     executeReliably(async () => { calls += 1; throw new Error("Network connection lost"); }, {
-      policy,
+      policy: { ...policy, retryBudget: { capacity: 1, refillRate: 0 } },
+      retryBudget: budget,
       operation: { kind: "write", idempotent: false, target: "db-1" },
       sleep: async () => undefined,
     }),
   );
   assert.equal(calls, 1);
+  assert.equal(budget.available(), 1);
 });
 
-test("idempotent writes retry within the attempt budget", async () => {
+test("idempotent writes retry within the attempt and retry budgets", async () => {
   let calls = 0;
   const result = await executeReliably(async () => {
     calls += 1;
@@ -48,10 +69,47 @@ test("idempotent writes retry within the attempt budget", async () => {
     return "ok";
   }, {
     policy,
+    retryBudget: new RetryBudget({ capacity: 2, refillRate: 0 }, () => 0),
     operation: { kind: "write", idempotent: true, target: "db-1" },
     sleep: async () => undefined,
   });
   assert.equal(result, "ok");
+  assert.equal(calls, 3);
+});
+
+test("retry budget exhaustion fails fast with a distinct code", async () => {
+  let calls = 0;
+  const budget = new RetryBudget({ capacity: 1, refillRate: 0 }, () => 0);
+  await assert.rejects(
+    executeReliably(async () => {
+      calls += 1;
+      throw new Error("Network connection lost");
+    }, {
+      policy: { ...policy, retry: { ...policy.retry, maxAttempts: 5 } },
+      retryBudget: budget,
+      operation: { kind: "read", idempotent: true, target: "db-1" },
+      sleep: async () => undefined,
+    }),
+    (error: unknown) => error instanceof ReliabilityError && error.code === "RETRY_RATE_LIMITED" && error.attempts === 2,
+  );
+  assert.equal(calls, 2);
+});
+
+test("retry budget prevents a retry storm after the token capacity is consumed", async () => {
+  const budget = new RetryBudget({ capacity: 2, refillRate: 0 }, () => 0);
+  let calls = 0;
+  await assert.rejects(
+    executeReliably(async () => {
+      calls += 1;
+      throw new Error("Network connection lost");
+    }, {
+      policy: { ...policy, retry: { ...policy.retry, maxAttempts: 20 } },
+      retryBudget: budget,
+      operation: { kind: "read", idempotent: true, target: "db-1" },
+      sleep: async () => undefined,
+    }),
+    (error: unknown) => error instanceof ReliabilityError && error.code === "RETRY_RATE_LIMITED",
+  );
   assert.equal(calls, 3);
 });
 
@@ -110,7 +168,7 @@ test("timeout is surfaced as a typed reliability failure", async () => {
   );
 });
 
-test("retry budget stops before another attempt when remaining time is insufficient", async () => {
+test("retry elapsed-time budget remains distinct from retry-rate budget", async () => {
   let nowValue = 1000;
   let calls = 0;
   await assert.rejects(
@@ -132,7 +190,7 @@ test("retry budget stops before another attempt when remaining time is insuffici
 test("invalid reliability policy is rejected before execution", async () => {
   await assert.rejects(
     executeReliably(async () => "never", {
-      policy: { ...policy, retry: { ...policy.retry, maxElapsedMs: 0 } },
+      policy: { ...policy, retryBudget: { capacity: 0, refillRate: 1 } },
       operation: { kind: "read", idempotent: true, target: "db-1" },
     }),
     (error: unknown) => error instanceof ReliabilityError && error.code === "INVALID_POLICY",
