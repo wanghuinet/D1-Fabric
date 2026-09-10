@@ -1,0 +1,8 @@
+name = "w03-write-fabric"
+main = "src/index.ts"
+compatibility_date = "2026-09-10"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "d1-fabric-target"
+database_id = "00000000-0000-0000-0000-000000000000"
