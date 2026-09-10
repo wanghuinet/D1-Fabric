@@ -1,4 +1,4 @@
-name: W01 W02 W03 Full Regression
+name: W01 W02 W03 W04 Full Regression
 
 on:
   push:
@@ -6,19 +6,21 @@ on:
       - "workers/v2/W01-Fabric-Gateway/**"
       - "workers/v2/W02-Execution-Fabric/**"
       - "workers/v2/W03-Write-Fabric/**"
+      - "workers/v2/W04-Control-Plane/**"
       - ".github/workflows/w01-w02-regression.yml"
   pull_request:
     paths:
       - "workers/v2/W01-Fabric-Gateway/**"
       - "workers/v2/W02-Execution-Fabric/**"
       - "workers/v2/W03-Write-Fabric/**"
+      - "workers/v2/W04-Control-Plane/**"
       - ".github/workflows/w01-w02-regression.yml"
   workflow_dispatch:
 
 jobs:
   regression:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - name: Checkout exact commit
         uses: actions/checkout@v4
@@ -32,6 +34,7 @@ jobs:
             workers/v2/W01-Fabric-Gateway/package-lock.json
             workers/v2/W02-Execution-Fabric/package-lock.json
             workers/v2/W03-Write-Fabric/package-lock.json
+            workers/v2/W04-Control-Plane/package-lock.json
 
       - name: W01 npm ci
         working-directory: workers/v2/W01-Fabric-Gateway
@@ -43,6 +46,10 @@ jobs:
 
       - name: W03 npm ci
         working-directory: workers/v2/W03-Write-Fabric
+        run: npm ci
+
+      - name: W04 npm ci
+        working-directory: workers/v2/W04-Control-Plane
         run: npm ci
 
       - name: W01 typecheck
@@ -81,17 +88,29 @@ jobs:
         working-directory: workers/v2/W03-Write-Fabric
         run: npm run dry-run
 
+      - name: W04 typecheck
+        working-directory: workers/v2/W04-Control-Plane
+        run: npm run typecheck
+
+      - name: W04 tests
+        working-directory: workers/v2/W04-Control-Plane
+        run: npm test
+
+      - name: W04 dry-run
+        working-directory: workers/v2/W04-Control-Plane
+        run: npm run dry-run
+
       - name: W01 to W02 contract regression
         working-directory: workers/v2/W01-Fabric-Gateway
         run: node --experimental-strip-types --test tests/w01-w02.integration.test.ts
 
-      - name: W01 to W02 to W03 write integration
+      - name: W01 to W02 to W03 to W04 full integration
         working-directory: workers/v2/W01-Fabric-Gateway
         run: node --experimental-strip-types --test tests/w01-w03.integration.test.ts
 
       - name: Emit exact verification marker
         run: |
-          echo "W01_W02_W03_FULL_REGRESSION=PASS"
+          echo "W01_W02_W03_W04_FULL_REGRESSION=PASS"
           echo "COMMIT_SHA=${GITHUB_SHA}"
           echo "NODE_VERSION=$(node --version)"
           echo "NPM_VERSION=$(npm --version)"
