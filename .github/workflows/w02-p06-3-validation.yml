@@ -1,0 +1,51 @@
+name: W02 P06.3 Composition Validation
+
+on:
+  push:
+    branches: ["phase/P08-write-idempotency"]
+  workflow_dispatch:
+
+jobs:
+  validate-w02-p06-3:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Setup Node 24.18.0
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.0
+          cache: npm
+          cache-dependency-path: workers/v2/W02-Execution-Fabric/package-lock.json
+      - name: Toolchain
+        run: |
+          node --version
+          npm --version
+      - name: npm ci
+        working-directory: workers/v2/W02-Execution-Fabric
+        run: npm ci
+      - name: typecheck
+        working-directory: workers/v2/W02-Execution-Fabric
+        run: npm run typecheck
+      - name: tests
+        working-directory: workers/v2/W02-Execution-Fabric
+        run: npm test
+      - name: dry-run
+        working-directory: workers/v2/W02-Execution-Fabric
+        run: npm run dry-run
+      - name: Forbidden capability scan
+        working-directory: workers/v2/W02-Execution-Fabric
+        run: |
+          if grep -RInE "(\\.batch\\(|\\.exec\\(|wrangler d1|\\b(INSERT|UPDATE|DELETE|REPLACE)\\b|physicalDatabaseId|physicalShardId|sqlTopology|workerGraph|Promise\\.all\\()" src tests; then
+            echo "Forbidden W02 capability detected"
+            exit 1
+          fi
+          grep -RIn "rows_read" src/read.ts tests/read.test.ts tests/composition.test.ts
+      - name: Exact verification marker
+        run: |
+          echo "W02_P06_3_VALIDATION=PASS"
+          echo "COMMIT_SHA=${GITHUB_SHA}"
+          test "${GITHUB_SHA}" = "$(git rev-parse HEAD)"
