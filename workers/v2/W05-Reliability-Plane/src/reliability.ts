@@ -304,7 +304,7 @@ export async function executeReliably<T>(fn: (signal: AbortSignal) => Promise<T>
     }
     attempt += 1;
     try {
-      const remaining = Math.min(options.policy.timeout.timeoutMs, Math.max(1, options.policy.retry.maxElapsedMs - Math.max(0, finiteNow(now(), "reliability") - startedAt)));
+      const remaining = Math.min(options.policy.timeout.timeoutMs, Math.max(1, options.policy.retry.maxElapsedMs - Math.max(0, finiteNow(now, "reliability") - startedAt)));
       const result = await withTimeout(fn, remaining);
       breaker.recordSuccess(finiteNow(now(), "reliability"));
       return result;
@@ -312,7 +312,7 @@ export async function executeReliably<T>(fn: (signal: AbortSignal) => Promise<T>
       const failure = classifyFailure(error);
       const canRetry = failure.retryable && retriesAllowed && attempt < options.policy.retry.maxAttempts;
       if (!canRetry) {
-        breaker.recordFailure(finiteNow(now(), "reliability"));
+        if (failure.retryable) breaker.recordFailure(finiteNow(now(), "reliability"));
         if (error instanceof ReliabilityError) throw new ReliabilityError(error.code, error.message, failure, attempt);
         throw new ReliabilityError("OPERATION_FAILED", messageOf(error), failure, attempt);
       }
