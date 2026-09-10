@@ -21,7 +21,14 @@ function identity(overrides: Partial<WriteIdentity> = {}): WriteIdentity {
 }
 
 class SQLiteStatement implements PreparedStatementLike {
-  constructor(private readonly statement: ReturnType<DatabaseSync["prepare"]>, private readonly values: D1Value[] = []) {}
+  private readonly statement: ReturnType<DatabaseSync["prepare"]>;
+  private readonly values: D1Value[];
+
+  constructor(statement: ReturnType<DatabaseSync["prepare"]>, values: D1Value[] = []) {
+    this.statement = statement;
+    this.values = values;
+  }
+
   bind(...values: D1Value[]): PreparedStatementLike { return new SQLiteStatement(this.statement, values); }
   async run(): Promise<D1ResultLike> {
     const result = this.statement.run(...(this.values as never[]));
