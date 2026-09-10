@@ -5,7 +5,14 @@ import { compileExecutionPlan, type ExecutionRequest, type VersionedExecutionCon
 import { executeWrite, type D1DatabaseLike, type D1ResultLike, type PreparedStatementLike } from "../src/write.ts";
 
 class IntegrationStatement implements PreparedStatementLike {
-  constructor(private readonly db: IntegrationDb, private readonly sql: string) {}
+  private readonly db: IntegrationDb;
+  private readonly sql: string;
+
+  constructor(db: IntegrationDb, sql: string) {
+    this.db = db;
+    this.sql = sql;
+  }
+
   bind(..._values: (string | number | null | ArrayBuffer)[]): PreparedStatementLike { return this; }
   async run(): Promise<D1ResultLike> { return { success: true, meta: { changes: 1, rows_written: 1 } }; }
   async all<T = Record<string, unknown>>(): Promise<{ results: T[] }> {
