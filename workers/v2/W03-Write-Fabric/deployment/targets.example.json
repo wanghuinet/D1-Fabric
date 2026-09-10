@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "targets": [
+    {
+      "physicalTargetId": "target-A",
+      "bindingName": "DB_A",
+      "databaseName": "d1-fabric-target-A",
+      "databaseId": "<REAL_D1_DATABASE_ID_A>"
+    },
+    {
+      "physicalTargetId": "target-B",
+      "bindingName": "DB_B",
+      "databaseName": "d1-fabric-target-B",
+      "databaseId": "<REAL_D1_DATABASE_ID_B>"
+    }
+  ]
+}
