@@ -5,6 +5,7 @@ import {
   classifyFailure,
   executeReliably,
   retryDelayMs,
+  withTimeout,
   type ReliabilityPolicy,
 } from "../src/reliability.ts";
 
@@ -183,6 +184,40 @@ test("circuit opens after threshold and allows one half-open probe", () => {
 test("circuit rejects invalid timestamps", () => {
   const breaker = new CircuitBreaker(policy.circuit);
   assert.throws(() => breaker.allow(Number.NaN), (error: unknown) => error instanceof ReliabilityError && error.code === "INVALID_CLOCK");
+});
+
+test("timeout aborts the current attempt before surfacing TIMEOUT", async () => {
+  let aborted = false;
+  await assert.rejects(
+    withTimeout((signal) => new Promise<string>((resolve) => {
+      signal.addEventListener("abort", () => {
+        aborted = true;
+        resolve("late");
+      }, { once: true });
+    }), 5),
+    (error: unknown) => error instanceof ReliabilityError && error.code === "TIMEOUT" && error.failure.class === "timeout",
+  );
+  assert.equal(aborted, true);
+});
+
+test("executeReliably propagates abort to timed-out attempts", async () => {
+  const signals: AbortSignal[] = [];
+  let calls = 0;
+  await assert.rejects(
+    executeReliably((signal) => {
+      calls += 1;
+      signals.push(signal);
+      return new Promise<string>(() => undefined);
+    }, {
+      policy: { ...policy, retry: { ...policy.retry, maxAttempts: 1 }, timeout: { timeoutMs: 5 } },
+      operation: { kind: "read", idempotent: true, target: "db-1" },
+      sleep: async () => undefined,
+    }),
+    (error: unknown) => error instanceof ReliabilityError && error.code === "TIMEOUT" && error.attempts === 1,
+  );
+  assert.equal(calls, 1);
+  assert.equal(signals.length, 1);
+  assert.equal(signals[0].aborted, true);
 });
 
 test("timeout is surfaced as a typed reliability failure", async () => {
