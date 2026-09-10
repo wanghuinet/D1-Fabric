@@ -95,8 +95,22 @@ const w04Binding = {
     CONTROL_PLANE_ADMIN_TOKEN,
   }),
 };
+
+const physicalTargetCatalog = JSON.stringify({
+  version: 1,
+  targets: [{
+    logicalDatabaseId: "db-content",
+    logicalShardId: "shard-content",
+    physicalShardId: "physical-content-1",
+    topologyVersion: 1,
+    physicalTargetId: "target-content-1",
+    bindingName: "DB",
+    admitted: true,
+  }],
+});
+
 const w03Binding: W02Binding = {
-  fetch: (request) => w03.fetch(request, { DB: new FakeDb(), W04: w04Binding }),
+  fetch: (request) => w03.fetch(request, { DB: new FakeDb(), W04: w04Binding, PHYSICAL_TARGET_CATALOG_JSON: physicalTargetCatalog }),
 };
 const w05Binding = {
   fetch: (request: Request) => w05.fetch(request, { W03: w03Binding }),
