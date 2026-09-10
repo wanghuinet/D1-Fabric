@@ -101,11 +101,8 @@ function reliabilityPolicy(identity: Record<string, unknown>): ReliabilityPolicy
   if (!Number.isFinite(remaining) || remaining <= 0) {
     throw new ReliabilityError("TIMEOUT", "request deadline has expired", { class: "timeout", retryable: false });
   }
-  const retries = typeof identity.budget === "object" && identity.budget !== null && !Array.isArray(identity.budget) &&
-    Number.isSafeInteger((identity.budget as Record<string, unknown>).retries) &&
-    Number((identity.budget as Record<string, unknown>).retries) >= 0
-    ? Number((identity.budget as Record<string, unknown>).retries)
-    : 0;
+  const budget = record(identity.budget) ? identity.budget : undefined;
+  const retries = budget && Number.isSafeInteger(budget.retries) && Number(budget.retries) >= 0 ? Number(budget.retries) : 0;
   return {
     retry: {
       maxAttempts: Math.min(MAX_ATTEMPTS, retries + 1),
@@ -137,16 +134,20 @@ async function forwardWithReliability(
     target: identity.logicalTargetId as string,
   };
   const policy = reliabilityPolicy(identity);
-  const upstreamRequest = new Request(new URL("/", request.url), {
-    method: "POST",
-    headers: { "content-type": "application/json; charset=utf-8", "x-d1f-request-id": identity.requestId as string },
-    body: JSON.stringify(body),
-  });
+  const bodyText = JSON.stringify(body);
 
   try {
-    const result = await executeReliably(
+    return await executeReliably(
       async (signal) => {
-        const upstream = await env.W03!.fetch(new Request(upstreamRequest, { signal }));
+        const upstream = await env.W03!.fetch(new Request(new URL("/", request.url), {
+          method: "POST",
+          headers: {
+            "content-type": "application/json; charset=utf-8",
+            "x-d1f-request-id": identity.requestId as string,
+          },
+          body: bodyText,
+          signal,
+        }));
         if (upstream.status === 408 || upstream.status === 425 || upstream.status === 429 || upstream.status >= 500) {
           throw new RetryableUpstreamFailure(upstream.status);
         }
@@ -154,7 +155,6 @@ async function forwardWithReliability(
       },
       { policy, operation: descriptor, breaker: circuitBreaker, retryBudget },
     );
-    return result;
   } catch (error) {
     if (error instanceof ReliabilityError) return errorResponse(error);
     if (error instanceof RetryableUpstreamFailure) {
