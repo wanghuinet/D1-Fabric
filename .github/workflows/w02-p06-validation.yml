@@ -1,0 +1,65 @@
+name: W02 P06 Validation
+
+on:
+  push:
+    paths:
+      - "workers/v2/W02-Execution-Fabric/**"
+      - "docs/phases/P06-BOUNDED-SCHEDULER-v1.0.md"
+      - "docs/phases/evidence/P06.1-EVIDENCE.md"
+      - ".github/workflows/w02-p06-validation.yml"
+  pull_request:
+    paths:
+      - "workers/v2/W02-Execution-Fabric/**"
+      - "docs/phases/P06-BOUNDED-SCHEDULER-v1.0.md"
+      - "docs/phases/evidence/P06.1-EVIDENCE.md"
+      - ".github/workflows/w02-p06-validation.yml"
+  workflow_dispatch:
+
+jobs:
+  validate-w02-p06:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: workers/v2/W02-Execution-Fabric
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+
+      - name: Setup Node 24.18.0
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.0
+          cache: npm
+          cache-dependency-path: workers/v2/W02-Execution-Fabric/package-lock.json
+
+      - name: Show toolchain
+        run: |
+          node --version
+          npm --version
+
+      - name: npm ci
+        run: npm ci
+
+      - name: npm run typecheck
+        run: npm run typecheck
+
+      - name: npm test
+        run: npm test
+
+      - name: npm run dry-run
+        run: npm run dry-run
+
+      - name: Verify no forbidden W02 storage bindings
+        run: |
+          if grep -RInE "(D1Database|\.prepare\(|\.batch\(|\.exec\(|wrangler d1)" src tests; then
+            echo "Forbidden D1/SQL execution surface detected in W02"
+            exit 1
+          fi
+
+      - name: Emit exact verification marker
+        run: |
+          echo "W02_P06_VALIDATION=PASS"
+          echo "COMMIT_SHA=${GITHUB_SHA}"
+          echo "NODE_VERSION=$(node --version)"
+          echo "NPM_VERSION=$(npm --version)"
