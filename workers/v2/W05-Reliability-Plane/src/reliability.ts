@@ -3,6 +3,7 @@ export type FailureClass = "transient" | "timeout" | "permanent" | "circuit_open
 
 export interface RetryPolicy {
   maxAttempts: number;
+  maxElapsedMs: number;
   baseDelayMs: number;
   maxDelayMs: number;
   jitterRatio: number;
@@ -101,6 +102,7 @@ export function classifyFailure(error: unknown): FailureInfo {
 
 function assertPolicy(policy: ReliabilityPolicy): void {
   if (!Number.isSafeInteger(policy.retry.maxAttempts) || policy.retry.maxAttempts < 1) throw new ReliabilityError("INVALID_POLICY", "maxAttempts must be >= 1", { class: "permanent", retryable: false });
+  if (!Number.isFinite(policy.retry.maxElapsedMs) || policy.retry.maxElapsedMs <= 0) throw new ReliabilityError("INVALID_POLICY", "maxElapsedMs must be > 0", { class: "permanent", retryable: false });
   if (!Number.isFinite(policy.retry.baseDelayMs) || policy.retry.baseDelayMs < 0) throw new ReliabilityError("INVALID_POLICY", "baseDelayMs must be >= 0", { class: "permanent", retryable: false });
   if (!Number.isFinite(policy.retry.maxDelayMs) || policy.retry.maxDelayMs < policy.retry.baseDelayMs) throw new ReliabilityError("INVALID_POLICY", "maxDelayMs must be >= baseDelayMs", { class: "permanent", retryable: false });
   if (!Number.isFinite(policy.retry.jitterRatio) || policy.retry.jitterRatio < 0 || policy.retry.jitterRatio > 1) throw new ReliabilityError("INVALID_POLICY", "jitterRatio must be between 0 and 1", { class: "permanent", retryable: false });
@@ -111,7 +113,9 @@ function assertPolicy(policy: ReliabilityPolicy): void {
 }
 
 export function retryDelayMs(policy: RetryPolicy, attempt: number, random = Math.random): number {
-  const exponential = Math.min(policy.maxDelayMs, policy.baseDelayMs * (2 ** Math.max(0, attempt - 1)));
+  if (!Number.isFinite(random())) throw new ReliabilityError("INVALID_RANDOM", "random source must return a finite value", { class: "permanent", retryable: false });
+  const exponent = Math.min(30, Math.max(0, attempt - 1));
+  const exponential = Math.min(policy.maxDelayMs, policy.baseDelayMs * (2 ** exponent));
   const spread = exponential * policy.jitterRatio;
   return Math.max(0, Math.min(policy.maxDelayMs, exponential - spread + (2 * spread * random())));
 }
@@ -165,12 +169,11 @@ export class CircuitBreaker {
   }
 }
 
-export function withTimeout<T>(operation: Promise<T>, timeoutMs: number, now = () => Date.now()): Promise<T> {
+export function withTimeout<T>(operation: Promise<T>, timeoutMs: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
       reject(new ReliabilityError("TIMEOUT", `operation exceeded ${timeoutMs}ms`, { class: "timeout", retryable: true, code: "TIMEOUT" }));
     }, timeoutMs);
-    void now;
     operation.then(
       (value) => { clearTimeout(timer); resolve(value); },
       (error) => { clearTimeout(timer); reject(error); },
@@ -193,17 +196,23 @@ export async function executeReliably<T>(fn: () => Promise<T>, options: ExecuteO
   const sleep = options.sleep ?? ((ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const random = options.random ?? Math.random;
   const breaker = options.breaker ?? new CircuitBreaker(options.policy.circuit);
+  const startedAt = now();
 
   const retriesAllowed = options.operation.kind === "read" || (options.operation.kind === "write" && options.operation.idempotent && options.policy.retry.retryWrites);
   let attempt = 0;
 
   while (attempt < options.policy.retry.maxAttempts) {
+    const elapsed = Math.max(0, now() - startedAt);
+    if (elapsed >= options.policy.retry.maxElapsedMs) {
+      throw new ReliabilityError("RETRY_BUDGET_EXCEEDED", "reliability time budget exhausted", { class: "transient", retryable: false }, attempt);
+    }
     if (!breaker.allow(now())) {
       throw new ReliabilityError("CIRCUIT_OPEN", `circuit is open for ${options.operation.target}`, { class: "circuit_open", retryable: false }, attempt);
     }
     attempt += 1;
     try {
-      const result = await withTimeout(fn(), options.policy.timeout.timeoutMs);
+      const remaining = Math.min(options.policy.timeout.timeoutMs, Math.max(1, options.policy.retry.maxElapsedMs - Math.max(0, now() - startedAt)));
+      const result = await withTimeout(fn(), remaining);
       breaker.recordSuccess(now());
       return result;
     } catch (error) {
@@ -214,9 +223,14 @@ export async function executeReliably<T>(fn: () => Promise<T>, options: ExecuteO
         if (error instanceof ReliabilityError) throw new ReliabilityError(error.code, error.message, failure, attempt);
         throw new ReliabilityError("OPERATION_FAILED", messageOf(error), failure, attempt);
       }
-      await sleep(retryDelayMs(options.policy.retry, attempt, random));
+      const delay = retryDelayMs(options.policy.retry, attempt, random);
+      const remaining = options.policy.retry.maxElapsedMs - Math.max(0, now() - startedAt);
+      if (delay >= remaining) {
+        throw new ReliabilityError("RETRY_BUDGET_EXCEEDED", "reliability time budget exhausted before next retry", { class: "transient", retryable: false }, attempt);
+      }
+      await sleep(delay);
     }
   }
 
-  throw new ReliabilityError("RETRY_EXHAUSTED", "retry budget exhausted", { class: "transient", retryable: false }, attempt);
+  throw new ReliabilityError("RETRY_EXHAUSTED", "retry attempt budget exhausted", { class: "transient", retryable: false }, attempt);
 }
