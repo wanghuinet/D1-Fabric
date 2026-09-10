@@ -1,0 +1,35 @@
+name: W04 Control Plane
+
+on:
+  push:
+    paths:
+      - 'workers/v2/W04-Control-Plane/**'
+      - 'docs/phases/P11-CONTROL-PLANE-LKG-FENCING-v1.0.md'
+      - '.github/workflows/w04-control-plane.yml'
+  pull_request:
+    paths:
+      - 'workers/v2/W04-Control-Plane/**'
+      - 'docs/phases/P11-CONTROL-PLANE-LKG-FENCING-v1.0.md'
+      - '.github/workflows/w04-control-plane.yml'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: workers/v2/W04-Control-Plane
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: workers/v2/W04-Control-Plane/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run dry-run
+      - name: Verify W04 boundary
+        run: |
+          ! grep -R -n -E 'article|comment|feed|gallery|question|game|commerce|advertising|business logic' src
+          ! grep -R -n -E 'physical.*(d1|shard)|database_id|databaseId|wrangler d1 execute' src
