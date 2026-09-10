@@ -12,11 +12,12 @@ W05 does not own routing, shard placement, D1 schema, write idempotency storage,
 2. Writes may retry only when the operation is explicitly idempotent and `retryWrites` is enabled.
 3. Non-idempotent writes are single-attempt regardless of failure classification.
 4. Retry count is bounded by `maxAttempts`.
-5. Delay is exponential, bounded, and jittered.
+5. Total reliability time is bounded by `maxElapsedMs`, including attempts, backoff, and retry admission.
+6. Delay is exponential, bounded, and jittered.
 
 ## 3. Timeout
 
-Every attempt has a bounded timeout. Timeout is classified separately from permanent application failure and may be retried when operation semantics permit it.
+Every attempt has a bounded timeout. The effective per-attempt timeout is the smaller of the configured timeout and the remaining reliability budget. Timeout is classified separately from permanent application failure and may be retried when operation semantics permit it.
 
 ## 4. Circuit breaker
 
@@ -47,6 +48,7 @@ W05 is not PASS until all of the following are green:
 - no unbounded retry loop;
 - no retry of non-idempotent writes;
 - no unbounded circuit probe concurrency;
+- no reliability execution beyond `maxElapsedMs`;
 - no failure swallowed without typed classification;
 - no floating Promise in Worker integration;
 - no business recovery logic inside W05.
