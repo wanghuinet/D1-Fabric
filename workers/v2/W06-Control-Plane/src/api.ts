@@ -83,6 +83,18 @@ function errorResponse(error: unknown): Response {
   return json({ status: "ERROR", code: "CONTROL_PLANE_FAILURE", message: "control-plane operation failed" }, 500);
 }
 
+function requireAuthoritativeCapacityState(metadata: readonly ShardMetadata[]): void {
+  for (const entry of metadata) {
+    if (!isRecord(entry) || (entry.capacityState !== "ADMITTED" && entry.capacityState !== "BLOCKED")) {
+      throw new W06ApiError(
+        "INVALID_REQUEST",
+        "placement metadata must include an authoritative capacityState",
+        400,
+      );
+    }
+  }
+}
+
 export async function handleW06(request: Request): Promise<Response> {
   const pathname = new URL(request.url).pathname;
   if (request.method === "GET" && pathname === "/health") return json({ status: "ok" });
@@ -95,6 +107,7 @@ export async function handleW06(request: Request): Promise<Response> {
       case "/v1/placement/resolve": {
         const requestBody = requireRecord(body.request, "request");
         if (!Array.isArray(body.metadata)) throw new W06ApiError("INVALID_REQUEST", "metadata must be an array", 400);
+        requireAuthoritativeCapacityState(body.metadata as ShardMetadata[]);
         return json({
           status: "RESOLVED",
           result: resolvePlacement(requestBody as unknown as PlacementRequest, body.metadata as ShardMetadata[]),
