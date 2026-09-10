@@ -1,3 +1,9 @@
+CREATE TABLE IF NOT EXISTS d1f_w06_topology_versions (
+  logical_database_id TEXT NOT NULL,
+  topology_version INTEGER NOT NULL CHECK (topology_version > 0),
+  PRIMARY KEY (logical_database_id, topology_version)
+);
+
 CREATE TABLE IF NOT EXISTS d1f_w06_shard_metadata (
   logical_database_id TEXT NOT NULL,
   logical_shard_id TEXT NOT NULL,
@@ -13,14 +19,16 @@ CREATE TABLE IF NOT EXISTS d1f_w06_shard_metadata (
   CHECK (lifecycle IN ('PROVISIONING', 'ACTIVE', 'DRAINING', 'MIGRATING', 'RETIRED')),
   CHECK (capacity_state IN ('ADMITTED', 'BLOCKED')),
   CHECK (creation_timestamp >= 0),
-  CHECK (last_transition_timestamp >= creation_timestamp)
+  CHECK (last_transition_timestamp >= creation_timestamp),
+  FOREIGN KEY (logical_database_id, topology_version)
+    REFERENCES d1f_w06_topology_versions(logical_database_id, topology_version)
 );
 
 CREATE TABLE IF NOT EXISTS d1f_w06_topology_head (
   logical_database_id TEXT PRIMARY KEY,
-  topology_version INTEGER NOT NULL CHECK (topology_version > 0),
-  FOREIGN KEY (logical_database_id, topology_version, topology_version)
-    REFERENCES d1f_w06_shard_metadata(logical_database_id, topology_version, logical_shard_id)
+  topology_version INTEGER NOT NULL,
+  FOREIGN KEY (logical_database_id, topology_version)
+    REFERENCES d1f_w06_topology_versions(logical_database_id, topology_version)
 );
 
 CREATE INDEX IF NOT EXISTS idx_d1f_w06_shard_metadata_lookup
