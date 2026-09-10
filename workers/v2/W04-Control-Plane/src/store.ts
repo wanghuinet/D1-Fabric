@@ -1,4 +1,4 @@
-import type { ControlSnapshot, ControlStore } from "./control.ts";
+import { ControlPlaneError, type ControlSnapshot, type ControlStore } from "./control.ts";
 
 export interface D1DatabaseLike {
   prepare(query: string): {
@@ -55,7 +55,7 @@ export class D1ControlStore implements ControlStore {
   async publish(snapshot: ControlSnapshot): Promise<void> {
     const payload = JSON.stringify(snapshot.payload);
     const insert = this.db.prepare(
-      "INSERT INTO control_snapshots (config_version, epoch, activation_time, expiry_time, validation_status, source, revoked, payload_json) VALUES (?, ?, ?, ?, 'VALIDATED', ?, 0, ?)",
+      "INSERT OR IGNORE INTO control_snapshots (config_version, epoch, activation_time, expiry_time, validation_status, source, revoked, payload_json) VALUES (?, ?, ?, ?, 'VALIDATED', ?, 0, ?)",
     ).bind(
       snapshot.configVersion,
       snapshot.epoch,
@@ -65,9 +65,14 @@ export class D1ControlStore implements ControlStore {
       payload,
     );
     const head = this.db.prepare(
-      "INSERT INTO control_head (id, config_version, epoch) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET config_version=excluded.config_version, epoch=excluded.epoch",
+      "INSERT INTO control_head (id, config_version, epoch) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET config_version=excluded.config_version, epoch=excluded.epoch WHERE control_head.config_version < excluded.config_version AND control_head.epoch < excluded.epoch",
     ).bind(snapshot.configVersion, snapshot.epoch);
     await this.db.batch([insert, head]);
+
+    const active = await this.currentHead();
+    if (!active || active.configVersion !== snapshot.configVersion || active.epoch !== snapshot.epoch) {
+      throw new ControlPlaneError("CONTROL_HEAD_ADVANCE_RACE", "control snapshot was stored but could not become the active head");
+    }
   }
 
   async get(key: { configVersion: number; epoch: number }): Promise<ControlSnapshot | null> {
