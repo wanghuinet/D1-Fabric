@@ -6,7 +6,8 @@ import {
   type WriteOperation,
 } from "./write.ts";
 
-interface Env { DB: D1DatabaseLike }
+interface ServiceBinding { fetch(request: Request): Promise<Response> }
+interface Env { DB: D1DatabaseLike; W04?: ServiceBinding }
 
 const MAX_BODY_BYTES = 1024 * 1024;
 
@@ -41,10 +42,22 @@ async function parseBody(request: Request): Promise<{ identity: WriteIdentity; o
   return { identity: record.identity as WriteIdentity, operation: record.operation as WriteOperation };
 }
 
+async function assertControlEpoch(identity: WriteIdentity, binding?: ServiceBinding): Promise<void> {
+  if (!binding) return;
+  const response = await binding.fetch(new Request(`https://w04/v1/control/epoch?epoch=${identity.executionEpoch}`));
+  if (response.ok) return;
+  if (response.status === 409) {
+    const body = await response.json().catch(() => ({})) as { code?: string; message?: string };
+    throw new WriteExecutionError("STALE_EXECUTION_EPOCH", body.message ?? "execution epoch is not active");
+  }
+  throw new WriteExecutionError("D1_EXECUTION_FAILED", "control-plane validation failed");
+}
+
 export async function handleWrite(request: Request, env: Env): Promise<Response> {
   if (request.method !== "POST") return json({ status: "ERROR", code: "INVALID_REQUEST", message: "POST required" }, 405);
   try {
     const { identity, operation } = await parseBody(request);
+    await assertControlEpoch(identity, env.W04);
     const result = await executeWrite(env.DB, identity, operation, request.signal);
     const response = json(result, 200);
     response.headers.set("x-request-id", identity.requestId);
