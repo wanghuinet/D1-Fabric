@@ -22,7 +22,7 @@ function errorResponse(error: WriteExecutionError): Response {
   const status = error.code === "D1_EXECUTION_FAILED" || error.code === "COMMIT_UNKNOWN" ? 502 :
     error.code === "DEADLINE_EXCEEDED" || error.code === "CANCELLED" ? 408 :
     error.code === "BUDGET_EXCEEDED" ? 429 :
-    error.code === "STALE_EXECUTION_EPOCH" ? 409 : 400;
+    error.code === "STALE_EXECUTION_EPOCH" || error.code === "STALE_TOPOLOGY_VERSION" ? 409 : 400;
   return json({ status: "ERROR", code: error.code, message: error.message }, status);
 }
 
@@ -63,6 +63,8 @@ export async function handleWrite(request: Request, env: Env): Promise<Response>
     response.headers.set("x-request-id", identity.requestId);
     response.headers.set("x-d1f-contract-version", identity.contractVersion);
     response.headers.set("x-d1f-logical-target", identity.logicalTargetId);
+    response.headers.set("x-d1f-topology-version", String(identity.topologyVersion));
+    response.headers.set("x-d1f-execution-epoch", String(identity.executionEpoch));
     return response;
   } catch (error) {
     if (error instanceof WriteExecutionError) return errorResponse(error);
