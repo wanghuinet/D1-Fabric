@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "registry_id": "REGISTRY-3.2-CAPACITY-COST-PROVIDER",
+  "registry_version": "1.0.0",
+  "policy_generation": 1,
+  "status": "ACTIVE",
+  "authority_source": "docs/D1-FABRIC-3.2.6-GOVERNANCE-KERNEL-META-CONTRACT-v1.0.md",
+  "records": [],
+  "required_fields": [
+    "provider",
+    "resource",
+    "hard_limits",
+    "soft_limits",
+    "quota_domain",
+    "concurrency_budget",
+    "request_budget",
+    "storage_limit",
+    "cost_dimensions",
+    "saturation_threshold",
+    "degradation_policy",
+    "verification_method"
+  ],
+  "capacity_classes": [
+    "theoretical",
+    "configured",
+    "measured_sustainable",
+    "safe_operating",
+    "emergency"
+  ],
+  "cost_classes": [
+    "actual",
+    "provider_reported",
+    "estimated",
+    "forecast"
+  ],
+  "rules": {
+    "hard_limit_violation": "FAIL-CLOSED",
+    "unknown_limit": "NOT-PASS",
+    "unknown_cost": "ESTIMATE_ONLY",
+    "saturation_without_degradation_policy": "NOT-PASS",
+    "provider_change": "REQUIRES_GOVERNED_ADMISSION"
+  },
+  "historical_policy": "historical_capacity_or_cost_claims_are_not_current_limits_without_fresh_evidence"
+}
