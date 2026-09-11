@@ -1,0 +1,61 @@
+{
+  "schema_version": "1.0",
+  "status": "DRAFT_ENFORCEMENT",
+  "purpose": "Machine-readable behavioral governance invariants for 3.2. This registry defines checks; it does not authorize architecture changes.",
+  "invariants": [
+    {
+      "id": "B-01",
+      "name": "exactly-one-authoritative-writer",
+      "severity": "P0",
+      "rule": "Every governed mutable infrastructure object declares exactly one primary owner."
+    },
+    {
+      "id": "B-02",
+      "name": "generation-required",
+      "severity": "P0",
+      "rule": "Every authoritative mutable object declares an explicit generation or epoch contract."
+    },
+    {
+      "id": "B-03",
+      "name": "worker-topology-locked",
+      "severity": "P0",
+      "rule": "The active topology remains exactly W01-W06 unless Worker Admission is explicitly satisfied."
+    },
+    {
+      "id": "B-04",
+      "name": "binding-authority",
+      "severity": "P0",
+      "rule": "Provider/resource bindings have exactly one declared authority and the current baseline authority is W06."
+    },
+    {
+      "id": "B-05",
+      "name": "control-plane-bootstrap-safety",
+      "severity": "P0",
+      "rule": "No runtime bootstrap dependency may require W06 synchronously."
+    },
+    {
+      "id": "B-06",
+      "name": "dependency-acyclicity",
+      "severity": "P0",
+      "rule": "The governed dependency graph must be acyclic."
+    },
+    {
+      "id": "B-07",
+      "name": "historical-isolation",
+      "severity": "P0",
+      "rule": "Historical 1.x/2.x/legacy material cannot become active authority through an ordinary governed change."
+    },
+    {
+      "id": "B-08",
+      "name": "change-scope-closed",
+      "severity": "P0",
+      "rule": "Actual Git diff must equal the declared Change Manifest file scope."
+    },
+    {
+      "id": "B-09",
+      "name": "no-false-pass",
+      "severity": "P0",
+      "rule": "Behavioral governance must emit PASS only after every required invariant check completes successfully."
+    }
+  ]
+}
