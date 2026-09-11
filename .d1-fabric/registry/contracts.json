@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0",
+  "status": "ACTIVE",
+  "contracts": [
+    {
+      "id": "CONTRACT-WORKER-TOPOLOGY",
+      "type": "WORKER_BOUNDARY",
+      "version": "v1",
+      "owner": "architecture",
+      "status": "APPROVED",
+      "providers": ["W01","W02","W03","W04"],
+      "compatibility": "backward-compatible-by-default",
+      "breaking_change_requires": ["new_version","ADR","migration_plan","verification"]
+    },
+    {
+      "id": "CONTRACT-GOVERNANCE-MANIFEST",
+      "type": "GOVERNANCE",
+      "version": "v1",
+      "owner": "project-owner",
+      "status": "APPROVED",
+      "providers": ["tools/governance/validate_foundation.py"],
+      "compatibility": "backward-compatible-by-default",
+      "breaking_change_requires": ["new_version","ADR","validator-update","verification","CI-evidence"]
+    }
+  ]
+}

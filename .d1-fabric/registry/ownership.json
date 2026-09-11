@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.0",
+  "workers": {
+    "W01": {"path_prefix":"workers/v2/W01-Fabric-Gateway/","owner":"gateway","capabilities":["CAP-GATEWAY"]},
+    "W02": {"path_prefix":"workers/v2/W02-Execution-Fabric/","owner":"execution","capabilities":["CAP-ROUTING","CAP-SHARDING","CAP-READ-EXEC","CAP-D1-CONSISTENCY"]},
+    "W03": {"path_prefix":"workers/v2/W03-Write-Fabric/","owner":"write","capabilities":["CAP-WRITE-EXEC","CAP-IDEMPOTENCY"]},
+    "W04": {"path_prefix":"workers/v2/W04-Control-Plane/","owner":"control","capabilities":["CAP-CONTROL","CAP-PLACEMENT-MIGRATION","CAP-COST-POLICY","CAP-MIGRATION-PROOF"]}
+  },
+  "capability_domains": {
+    "reliability": {"owners":["reliability"],"workers":["W01","W02","W03","W04"]},
+    "placement-migration": {"owners":["control"],"workers":["W04"]}
+  },
+  "shared_paths": {
+    "workers/v2/contracts/": {"owner":"architecture","requires_adr":false},
+    "docs/": {"owner":"governance","requires_adr":false},
+    ".d1-fabric/": {"owner":"governance","requires_adr":true},
+    ".github/workflows/": {"owner":"governance","requires_adr":true}
+  },
+  "forbidden_worker_prefixes": ["workers/v2/W05-", "workers/v2/W06-"]
+}

@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.8",
+  "task_id": "R1-GOVERNANCE-CLOSURE",
+  "stage": "R1",
+  "status": "APPROVED",
+  "owner": "project-owner",
+  "adr_ids": ["ADR-0001","ADR-0002","ADR-0003","ADR-0004"],
+  "approved_capabilities": ["CAP-GATEWAY","CAP-ROUTING","CAP-SHARDING","CAP-READ-EXEC","CAP-WRITE-EXEC","CAP-IDEMPOTENCY","CAP-CONTROL","CAP-RELIABILITY","CAP-PLACEMENT-MIGRATION","CAP-D1-CONSISTENCY","CAP-COST-POLICY","CAP-MIGRATION-PROOF"],
+  "approved_paths": [".d1-fabric/","docs/adr/","docs/D1-FABRIC-FOUNDATION-BLUEPRINT-AND-GOVERNANCE-REVIEW-v1.0.md","docs/D1-FABRIC-FOUNDATION-BLUEPRINT-GAP-AUDIT-v1.0.md","docs/D1-FABRIC-R1-EXECUTABLE-GOVERNANCE-CONTRACT-v1.0.md","docs/D1-FABRIC-OPEN-CORE-ARCHITECTURE-CONTRACT-v1.0.md","docs/D1-FABRIC-COMPLETE-FOUNDATION-CAPABILITY-MAP-v1.0.md","docs/D1-FABRIC-COMPLETE-FOUNDATION-CONTRACT-v1.0.md","docs/D1-FABRIC-FOUNDATION-1.0-MASTER-CAPABILITY-AND-IMPLEMENTATION-PLAN-v1.0.md","docs/D1-FABRIC-3.1-FUNCTION-CATALOG.md","docs/D1-FABRIC-GPT-CONTINUOUS-MASTER-DOCUMENT.md","AGENTS.md",".github/workflows/foundation-governance.yml","tools/governance/","workers/v2/W02-Execution-Fabric/wrangler.toml"],
+  "forbidden_paths": ["workers/v2/W05-Reliability-Plane/","workers/v2/W06-Control-Plane/"],
+  "repair_deletion_paths": ["workers/v2/W05-Reliability-Plane/","workers/v2/W06-Control-Plane/","docs/adr/ADR-0001-worker-topology.md"],
+  "legacy_repair_mode": "NONE",
+  "legacy_repair_deletion_paths": [],
+  "required_for_architecture_change": true,
+  "notes": "R1 closure plus complete capability-baseline planning reconciliation. ADR-0004 establishes the complete long-term capability map and foundation contract as planning authority without authorizing immediate implementation of all mapped capabilities. The Foundation 1.0 Master Capability and Implementation Plan defines the full capability discovery, contractization, dependency ordering, implementation, verification and freeze sequence. No new Worker implementation, product functionality, or Core expansion is authorized. Current topology remains W01-W04."
+}

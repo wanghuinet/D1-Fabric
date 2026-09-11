@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0",
+  "direction": "higher -> lower, except explicit contract-level control checks",
+  "nodes": ["gateway","execution","routing","sharding","write","idempotency","control","reliability","placement-migration","cloudflare-adapters"],
+  "edges": [
+    ["gateway","execution"],
+    ["execution","routing"],
+    ["execution","sharding"],
+    ["routing","sharding"],
+    ["write","routing"],
+    ["write","control"],
+    ["idempotency","write"],
+    ["control","routing"],
+    ["placement-migration","control"],
+    ["reliability","gateway"],
+    ["reliability","execution"],
+    ["reliability","write"],
+    ["reliability","control"],
+    ["gateway","cloudflare-adapters"],
+    ["execution","cloudflare-adapters"],
+    ["write","cloudflare-adapters"],
+    ["control","cloudflare-adapters"]
+  ],
+  "forbidden_edges": [
+    ["advanced","kernel"],
+    ["cloudflare-adapters","business"],
+    ["business","kernel"],
+    ["kernel","advanced"]
+  ],
+  "forbidden_import_patterns": [
+    {"from":"workers/v2/W01-Fabric-Gateway","forbidden":"workers/v2/W03-Write-Fabric"},
+    {"from":"workers/v2/W01-Fabric-Gateway","forbidden":"workers/v2/W04-Control-Plane"},
+    {"from":"workers/v2/W02-Execution-Fabric","forbidden":"workers/v2/W03-Write-Fabric"},
+    {"from":"workers/v2/W02-Execution-Fabric","forbidden":"workers/v2/W04-Control-Plane"},
+    {"from":"workers/v2/W03-Write-Fabric","forbidden":"workers/v2/W04-Control-Plane"},
+    {"from":"workers/v2/W04-Control-Plane","forbidden":"workers/v2/W01-Fabric-Gateway"},
+    {"from":"workers/v2/W04-Control-Plane","forbidden":"workers/v2/W02-Execution-Fabric"},
+    {"from":"workers/v2/W04-Control-Plane","forbidden":"workers/v2/W03-Write-Fabric"}
+  ],
+  "contract_level_exceptions": [
+    {"edge":["write","control"],"adr":"ADR-0003","purpose":"control-epoch validation only"}
+  ]
+}

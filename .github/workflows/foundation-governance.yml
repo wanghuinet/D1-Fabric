@@ -1,0 +1,101 @@
+name: Foundation Governance Gate
+
+on:
+  push:
+    paths:
+      - ".d1-fabric/**"
+      - "docs/adr/**"
+      - "tools/governance/**"
+      - "workers/v2/**"
+      - "AGENTS.md"
+      - "docs/D1-FABRIC-OPEN-CORE-ARCHITECTURE-CONTRACT-v1.0.md"
+      - "docs/D1-FABRIC-3.1-FUNCTION-CATALOG.md"
+      - "docs/D1-FABRIC-GPT-CONTINUOUS-MASTER-DOCUMENT.md"
+      - ".github/workflows/**"
+  pull_request:
+    paths:
+      - ".d1-fabric/**"
+      - "docs/adr/**"
+      - "tools/governance/**"
+      - "workers/v2/**"
+      - "AGENTS.md"
+      - "docs/D1-FABRIC-OPEN-CORE-ARCHITECTURE-CONTRACT-v1.0.md"
+      - "docs/D1-FABRIC-3.1-FUNCTION-CATALOG.md"
+      - "docs/D1-FABRIC-GPT-CONTINUOUS-MASTER-DOCUMENT.md"
+      - ".github/workflows/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  foundation-governance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact commit with history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate required governance artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            AGENTS.md \
+            .d1-fabric/registry/capabilities.json \
+            .d1-fabric/registry/adrs.json \
+            .d1-fabric/registry/ownership.json \
+            .d1-fabric/registry/data-ownership.json \
+            .d1-fabric/registry/dependencies.json \
+            .d1-fabric/registry/bindings.json \
+            .d1-fabric/registry/legacy.json \
+            .d1-fabric/registry/contracts.json \
+            .d1-fabric/registry/runtime-envelope.json \
+            .d1-fabric/registry/release-policy.json \
+            .d1-fabric/registry/exceptions.json \
+            .d1-fabric/change-manifest.json \
+            tools/governance/validate_foundation.py \
+            docs/adr/ADR-0001-runtime-topology-and-authority.md \
+            docs/adr/ADR-0002-executable-governance-closure.md; do
+            test -s "$file"
+          done
+
+      - name: Validate foundation policy as code
+        shell: bash
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          BASE="$PR_BASE_SHA"
+          if [ -z "$BASE" ]; then BASE="$PUSH_BEFORE_SHA"; fi
+          if [ "$BASE" = "0000000000000000000000000000000000000000" ]; then BASE=""; fi
+          python3 tools/governance/validate_foundation.py --base "$BASE" --head "$GITHUB_SHA"
+
+      - name: Validate normative documents remain present
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "Cloudflare-Native-First" docs/D1-FABRIC-OPEN-CORE-ARCHITECTURE-CONTRACT-v1.0.md
+          grep -q "Worker / Module Ownership" docs/D1-FABRIC-3.1-FUNCTION-CATALOG.md
+          grep -q "GPT" docs/D1-FABRIC-GPT-CONTINUOUS-MASTER-DOCUMENT.md
+          grep -q "Foundation stage" AGENTS.md
+
+      - name: Emit reproducible evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p governance-evidence
+          git rev-parse HEAD > governance-evidence/commit-sha.txt
+          python3 --version > governance-evidence/python-version.txt
+          cp .d1-fabric/registry/*.json governance-evidence/
+          cp .d1-fabric/change-manifest.json governance-evidence/
+
+      - name: Upload governance evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: foundation-governance-${{ github.sha }}
+          path: governance-evidence/
+          if-no-files-found: error

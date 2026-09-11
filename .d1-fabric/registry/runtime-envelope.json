@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0",
+  "status": "ACTIVE",
+  "defaults": {
+    "bounded_fanout": true,
+    "bounded_retries": true,
+    "bounded_payload": true,
+    "bounded_execution_time": true
+  },
+  "workers": {
+    "W01": {"max_fanout": 16, "max_retry_attempts": 2},
+    "W02": {"max_fanout": 16, "max_retry_attempts": 2},
+    "W03": {"max_fanout": 8, "max_retry_attempts": 1},
+    "W04": {"max_fanout": 8, "max_retry_attempts": 1}
+  },
+  "policy": "These are governance ceilings for design admission; tighter task-specific envelopes may be declared, but silent expansion is forbidden."
+}
