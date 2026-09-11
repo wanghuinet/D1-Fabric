@@ -1,12 +1,14 @@
 # D1-Fabric GPT Continuous Master Document
 
-Version: 3.2.5  
+Version: 3.2.6  
 Status: ACTIVE / SOURCE OF TRUTH FOR GPT CONTINUITY  
 Forward Architecture Contract: `docs/D1-FABRIC-3.2-INFRASTRUCTURE-ARCHITECTURE-CONTRACT-v1.0.md`  
 Architecture Hardening: `docs/D1-FABRIC-3.2-ARCHITECTURE-HARDENING-AMENDMENT-v1.2.md`  
 Architecture Proof: `docs/D1-FABRIC-3.2.3-ARCHITECTURE-PROOF-AND-ENFORCEMENT-CONTRACT-v1.0.md`  
 Machine Governance: `docs/D1-FABRIC-3.2.4-MACHINE-GOVERNANCE-ENFORCEMENT-CONTRACT-v1.0.md`  
 Code Development Admission: `docs/D1-FABRIC-3.2.5-CODE-DEVELOPMENT-ADMISSION-CONTRACT-v1.0.md`  
+Governance Kernel: `docs/D1-FABRIC-3.2.6-GOVERNANCE-KERNEL-META-CONTRACT-v1.0.md`  
+Architecture Closure Matrix: `docs/D1-FABRIC-3.2.6-ARCHITECTURE-CONTRACT-CLOSURE-MATRIX-v1.0.md`  
 GPT Execution Router: `docs/D1-FABRIC-3.2-GPT-AUTONOMOUS-EXECUTION-AND-STOP-CONTRACT-v1.0.md`
 
 ## 1. Purpose
@@ -43,7 +45,7 @@ Current architecture admission state:
 
 The red-team review remains `NO-GO` for runtime architecture admission until its blocking findings and the final architecture evidence gate are satisfied.
 
-GPT MUST NOT interpret existence of governance code as architecture PASS.
+GPT MUST NOT interpret existence of governance code or a kernel structural PASS as architecture PASS.
 
 ## 5. Current Development Objective
 
@@ -103,12 +105,34 @@ Current registry families include:
 - Diff Scope Gate
 - Historical Isolation
 - Evidence Registry
+- Governance Kernel Contract Registry
+- Governance Kernel Authority Registry
+- Governance Kernel Lifecycle Registry
+- Governance Kernel Evidence DAG / Evidence Registry
+- Governance Kernel Capacity / Cost / Provider Registry
 
 Target enforcement level is Level 6 — Production Admission.
 
-The current repository baseline contains governance contracts and initial executable governance work, but Level 6 is not claimed until machine evidence proves it.
+The current repository baseline contains governance contracts and executable governance work, but Level 6 is not claimed until machine evidence proves it.
 
-## 8. Mandatory Architecture Invariants
+## 8. Governance Kernel Evidence Rule
+
+The Evidence DAG is a proof chain:
+
+`Contract → Invariant → Machine Rule → Test/Probe → Artifact → Commit → CI Run → Evidence → Gate → Admission Decision`
+
+A source Evidence Registry that is empty is explicitly `NOT_PASS`. CI may generate ephemeral evidence, but the validator must bind it to:
+
+- the current Change Manifest and declared scope;
+- the exact current Git commit;
+- the current GitHub Actions run, workflow and job;
+- exact artifact SHA-256 values reproduced from the checkout;
+- the declared DAG edge sequence;
+- the actual gate result and terminal decision.
+
+The `Governance Kernel Structural Gate` may decide only `KERNEL-VERIFIED`. It MUST NOT decide architecture admission. `Final Architecture Gate` remains the authority for architecture admission, and `Code Development Admission` remains the authority for starting the next runtime phase.
+
+## 9. Mandatory Architecture Invariants
 
 1. Every mutable infrastructure object has exactly one authoritative writer.
 2. Every authoritative object has explicit version/generation/epoch semantics.
@@ -129,7 +153,7 @@ The current repository baseline contains governance contracts and initial execut
 17. No new Worker is justified solely by logical decomposition.
 18. Resource retirement requires dependency and safety verification.
 
-## 9. AI Boundary
+## 10. AI Boundary
 
 AI and prediction MUST NOT become a synchronous availability dependency of Open Core.
 
@@ -143,7 +167,7 @@ Every mutation follows:
 
 GPT is allowed to execute only actions already authorized by the active contract/phase boundary.
 
-## 10. Autonomous Continuation Rule
+## 11. Autonomous Continuation Rule
 
 When the user says `继续`, GPT SHALL:
 
@@ -164,7 +188,7 @@ GPT MUST NOT ask the user merely because ordinary implementation work remains in
 
 GPT MUST ask/stop when the boundary itself requires a new decision.
 
-## 11. Hard Stop Contract
+## 12. Hard Stop Contract
 
 GPT MUST stop immediately when:
 
@@ -182,7 +206,7 @@ GPT MUST stop immediately when:
 - the current gate reaches its exit condition;
 - the next code-development phase becomes authorized.
 
-## 12. Required Terminal State
+## 13. Required Terminal State
 
 When the architecture/proof/governance work is sufficient to authorize the next runtime code-development phase, the canonical terminal state is:
 
@@ -198,13 +222,13 @@ The final report MUST include:
 - exact next phase/task identifier;
 - `NEXT_PHASE_STARTED: NO`.
 
-## 13. Historical Isolation
+## 14. Historical Isolation
 
 Historical 1.x/2.x/old/legacy material is immutable reference material.
 
 It may be inspected for migration/reference/evidence analysis but cannot become current architecture or runtime authority without an explicit migration decision, ownership and Change Manifest.
 
-## 14. Open Core / Advanced / Frontier
+## 15. Open Core / Advanced / Frontier
 
 Open Core remains independently operable and deterministic.
 
@@ -212,7 +236,7 @@ Advanced provides mature high-end capabilities without becoming a Core runtime d
 
 Frontier includes experimental, predictive and AI-assisted capabilities and remains bounded, auditable and non-critical to Core availability.
 
-## 15. Development Order
+## 16. Development Order
 
 The approved development order is:
 
@@ -235,7 +259,7 @@ Architecture hardening
 
 This order is governance, not a reason to create additional Workers.
 
-## 16. Definition of Ready for the Next Runtime Code Phase
+## 17. Definition of Ready for the Next Runtime Code Phase
 
 `READY_FOR_NEXT_CODE_PHASE` requires the repository's applicable gates to establish at minimum:
 
@@ -258,7 +282,7 @@ Next runtime task/phase is explicitly identified = TRUE
 
 Compilation, unit tests or documentation completeness alone never satisfies this state.
 
-## 17. Non-Goals
+## 18. Non-Goals
 
 - uncontrolled multi-cloud implementation
 - arbitrary extra Workers
@@ -271,7 +295,7 @@ Compilation, unit tests or documentation completeness alone never satisfies this
 - UI-first fake operational state
 - autonomous advancement into a newly authorized runtime code phase
 
-## 18. Final Rule
+## 19. Final Rule
 
 GPT SHALL be proactive inside the contract and conservative at the boundary.
 
