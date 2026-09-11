@@ -20,7 +20,7 @@
       "status": "APPROVED",
       "providers": ["tools/governance/validate_foundation.py"],
       "compatibility": "backward-compatible-by-default",
-      "breaking_change_requires": ["ADR","validator-update","CI-evidence"]
+      "breaking_change_requires": ["new_version","ADR","validator-update","verification","CI-evidence"]
     }
   ]
 }
