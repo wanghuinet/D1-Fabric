@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.6",
+  "schema_version": "1.7",
   "task_id": "R1-GOVERNANCE-CLOSURE",
   "stage": "R1",
   "status": "APPROVED",
@@ -8,9 +8,9 @@
   "approved_capabilities": ["CAP-GATEWAY","CAP-ROUTING","CAP-SHARDING","CAP-READ-EXEC","CAP-WRITE-EXEC","CAP-IDEMPOTENCY","CAP-CONTROL","CAP-RELIABILITY","CAP-PLACEMENT-MIGRATION","CAP-D1-CONSISTENCY","CAP-COST-POLICY","CAP-MIGRATION-PROOF"],
   "approved_paths": [".d1-fabric/","docs/adr/","docs/D1-FABRIC-FOUNDATION-BLUEPRINT-AND-GOVERNANCE-REVIEW-v1.0.md","docs/D1-FABRIC-FOUNDATION-BLUEPRINT-GAP-AUDIT-v1.0.md","docs/D1-FABRIC-R1-EXECUTABLE-GOVERNANCE-CONTRACT-v1.0.md","docs/D1-FABRIC-OPEN-CORE-ARCHITECTURE-CONTRACT-v1.0.md","docs/D1-FABRIC-3.1-FUNCTION-CATALOG.md","docs/D1-FABRIC-GPT-CONTINUOUS-MASTER-DOCUMENT.md","AGENTS.md",".github/workflows/foundation-governance.yml","tools/governance/","workers/v2/W02-Execution-Fabric/wrangler.toml"],
   "forbidden_paths": ["workers/v2/W05-Reliability-Plane/","workers/v2/W06-Control-Plane/"],
-  "repair_deletion_paths": ["workers/v2/W05-Reliability-Plane/","workers/v2/W06-Control-Plane/"],
+  "repair_deletion_paths": ["workers/v2/W05-Reliability-Plane/","workers/v2/W06-Control-Plane/","docs/adr/ADR-0001-worker-topology.md"],
   "legacy_repair_mode": "NONE",
   "legacy_repair_deletion_paths": [],
   "required_for_architecture_change": true,
-  "notes": "R1 closure only. Existing W02 binding removal and W05/W06 deletion drift repair are explicitly bounded to the active PR baseline. No new Worker implementation, product functionality, or Core expansion is authorized."
+  "notes": "R1 closure only. Existing W02 binding removal, W05/W06 deletion drift repair, and duplicate ADR-0001 removal are explicitly bounded to the active PR baseline. No new Worker implementation, product functionality, or Core expansion is authorized."
 }
