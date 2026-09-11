@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "status": "ACTIVE",
+  "exceptions": [],
+  "rules": {
+    "default": "DENY",
+    "must_have_owner": true,
+    "must_have_reason": true,
+    "must_have_scope": true,
+    "must_have_expiry": true,
+    "permanent_exception": false,
+    "expired_exception_is_valid": false
+  }
+}
