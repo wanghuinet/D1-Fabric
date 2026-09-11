@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0",
+  "status": "ACTIVE",
+  "authoritative_state": [
+    {"id":"STATE-GATEWAY-POLICY","owner":"W01","mutation_boundary":"W01 contract","cache_is_authority":false},
+    {"id":"STATE-EXECUTION","owner":"W02","mutation_boundary":"W02 contract","cache_is_authority":false},
+    {"id":"STATE-WRITE-IDEMPOTENCY","owner":"W03","mutation_boundary":"W03 atomic write contract","cache_is_authority":false},
+    {"id":"STATE-CONTROL-EPOCH","owner":"W04","mutation_boundary":"W04 control contract","cache_is_authority":false},
+    {"id":"STATE-PLACEMENT-MIGRATION","owner":"W04","mutation_boundary":"W04 control contract","cache_is_authority":false}
+  ],
+  "rules": {
+    "single_logical_owner": true,
+    "cross_owner_direct_mutation": false,
+    "cache_is_authority": false,
+    "unregistered_authoritative_state": false
+  }
+}
