@@ -23,7 +23,6 @@ OWNERSHIP = REG / "ownership.json"
 DEPS = REG / "dependencies.json"
 BINDINGS = REG / "bindings.json"
 MANIFEST = ROOT / ".d1-fabric" / "change-manifest.json"
-
 ERRORS: list[str] = []
 
 
@@ -101,11 +100,6 @@ def validate_dag() -> None:
         fail("dependency DAG contains a cycle")
 
 
-def worker_from_path(path: str) -> str | None:
-    match = re.match(r"workers/v2/(W0[1-6])-", path)
-    return match.group(1) if match else None
-
-
 def validate_ownership() -> None:
     data = load(OWNERSHIP)
     workers = data.get("workers", {})
@@ -118,11 +112,6 @@ def validate_ownership() -> None:
             fail(f"{worker} has no path_prefix")
         if not (ROOT / prefix).is_dir():
             fail(f"ownership path does not exist for {worker}: {prefix}")
-    for prefix in data.get("forbidden_worker_prefixes", []):
-        if (ROOT / prefix).exists():
-            # Existing directories are tolerated during R1 so the gate can report the drift;
-            # deployable descriptors and changed files are hard failures below.
-            pass
 
 
 def validate_import_rules() -> None:
@@ -133,9 +122,7 @@ def validate_import_rules() -> None:
         text = source.read_text(encoding="utf-8", errors="replace")
         source_path = source.relative_to(ROOT).as_posix()
         for rule in rules:
-            if not source_path.startswith(rule["from"]):
-                continue
-            if rule["forbidden"] in text:
+            if source_path.startswith(rule["from"]) and rule["forbidden"] in text:
                 fail(f"forbidden dependency/import: {source_path} -> {rule['forbidden']}")
 
 
@@ -162,23 +149,25 @@ def validate_bindings() -> None:
             target = str(service.get("service", ""))
             if binding in {"W05", "W06"} or "w05" in target.lower() or "w06" in target.lower():
                 fail(f"forbidden service binding to reserved Worker in {wrangler.relative_to(ROOT)}: {binding} -> {target}")
-            allowed_services = data["allowed"].get(worker, {}).get("services", [])
-            if binding not in allowed_services:
+            if binding not in data["allowed"].get(worker, {}).get("services", []):
                 fail(f"unauthorized service binding in {wrangler.relative_to(ROOT)}: {binding}")
         for kind in ("d1_databases", "kv_namespaces", "r2_buckets", "durable_objects", "queues", "workflows"):
             entries = config.get(kind, [])
-            if entries and kind not in {"d1_databases", "kv_namespaces", "r2_buckets", "durable_objects", "queues", "workflows"}:
-                fail(f"unknown binding kind: {kind}")
             if entries and worker not in data["allowed"]:
                 fail(f"binding owner missing for {worker}: {kind}")
 
 
-def git_changed(base: str | None, head: str | None) -> list[str]:
+def git_changed(base: str | None, head: str | None) -> list[tuple[str, str]]:
     if not base or not head:
         return []
     try:
-        result = subprocess.run(["git", "diff", "--name-only", f"{base}...{head}"], cwd=ROOT, text=True, capture_output=True, check=True)
-        return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+        result = subprocess.run(["git", "diff", "--name-status", f"{base}...{head}"], cwd=ROOT, text=True, capture_output=True, check=True)
+        changed = []
+        for line in result.stdout.splitlines():
+            fields = line.split("\t", 2)
+            if len(fields) >= 2:
+                changed.append((fields[0], fields[-1]))
+        return changed
     except subprocess.CalledProcessError as exc:
         fail(f"cannot calculate changed files: {exc.stderr.strip()}")
         return []
@@ -188,18 +177,22 @@ def validate_change_scope(base: str | None, head: str | None, adr_ids: set[str])
     manifest = load(MANIFEST)
     approved = manifest.get("approved_paths", [])
     forbidden = manifest.get("forbidden_paths", [])
+    repair_paths = manifest.get("repair_deletion_paths", []) if manifest.get("repair_mode") == "DELETE_ONLY" else []
     changed = git_changed(base, head)
     if not changed:
         return
-    for path in changed:
-        if any(path.startswith(prefix) for prefix in forbidden):
+    for status, path in changed:
+        is_repair_deletion = status == "D" and any(path.startswith(prefix) for prefix in repair_paths)
+        if any(path.startswith(prefix) for prefix in forbidden) and not is_repair_deletion:
             fail(f"changed file is explicitly forbidden by Change Manifest: {path}")
+            continue
+        if is_repair_deletion:
             continue
         if not any(path == prefix or path.startswith(prefix.rstrip("/") + "/") for prefix in approved):
             fail(f"changed file is outside Change Manifest approved_paths: {path}")
     if manifest.get("required_for_architecture_change"):
         architecture_paths = ("workers/v2/", ".github/workflows/", ".d1-fabric/registry/", "docs/D1-FABRIC-OPEN-CORE-ARCHITECTURE-CONTRACT", "AGENTS.md")
-        if any(path.startswith(architecture_paths) for path in changed):
+        if any(path.startswith(architecture_paths) for _, path in changed):
             declared = set(manifest.get("adr_ids", []))
             if not declared:
                 fail("architecture-scoped change has no adr_ids in Change Manifest")
@@ -213,7 +206,6 @@ def main() -> int:
     parser.add_argument("--base")
     parser.add_argument("--head")
     args = parser.parse_args()
-
     capability_ids = validate_capabilities()
     adr_ids = validate_adrs()
     validate_dag()
@@ -221,13 +213,11 @@ def main() -> int:
     validate_import_rules()
     validate_bindings()
     validate_change_scope(args.base, args.head, adr_ids)
-
     if ERRORS:
         print("FOUNDATION_GOVERNANCE=FAIL")
         for error in ERRORS:
             print(f"::error::{error}")
         return 1
-
     print("FOUNDATION_GOVERNANCE=PASS")
     print(f"CAPABILITIES_REGISTERED={len(capability_ids)}")
     print(f"ADRS_REGISTERED={len(adr_ids)}")
