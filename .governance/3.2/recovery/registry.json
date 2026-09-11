@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0",
+  "status": "DRAFT_ENFORCEMENT",
+  "purpose": "Machine-readable recovery scenarios required before 3.2 architecture admission.",
+  "scenarios": [
+    {"id":"R-01","name":"W06-unavailable","failure_domain":"control-plane","expected":"request path remains bounded and uses defined stale/degraded behavior"},
+    {"id":"R-02","name":"stale-placement","failure_domain":"control-state","expected":"stale generation cannot mutate newer authoritative state"},
+    {"id":"R-03","name":"duplicate-event","failure_domain":"event","expected":"consumer remains idempotent"},
+    {"id":"R-04","name":"poison-event","failure_domain":"event","expected":"bounded retry and DLQ/recovery classification"},
+    {"id":"R-05","name":"queue-backlog","failure_domain":"capacity","expected":"backpressure and bounded degradation"},
+    {"id":"R-06","name":"partial-write","failure_domain":"data","expected":"durable write contract fails closed without false publish success"},
+    {"id":"R-07","name":"migration-cutover-failure","failure_domain":"control-data","expected":"cutover is reversible or enters explicit recovery state"},
+    {"id":"R-08","name":"control-state-corruption","failure_domain":"control-state","expected":"recovery uses authoritative backup/LKG path without circular bootstrap"},
+    {"id":"R-09","name":"tenant-overload","failure_domain":"tenant","expected":"noisy-neighbor isolation and bounded admission"},
+    {"id":"R-10","name":"reconciler-oscillation","failure_domain":"control-loop","expected":"convergence guard detects and stops oscillation"}
+  ]
+}
