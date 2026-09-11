@@ -5,14 +5,15 @@
   "risk": "controlled",
   "owners": ["governance"],
   "capabilities": ["governance.machine-enforcement"],
-  "resources": [".governance/3.2/changes", ".governance/3.2/kernel", "tools/governance"],
+  "resources": [".governance/3.2/changes", ".governance/3.2/kernel", "tools/governance", "docs"],
   "files": [
     ".governance/3.2/changes/current.json",
     ".governance/3.2/kernel/evidence-registry.json",
     ".governance/3.2/kernel/evidence-dag-registry.json",
     ".governance/3.2/kernel/validator-spec.json",
     "tools/governance/validate_kernel_governance.py",
-    "tools/governance/generate_kernel_evidence.py"
+    "tools/governance/generate_kernel_evidence.py",
+    "docs/D1-FABRIC-GPT-CONTINUOUS-MASTER-DOCUMENT.md"
   ],
   "policy_version": "3.2.6",
   "verification_plan": [
@@ -20,7 +21,8 @@
     "bind evidence change_id and scope to the current Change Manifest",
     "bind commit and CI run to the current checkout",
     "hash exact evidence artifacts and verify provenance",
-    "preserve architecture and runtime admission as separate gates"
+    "preserve architecture and runtime admission as separate gates",
+    "keep continuity master synchronized with Governance Kernel 3.2.6"
   ],
   "recovery_class": "controlled",
   "expiry": "9999-12-31T23:59:59Z",
