@@ -32,7 +32,8 @@ jobs:
               Path('tools/governance/validate_change_manifest.py'),
               Path('tools/governance/validate_behavioral_governance.py'),
               Path('tools/governance/validate_recovery_registry.py'),
-              Path('tools/governance/validate_adversarial_governance.py')
+              Path('tools/governance/validate_adversarial_governance.py'),
+              Path('tools/governance/validate_evidence_freshness.py')
           ]
           for p in required:
               if not p.is_file(): raise SystemExit(f'MISSING_GOVERNANCE_FILE: {p}')
@@ -107,3 +108,19 @@ jobs:
       - name: Validate recovery scenario coverage
         shell: bash
         run: python tools/governance/validate_recovery_registry.py
+
+  governance-evidence:
+    name: Evidence Freshness and Replay Gate
+    needs: [governance-recovery]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate current evidence and replay rejection
+        shell: bash
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+          D1_FABRIC_EVIDENCE_ENVIRONMENT: dev
+        run: python tools/governance/validate_evidence_freshness.py
