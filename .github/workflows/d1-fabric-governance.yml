@@ -29,9 +29,15 @@ jobs:
               root/'ownership/registry.json', root/'dependencies/registry.json',
               root/'bindings/registry.json', root/'changes/schema.json', root/'changes/current.json',
               root/'evidence/schema.json', root/'behavior/registry.json', root/'recovery/registry.json',
+              root/'kernel/contract-metadata.schema.json', root/'kernel/authority-record.schema.json',
+              root/'kernel/contract-registry.json', root/'kernel/authority-registry.json',
+              root/'kernel/lifecycle-registry.json', root/'kernel/evidence-dag-registry.json',
+              root/'kernel/capacity-cost-provider-registry.json', root/'kernel/registry-integrity-rules.json',
+              root/'kernel/validator-spec.json',
               Path('tools/governance/validate_change_manifest.py'),
               Path('tools/governance/validate_behavioral_governance.py'),
-              Path('tools/governance/validate_recovery_registry.py')
+              Path('tools/governance/validate_recovery_registry.py'),
+              Path('tools/governance/validate_kernel_governance.py')
           ]
           for p in required:
               if not p.is_file(): raise SystemExit(f'MISSING_GOVERNANCE_FILE: {p}')
@@ -43,6 +49,10 @@ jobs:
         env:
           D1_FABRIC_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: python tools/governance/validate_change_manifest.py
+
+      - name: Governance Kernel gate
+        shell: bash
+        run: python tools/governance/validate_kernel_governance.py
 
   governance-policy:
     name: Governance Policy Gate
