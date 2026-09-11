@@ -1,6 +1,6 @@
 # D1-Fabric AI Engineering Instructions
 
-**Version:** 9.4
+**Version:** 9.5
 **Status:** ACTIVE / 3.0 MASTER-LOCKED / 3.2 FOUNDATION GOVERNANCE R1 CLOSURE / COMPLETE FOUNDATION BASELINE
 **Role:** AI唯一入口 / Router。
 
@@ -20,6 +20,7 @@ For 3.2 foundation-governance work:
 
 ```text
 AGENTS.md
+→ Foundation 1.0 Master Capability & Implementation Plan
 → approved Foundation Blueprint amendments
 → Complete Foundation Capability Map / Complete Foundation Contract
 → Open Core Architecture Contract
@@ -34,7 +35,7 @@ AGENTS.md
 → Change Manifest
 ```
 
-The Complete Foundation Capability Map and Contract are the long-term planning baseline. They do NOT independently authorize implementation of every mapped capability until the Foundation Freeze gate promotes the applicable capability into active machine registries/contracts.
+The Foundation 1.0 Master Plan and Complete Foundation Capability Map define the complete long-term planning baseline. The Complete Foundation Contract defines the acceptance and compatibility model. None of these documents independently authorize implementation of every mapped capability until the applicable capability is promoted through the Foundation Freeze / machine governance gates.
 
 Historical documents and code under paths declared by `.d1-fabric/registry/legacy.json` have no active 3.2 authority and are read-only historical material.
 
@@ -44,6 +45,7 @@ For every 3.2 foundation task:
 
 ```text
 AGENTS.md
+→ Foundation 1.0 Master Capability & Implementation Plan
 → Foundation Blueprint / approved amendment
 → Complete Foundation Capability Map / Contract
 → relevant ADR
@@ -133,12 +135,13 @@ Exceptions default to DENY. Any approved exception requires an owner, reason, sc
 
 ### 6.7 Complete Foundation Law
 
-The Complete Foundation Capability Map defines the long-term capability surface. The Complete Foundation Contract defines its acceptance and compatibility model. Neither document is a blanket implementation authorization.
+The Foundation 1.0 Master Plan defines the complete capability discovery, dependency ordering and implementation sequence. The Complete Foundation Capability Map defines the target capability surface. The Complete Foundation Contract defines acceptance and compatibility. These documents are planning/contract authorities but are not blanket implementation authorization.
 
 Every capability must move through:
 
 ```text
 PLAN
+→ GAP / DEPENDENCY REVIEW
 → CONTRACT
 → REGISTRY
 → OWNERSHIP / DAG / BINDINGS
@@ -147,6 +150,7 @@ PLAN
 → TEST
 → RUNTIME / SECURITY / COST VERIFICATION
 → EVIDENCE
+→ INDEPENDENT REVIEW
 → PASS
 ```
 
