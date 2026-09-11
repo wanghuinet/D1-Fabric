@@ -1,7 +1,7 @@
 # D1-Fabric AI Engineering Instructions
 
-**Version:** 9.3
-**Status:** ACTIVE / 3.0 MASTER-LOCKED / 3.2 FOUNDATION GOVERNANCE R1 CLOSURE
+**Version:** 9.4
+**Status:** ACTIVE / 3.0 MASTER-LOCKED / 3.2 FOUNDATION GOVERNANCE R1 CLOSURE / COMPLETE FOUNDATION BASELINE
 **Role:** AI唯一入口 / Router。
 
 ## 1. Repository authority
@@ -21,6 +21,7 @@ For 3.2 foundation-governance work:
 ```text
 AGENTS.md
 → approved Foundation Blueprint amendments
+→ Complete Foundation Capability Map / Complete Foundation Contract
 → Open Core Architecture Contract
 → Function Catalog / Capability Registry
 → ADR Registry + ADR records
@@ -33,6 +34,8 @@ AGENTS.md
 → Change Manifest
 ```
 
+The Complete Foundation Capability Map and Contract are the long-term planning baseline. They do NOT independently authorize implementation of every mapped capability until the Foundation Freeze gate promotes the applicable capability into active machine registries/contracts.
+
 Historical documents and code under paths declared by `.d1-fabric/registry/legacy.json` have no active 3.2 authority and are read-only historical material.
 
 ## 2. Mandatory read order
@@ -42,6 +45,7 @@ For every 3.2 foundation task:
 ```text
 AGENTS.md
 → Foundation Blueprint / approved amendment
+→ Complete Foundation Capability Map / Contract
 → relevant ADR
 → Capability Registry
 → Ownership + Data Ownership
@@ -127,6 +131,25 @@ Release admission requires governance PASS, applicable tests, architecture revie
 
 Exceptions default to DENY. Any approved exception requires an owner, reason, scope, expiry and rollback/recovery intent. Permanent exceptions are forbidden; expired exceptions are invalid.
 
+### 6.7 Complete Foundation Law
+
+The Complete Foundation Capability Map defines the long-term capability surface. The Complete Foundation Contract defines its acceptance and compatibility model. Neither document is a blanket implementation authorization.
+
+Every capability must move through:
+
+```text
+PLAN
+→ CONTRACT
+→ REGISTRY
+→ OWNERSHIP / DAG / BINDINGS
+→ CHANGE MANIFEST
+→ IMPLEMENT
+→ TEST
+→ RUNTIME / SECURITY / COST VERIFICATION
+→ EVIDENCE
+→ PASS
+```
+
 ## 7. Scope discipline
 
 Every T1/T2 task requires a Change Manifest and Diff Scope Gate. No drive-by refactor, dependency, schema, API, Worker, or infrastructure change. Every changed file must be justified by the active manifest.
@@ -152,6 +175,7 @@ IMPLEMENT
 ```text
 R0 Authority Reconciliation = PASS
 → R1 Executable Governance Foundation = CLOSURE IN PROGRESS
+→ Complete Foundation Capability Baseline = RECONCILED / PROPOSED FOR FREEZE
 → R2 Contract + Runtime Enforcement = LOCKED
 → R3 Reliability + Cost + Observability = LOCKED
 → R4 Full Foundation CI = LOCKED
@@ -160,7 +184,7 @@ R0 Authority Reconciliation = PASS
 → R6 GPT implementation stages
 ```
 
-No new major product implementation stage may be inferred from a governance PASS.
+No new major product implementation stage may be inferred from a governance or planning PASS.
 
 ## 10. Final rule
 
