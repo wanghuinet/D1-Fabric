@@ -13,10 +13,11 @@ jobs:
     name: Governance Structural Gate
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout exact governed commit
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Validate governance JSON
         shell: python
@@ -31,7 +32,9 @@ jobs:
               root/'evidence/schema.json', root/'behavior/registry.json', root/'recovery/registry.json',
               Path('tools/governance/validate_change_manifest.py'),
               Path('tools/governance/validate_behavioral_governance.py'),
-              Path('tools/governance/validate_recovery_registry.py')
+              Path('tools/governance/validate_recovery_registry.py'),
+              Path('tools/governance/validate_adversarial_governance.py'),
+              Path('tools/governance/validate_evidence_freshness.py')
           ]
           for p in required:
               if not p.is_file(): raise SystemExit(f'MISSING_GOVERNANCE_FILE: {p}')
@@ -49,10 +52,11 @@ jobs:
     needs: governance-structure
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout exact governed commit
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Enforce baseline topology
         shell: python
         run: |
@@ -73,23 +77,56 @@ jobs:
     needs: [governance-structure, governance-policy]
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout exact governed commit
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Execute behavioral invariants
         shell: bash
         run: python tools/governance/validate_behavioral_governance.py
 
-  governance-recovery:
-    name: Recovery Governance Level 5 Gate
-    needs: [governance-behavior, governance-policy]
+  governance-adversarial:
+    name: Adversarial Mutation Acceptance Gate
+    needs: [governance-structure, governance-policy, governance-behavior]
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout exact governed commit
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Execute forbidden-mutation tests
+        shell: bash
+        run: python tools/governance/validate_adversarial_governance.py
+
+  governance-recovery:
+    name: Recovery Governance Level 5 Gate
+    needs: [governance-adversarial, governance-policy]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact governed commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Validate recovery scenario coverage
         shell: bash
         run: python tools/governance/validate_recovery_registry.py
+
+  governance-evidence:
+    name: Evidence Freshness and Replay Gate
+    needs: [governance-recovery]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact governed commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Validate current evidence and replay rejection
+        shell: bash
+        env:
+          D1_FABRIC_CURRENT_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+          D1_FABRIC_EVIDENCE_ENVIRONMENT: dev
+        run: python tools/governance/validate_evidence_freshness.py
