@@ -1,16 +1,22 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
+  "generation_contract": {
+    "field": "generation",
+    "type": "non-negative-integer",
+    "monotonic": true,
+    "stale_write": "reject"
+  },
   "objects": [
-    {"id":"W01","type":"worker","primary_owner":"W01"},
-    {"id":"W02","type":"worker","primary_owner":"W02"},
-    {"id":"W03","type":"worker","primary_owner":"W03"},
-    {"id":"W04","type":"worker","primary_owner":"W04"},
-    {"id":"W05","type":"worker","primary_owner":"W05"},
-    {"id":"W06","type":"worker","primary_owner":"W06"},
-    {"id":"relational.sql","type":"capability","primary_owner":"W04"},
-    {"id":"object.storage","type":"capability","primary_owner":"W04"},
-    {"id":"edge.cache","type":"capability","primary_owner":"W04"},
-    {"id":"event.queue","type":"capability","primary_owner":"W03"},
-    {"id":"coordination","type":"capability","primary_owner":"W06"}
+    {"id":"W01","type":"worker","primary_owner":"W01","generation":0},
+    {"id":"W02","type":"worker","primary_owner":"W02","generation":0},
+    {"id":"W03","type":"worker","primary_owner":"W03","generation":0},
+    {"id":"W04","type":"worker","primary_owner":"W04","generation":0},
+    {"id":"W05","type":"worker","primary_owner":"W05","generation":0},
+    {"id":"W06","type":"worker","primary_owner":"W06","generation":0},
+    {"id":"relational.sql","type":"capability","primary_owner":"W04","generation":0},
+    {"id":"object.storage","type":"capability","primary_owner":"W04","generation":0},
+    {"id":"edge.cache","type":"capability","primary_owner":"W04","generation":0},
+    {"id":"event.queue","type":"capability","primary_owner":"W03","generation":0},
+    {"id":"coordination","type":"capability","primary_owner":"W06","generation":0}
   ]
 }

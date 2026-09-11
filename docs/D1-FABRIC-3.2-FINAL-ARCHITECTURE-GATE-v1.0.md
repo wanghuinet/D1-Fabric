@@ -219,7 +219,42 @@ No production mutation may execute unless the system can identify:
 
 AI-generated mutations use exactly the same gate.
 
-## 8. Architecture Freeze Criteria
+## 8. Code-Development Admission Gate
+
+The architecture review has two distinct boundaries and MUST NOT conflate them:
+
+### 8.1 `READY_FOR_NEXT_CODE_PHASE`
+
+This state authorizes bounded runtime implementation, but does not mean production ACTIVE. It requires:
+
+- architecture contracts mutually consistent;
+- ownership and dependency DAG stable;
+- binding authority stable;
+- Change Manifest and Diff Scope enforcement operational;
+- behavioral, recovery, security, capacity and evidence-freshness machine gates operational and passing for the governance change;
+- Codex autonomous execution contract accepted;
+- six-worker baseline explicitly locked;
+- historical material mechanically isolated;
+- runtime task ownership and first implementation boundary explicitly declared;
+- remaining production-only evidence clearly classified as a later release gate rather than hidden architecture debt.
+
+When these conditions are satisfied, the final decision MUST be recorded as:
+
+`READY_FOR_NEXT_CODE_PHASE — STOPPED_FOR_USER_COMMAND`
+
+The autonomous governance run MUST stop here. It MUST NOT start W01-W06 runtime development automatically.
+
+### 8.2 `PASS / ACTIVE`
+
+This state authorizes production operation only after the full production evidence set is satisfied, including provider validation, real fault injection, restore/DR proof, production-load evidence, security/penetration evidence where required, staged deployment proof and operational readiness.
+
+Therefore:
+
+`READY_FOR_NEXT_CODE_PHASE` ≠ `PASS / ACTIVE`.
+
+Code development may begin at the former; production authority requires the latter.
+
+## 9. Architecture Freeze Criteria
 
 3.2 may become ACTIVE only when:
 
@@ -232,7 +267,7 @@ AI-generated mutations use exactly the same gate.
 - failure-injection scenarios cover the red-team cases;
 - CI can reject unauthorized ownership, dependency, contract and scope changes.
 
-## 9. Red-Team Mandatory Scenarios
+## 10. Red-Team Mandatory Scenarios
 
 The final review MUST execute or formally simulate at minimum:
 
@@ -252,7 +287,7 @@ The final review MUST execute or formally simulate at minimum:
 14. Restore after destructive migration checkpoint.
 15. AI agent proposes an unsafe mutation.
 
-## 10. Final Verdict States
+## 11. Final Verdict States
 
 `DRAFT` — architecture incomplete.
 
@@ -260,11 +295,13 @@ The final review MUST execute or formally simulate at minimum:
 
 `CONDITIONAL PASS` — all critical architecture contracts exist; bounded exceptions are explicitly tracked.
 
-`PASS / ACTIVE` — production implementation is authorized within the contract boundary.
+`READY_FOR_NEXT_CODE_PHASE` — architecture/governance is sufficient to authorize the next bounded runtime implementation phase; autonomous execution stops and awaits explicit phase start.
+
+`PASS / ACTIVE` — production implementation and operational evidence satisfy the production gate.
 
 `NO-GO` — implementation must stop until blocking findings are closed.
 
-## 11. Non-Goals
+## 12. Non-Goals
 
 This gate does not authorize:
 

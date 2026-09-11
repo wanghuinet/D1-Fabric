@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0",
+  "status": "DRAFT_ENFORCEMENT",
+  "required_identity": ["commit","registry_generation","policy_version","environment","probe","verifier"],
+  "freshness": {
+    "default_ttl_seconds": 86400,
+    "production_ttl_seconds": 21600,
+    "material_provider_change_invalidates": true,
+    "policy_change_invalidates": true,
+    "registry_generation_change_invalidates": true,
+    "source_commit_change_invalidates": true
+  },
+  "rules": [
+    "evidence.commit must equal evaluated source commit",
+    "evidence.registry_generation must equal evaluated registry generation",
+    "evidence.policy_version must equal active policy version",
+    "evidence.expires_at must be in the future for admission",
+    "waived evidence is never equivalent to pass evidence",
+    "missing freshness identity is a hard failure"
+  ]
+}

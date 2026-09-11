@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "status": "DRAFT_ENFORCEMENT",
+  "checks": [
+    {"id":"C-01","name":"timeout-budget","boundary":"request","unit":"milliseconds","max":25000,"expected":"reject-or-degrade-before-exceeding"},
+    {"id":"C-02","name":"retry-amplification","boundary":"request","unit":"attempts","max":3,"expected":"bounded"},
+    {"id":"C-03","name":"fanout-budget","boundary":"execution","unit":"downstream-operations","max":32,"expected":"bounded"},
+    {"id":"C-04","name":"queue-backlog","boundary":"event","unit":"messages","max":25000,"expected":"backpressure-before-saturation"},
+    {"id":"C-05","name":"tenant-concurrency","boundary":"tenant","unit":"inflight-operations","max":1000,"expected":"noisy-neighbor-isolated"},
+    {"id":"C-06","name":"hot-resource","boundary":"data","unit":"relative-share","max":0.20,"expected":"detect-and-throttle"},
+    {"id":"C-07","name":"control-plane-staleness","boundary":"control","unit":"seconds","max":60,"expected":"degrade-or-reject"},
+    {"id":"C-08","name":"provider-limit","boundary":"provider","unit":"provider-declared","max":1,"expected":"machine-enforced-before-exhaustion"}
+  ],
+  "principle":"capacity limits are safety boundaries; values are governance defaults and provider facts must be revalidated before production admission."
+}
