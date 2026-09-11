@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "registry_id": "REGISTRY-3.2-LIFECYCLE",
+  "registry_version": "1.0.0",
+  "policy_generation": 1,
+  "status": "ACTIVE",
+  "authority_source": "docs/D1-FABRIC-3.2.6-GOVERNANCE-KERNEL-META-CONTRACT-v1.0.md",
+  "states": [
+    "DESIGN",
+    "REVIEW",
+    "HARDENED",
+    "GOVERNANCE_READY",
+    "GOVERNANCE_IMPLEMENTING",
+    "GOVERNANCE_VERIFIED",
+    "ARCHITECTURE_VERIFIED",
+    "CODE_DEVELOPMENT_READY",
+    "RUNTIME_IMPLEMENTING",
+    "RUNTIME_VERIFIED",
+    "PRODUCTION_READY",
+    "ACTIVE"
+  ],
+  "forward_transitions": [
+    ["DESIGN", "REVIEW"],
+    ["REVIEW", "HARDENED"],
+    ["HARDENED", "GOVERNANCE_READY"],
+    ["GOVERNANCE_READY", "GOVERNANCE_IMPLEMENTING"],
+    ["GOVERNANCE_IMPLEMENTING", "GOVERNANCE_VERIFIED"],
+    ["GOVERNANCE_VERIFIED", "ARCHITECTURE_VERIFIED"],
+    ["ARCHITECTURE_VERIFIED", "CODE_DEVELOPMENT_READY"],
+    ["CODE_DEVELOPMENT_READY", "RUNTIME_IMPLEMENTING"],
+    ["RUNTIME_IMPLEMENTING", "RUNTIME_VERIFIED"],
+    ["RUNTIME_VERIFIED", "PRODUCTION_READY"],
+    ["PRODUCTION_READY", "ACTIVE"]
+  ],
+  "backward_transition_policy": "explicit-recovery-or-remediation-evidence-required",
+  "invalid_transition_policy": "FAIL-CLOSED",
+  "current_project_state": "GOVERNANCE_IMPLEMENTING",
+  "runtime_admission": "BLOCKED_UNTIL_ARCHITECTURE_VERIFIED_AND_CODE_DEVELOPMENT_READY"
+}
