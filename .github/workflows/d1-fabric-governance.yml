@@ -28,7 +28,9 @@ jobs:
               root/'config.json', root/'capabilities/registry.json', root/'adrs/registry.json',
               root/'ownership/registry.json', root/'dependencies/registry.json',
               root/'bindings/registry.json', root/'changes/schema.json', root/'changes/current.json',
-              root/'evidence/schema.json', Path('tools/governance/validate_change_manifest.py')
+              root/'evidence/schema.json', root/'behavior/registry.json',
+              Path('tools/governance/validate_change_manifest.py'),
+              Path('tools/governance/validate_behavioral_governance.py')
           ]
           for p in required:
               if not p.is_file(): raise SystemExit(f'MISSING_GOVERNANCE_FILE: {p}')
@@ -64,3 +66,16 @@ jobs:
           if cfg['worker_addition_requires_change_manifest'] is not True:
               raise SystemExit('WORKER_CHANGE_MANIFEST_POLICY_MISSING')
           print('Baseline topology and worker admission policy: PASS')
+
+  governance-behavior:
+    name: Behavioral Governance Level 4 Gate
+    needs: [governance-structure, governance-policy]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Execute behavioral invariants
+        shell: bash
+        run: python tools/governance/validate_behavioral_governance.py
