@@ -41,7 +41,8 @@ jobs:
               Path('tools/governance/validate_recovery_registry.py'),
               Path('tools/governance/validate_security_governance.py'),
               Path('tools/governance/validate_capacity_governance.py'),
-              Path('tools/governance/validate_evidence_freshness.py')
+              Path('tools/governance/validate_evidence_freshness.py'),
+              Path('tools/governance/validate_code_development_admission.py')
           ]
           for p in required:
               if not p.is_file():
@@ -161,3 +162,14 @@ jobs:
       - name: Execute evidence freshness checks
         shell: bash
         run: python tools/governance/validate_evidence_freshness.py
+
+  governance-code-admission:
+    name: Code Development Admission Gate
+    needs: governance-evidence
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Evaluate next-code-phase admission
+        shell: bash
+        run: python tools/governance/validate_code_development_admission.py
