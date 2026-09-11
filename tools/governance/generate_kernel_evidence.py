@@ -59,8 +59,13 @@ def main() -> None:
     run_id = os.getenv("GITHUB_RUN_ID")
     workflow = os.getenv("GITHUB_WORKFLOW")
     job = os.getenv("GITHUB_JOB")
-    if not run_id or not workflow or not job:
-        raise SystemExit("CI_PROVENANCE_REQUIRED: GITHUB_RUN_ID/GITHUB_WORKFLOW/GITHUB_JOB")
+    event = os.getenv("GITHUB_EVENT_NAME")
+    ref = os.getenv("GITHUB_REF")
+    trusted_ci = spec["trusted_ci"]
+    if not run_id or not workflow or not job or not event or not ref:
+        raise SystemExit("CI_PROVENANCE_REQUIRED: GITHUB_RUN_ID/GITHUB_WORKFLOW/GITHUB_JOB/GITHUB_EVENT_NAME/GITHUB_REF")
+    if workflow != trusted_ci["workflow_name"] or job != trusted_ci["job_id"] or event not in trusted_ci["allowed_events"]:
+        raise SystemExit("UNTRUSTED_CI_IDENTITY: governance evidence may only be produced by the declared governance workflow/job")
     now = datetime.now(timezone.utc)
     eid = f"EVID-KERNEL-{commit[:12]}"
     artifacts = [
@@ -81,6 +86,8 @@ def main() -> None:
         "ci_run": run_id,
         "ci_workflow": workflow,
         "ci_job": job,
+        "ci_event": event,
+        "ci_ref": ref,
         "gate": "Governance Kernel Structural Gate",
         "gate_result": "pass",
         "admission_decision": "KERNEL-VERIFIED; ARCHITECTURE-ADMISSION-BLOCKED",
