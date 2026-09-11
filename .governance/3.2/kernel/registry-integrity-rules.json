@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "registry_id": "RULESET-3.2-KERNEL-INTEGRITY",
+  "registry_version": "1.0.0",
+  "policy_generation": 1,
+  "status": "ACTIVE",
+  "authority_source": "docs/D1-FABRIC-3.2.6-GOVERNANCE-KERNEL-META-CONTRACT-v1.0.md",
+  "rules": [
+    {
+      "rule_id": "KERNEL-REG-001",
+      "target": "contract-registry",
+      "condition": "every active contract has unique contract_id and version",
+      "failure": "FAIL-CLOSED"
+    },
+    {
+      "rule_id": "KERNEL-REG-002",
+      "target": "authority-registry",
+      "condition": "each mutable object has at most one authority record",
+      "failure": "FAIL-CLOSED"
+    },
+    {
+      "rule_id": "KERNEL-REG-003",
+      "target": "lifecycle-registry",
+      "condition": "every transition is explicitly declared",
+      "failure": "FAIL-CLOSED"
+    },
+    {
+      "rule_id": "KERNEL-REG-004",
+      "target": "evidence-dag-registry",
+      "condition": "evidence cannot terminate before gate decision and admission binding",
+      "failure": "NOT-PASS"
+    },
+    {
+      "rule_id": "KERNEL-REG-005",
+      "target": "capacity-cost-provider-registry",
+      "condition": "unknown hard limit or unknown saturation policy cannot produce PASS",
+      "failure": "NOT-PASS"
+    },
+    {
+      "rule_id": "KERNEL-REG-006",
+      "target": "all kernel registries",
+      "condition": "policy_generation must match across dependent registries",
+      "failure": "FAIL-CLOSED"
+    },
+    {
+      "rule_id": "KERNEL-REG-007",
+      "target": "all kernel registries",
+      "condition": "historical or superseded records cannot silently become current authority",
+      "failure": "FAIL-CLOSED"
+    }
+  ],
+  "validation_order": [
+    "contract-registry",
+    "authority-registry",
+    "lifecycle-registry",
+    "evidence-dag-registry",
+    "capacity-cost-provider-registry"
+  ]
+}
