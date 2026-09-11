@@ -1,4 +1,13 @@
 {
   "schema_version": "1.0",
-  "adrs": []
+  "adrs": [
+    {
+      "id": "ADR-3.2-001",
+      "title": "Machine-enforced change manifests and diff-scope gating",
+      "status": "accepted",
+      "decision": "Every governed 3.2 change must declare its exact file scope, owner, risk, capability/resource impact, policy version, verification plan, recovery class, expiry, and ADR references before CI admission.",
+      "owners": ["governance"],
+      "conflicts_with": []
+    }
+  ]
 }

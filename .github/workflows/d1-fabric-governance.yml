@@ -25,99 +25,21 @@ jobs:
           from pathlib import Path
           root = Path('.governance/3.2')
           required = [
-              root/'config.json',
-              root/'capabilities/registry.json',
-              root/'adrs/registry.json',
-              root/'ownership/registry.json',
-              root/'dependencies/registry.json',
-              root/'bindings/registry.json',
-              root/'changes/schema.json',
-              root/'evidence/schema.json',
+              root/'config.json', root/'capabilities/registry.json', root/'adrs/registry.json',
+              root/'ownership/registry.json', root/'dependencies/registry.json',
+              root/'bindings/registry.json', root/'changes/schema.json', root/'changes/current.json',
+              root/'evidence/schema.json', Path('tools/governance/validate_change_manifest.py')
           ]
           for p in required:
-              if not p.is_file():
-                  raise SystemExit(f'MISSING_GOVERNANCE_FILE: {p}')
-              try:
-                  json.loads(p.read_text(encoding='utf-8'))
-              except Exception as e:
-                  raise SystemExit(f'INVALID_JSON: {p}: {e}')
-          print('Governance registry JSON: PASS')
+              if not p.is_file(): raise SystemExit(f'MISSING_GOVERNANCE_FILE: {p}')
+              if p.suffix == '.json': json.loads(p.read_text(encoding='utf-8'))
+          print('Governance structure: PASS')
 
-      - name: Validate ownership uniqueness
-        shell: python
-        run: |
-          import json
-          from pathlib import Path
-          data = json.loads(Path('.governance/3.2/ownership/registry.json').read_text(encoding='utf-8'))
-          seen = {}
-          for obj in data.get('objects', []):
-              oid = obj.get('id')
-              owner = obj.get('primary_owner')
-              if not oid or not owner:
-                  raise SystemExit(f'INVALID_OWNERSHIP: {obj}')
-              if oid in seen:
-                  raise SystemExit(f'DUPLICATE_AUTHORITY_OBJECT: {oid}')
-              seen[oid] = owner
-          print(f'Ownership objects: {len(seen)} — PASS')
-
-      - name: Validate registry references
-        shell: python
-        run: |
-          import json
-          from pathlib import Path
-          root = Path('.governance/3.2')
-          caps = json.loads((root/'capabilities/registry.json').read_text(encoding='utf-8'))['capabilities']
-          owners = {x['id'] for x in json.loads((root/'ownership/registry.json').read_text(encoding='utf-8'))['objects']}
-          bindings = {x['id'] for x in json.loads((root/'bindings/registry.json').read_text(encoding='utf-8'))['bindings']}
-          for c in caps:
-              if c['owner'] not in owners:
-                  raise SystemExit(f'UNRESOLVED_CAPABILITY_OWNER: {c["id"]} -> {c["owner"]}')
-              for b in c.get('binding_refs', []):
-                  if b not in bindings:
-                      raise SystemExit(f'UNRESOLVED_BINDING: {c["id"]} -> {b}')
-          print('Capability references: PASS')
-
-      - name: Validate dependency DAG
-        shell: python
-        run: |
-          import json
-          from pathlib import Path
-          data = json.loads(Path('.governance/3.2/dependencies/registry.json').read_text(encoding='utf-8'))
-          graph = {}
-          for e in data.get('edges', []):
-              graph.setdefault(e['from'], []).append(e['to'])
-          visiting, visited = set(), set()
-          def dfs(n):
-              if n in visiting:
-                  raise SystemExit(f'FORBIDDEN_DEPENDENCY_CYCLE: {n}')
-              if n in visited:
-                  return
-              visiting.add(n)
-              for x in graph.get(n, []):
-                  dfs(x)
-              visiting.remove(n)
-              visited.add(n)
-          for n in graph:
-              dfs(n)
-          print('Dependency DAG: PASS')
-
-      - name: Historical isolation gate
+      - name: Machine governance gate
         shell: bash
-        run: |
-          set -euo pipefail
-          base="${{ github.event.pull_request.base.sha }}"
-          if [ -z "${base}" ] || [ "${base}" = "null" ]; then
-            base="$(git rev-parse HEAD^ 2>/dev/null || true)"
-          fi
-          if [ -n "$base" ]; then
-            changed="$(git diff --name-only "$base" HEAD)"
-            forbidden='(^|/)(1\.0|2\.0|old|legacy)(/|$)'
-            if printf '%s\n' "$changed" | grep -E "$forbidden"; then
-              echo 'HISTORICAL_ISOLATION_FAIL: active change touches forbidden historical material'
-              exit 1
-            fi
-          fi
-          echo 'Historical isolation: PASS'
+        env:
+          D1_FABRIC_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: python tools/governance/validate_change_manifest.py
 
   governance-policy:
     name: Governance Policy Gate
