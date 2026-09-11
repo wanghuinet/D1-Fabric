@@ -1,17 +1,10 @@
 #!/usr/bin/env python3
-"""D1-Fabric 3.2 evidence freshness, replay, expiry and forgery gate.
-
-The validator derives registry_generation from canonical governance registry
-files, validates a current evidence object, and proves that stale/replayed or
-self-approved evidence is rejected.
-"""
+"""D1-Fabric 3.2 evidence freshness, replay, expiry and forgery gate."""
 from __future__ import annotations
 
 import hashlib
 import json
 import os
-import sys
-import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -27,7 +20,6 @@ def fail(code: str, detail: str) -> None:
 
 
 def canonical_generation(root: Path) -> str:
-    """Hash canonical governance registries, excluding mutable evidence output."""
     files = sorted(
         p for p in (root / ".governance" / "3.2").rglob("*")
         if p.is_file() and p.name != "current-evidence.json"
@@ -65,7 +57,9 @@ def validate(evidence: dict, *, current_commit: str, current_generation: str, ac
         fail("EVIDENCE_POLICY_STALE", f"expected={POLICY_VERSION}; actual={evidence['policy_version']}")
     if evidence["environment"] != EXPECTED_ENVIRONMENT:
         fail("EVIDENCE_ENVIRONMENT_MISMATCH", f"expected={EXPECTED_ENVIRONMENT}; actual={evidence['environment']}")
-    if not evidence["verifier"] or evidence["verifier"] == actor:
+    if not isinstance(evidence["verifier"], str) or not evidence["verifier"]:
+        fail("EVIDENCE_VERIFIER_FAIL", "verifier is required")
+    if evidence["verifier"] == actor:
         fail("EVIDENCE_SELF_APPROVAL", "verifier must be independent of mutation actor")
     try:
         started = datetime.fromisoformat(evidence["started_at"].replace("Z", "+00:00"))
@@ -93,10 +87,9 @@ def expect_reject(mutated: dict, *, name: str, current_commit: str, generation: 
 
 def main() -> None:
     manifest = json.loads((GOV / "changes" / "current.json").read_text(encoding="utf-8"))
-    actor = manifest["actor"]
-    current_commit = os.environ.get("GITHUB_SHA") or os.environ.get("D1_FABRIC_CURRENT_COMMIT")
-    if not current_commit:
-        current_commit = "LOCAL-CURRENT-COMMIT"
+    actor_value = manifest["actor"]
+    actor = actor_value["id"] if isinstance(actor_value, dict) else str(actor_value)
+    current_commit = os.environ.get("GITHUB_SHA") or os.environ.get("D1_FABRIC_CURRENT_COMMIT") or "LOCAL-CURRENT-COMMIT"
     generation = canonical_generation(ROOT)
     now = datetime.now(timezone.utc)
     valid = {
@@ -113,10 +106,8 @@ def main() -> None:
         "verifier": "governance-independent-verifier",
         "expires_at": (now + timedelta(hours=1)).isoformat().replace("+00:00", "Z"),
     }
-
     validate(valid, current_commit=current_commit, current_generation=generation, actor=actor)
     print("CURRENT_EVIDENCE: PASS")
-
     cases = [
         ("EVD-REPLAY-COMMIT", {**valid, "commit": "OLD-COMMIT"}),
         ("EVD-REPLAY-GENERATION", {**valid, "registry_generation": "OLD-GENERATION"}),
@@ -127,14 +118,7 @@ def main() -> None:
     ]
     for name, mutated in cases:
         expect_reject(mutated, name=name, current_commit=current_commit, generation=generation, actor=actor)
-
-    print(json.dumps({
-        "decision": "PASS",
-        "policy_version": POLICY_VERSION,
-        "environment": EXPECTED_ENVIRONMENT,
-        "registry_generation": generation,
-        "negative_cases": len(cases),
-    }, ensure_ascii=False, indent=2))
+    print(json.dumps({"decision": "PASS", "policy_version": POLICY_VERSION, "environment": EXPECTED_ENVIRONMENT, "registry_generation": generation, "negative_cases": len(cases)}, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":
