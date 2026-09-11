@@ -6,12 +6,19 @@
   "owners": ["governance"],
   "capabilities": ["governance.machine-enforcement"],
   "resources": [".governance/3.2", ".github/workflows/d1-fabric-governance.yml", "tools/governance"],
-  "files": [".governance/3.2/changes/current.json"],
+  "files": [
+    ".github/workflows/d1-fabric-governance.yml",
+    ".governance/3.2/changes/current.json",
+    "docs/D1-FABRIC-3.2-DEVELOPMENT-ADMISSION-CLOSURE-v1.0.md",
+    "docs/D1-FABRIC-3.2-DEVELOPMENT-ADMISSION-MANIFEST-v1.0.json",
+    "tools/governance/validate_adversarial_governance.py"
+  ],
   "policy_version": "3.2.4",
   "verification_plan": [
     "validate JSON governance registries",
     "validate exact git diff scope against this manifest",
     "validate Level-4 behavioral invariants",
+    "validate mutation-based adversarial acceptance",
     "validate Level-5 recovery scenario coverage",
     "validate worker topology, binding authority and bootstrap safety"
   ],
