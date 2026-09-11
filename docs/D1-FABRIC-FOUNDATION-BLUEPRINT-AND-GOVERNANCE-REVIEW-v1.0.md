@@ -1,6 +1,6 @@
 # D1-Fabric Foundation Blueprint & Governance Review v1.0
 
-Status: PROPOSED — HUMAN REVIEW REQUIRED  
+Status: PROPOSED — HUMAN REVIEWED / IMPLEMENTATION GATES IN PROGRESS  
 Purpose: Freeze the engineering foundation, governance model and implementation sequence before continuous GPT implementation.
 
 ## 1. Review Objective
@@ -49,16 +49,16 @@ The target architecture is high cohesion, low coupling and explicit ownership.
 
 ## 4. Initial Runtime Blueprint
 
-The initial runtime MAY use the following separation:
+The initial runtime may be described by these responsibility domains:
 
 - W01 Gateway — ingress, admission and request boundary;
 - W02 Execution — execution orchestration and read path;
 - W03 Write — write path, transaction and idempotent mutation execution;
 - W04 Control Plane — control APIs, policy and control-state orchestration;
-- W05 Reliability Plane — timeout, retry, failure classification, circuit protection and recovery;
-- W06 Placement/Migration Control — placement, topology, migration, expansion and rebalance where independent deployment is justified.
+- Reliability Plane — reliability capability domain hosted through explicit modules/contracts within W01-W04 at the current baseline;
+- Placement/Migration Control — placement, topology, migration, expansion and rebalance capability domain owned by W04 at the current baseline.
 
-Worker count is evidence-driven and may change. Worker boundaries MUST NOT be expanded merely to accommodate unrelated functionality.
+W05 and W06 are reserved capability labels, not current independently deployable Workers. They MUST NOT be created without an approved topology ADR establishing an independent deployment boundary from evidence.
 
 Application-specific users, feeds, games, novels, manga, live, commerce, ads, creator/MCN, UI and product-specific recommendation logic MUST remain outside Core Workers.
 
@@ -358,7 +358,7 @@ Freeze architecture contract, capability registry, ownership model, dependency D
 
 ### Foundation Stage B — Core Contract Hardening
 
-Freeze W01-W06 responsibilities, module contracts, data ownership, routing/versioning, runtime bindings and public compatibility rules.
+Freeze W01-W04 responsibilities, module contracts, data ownership, routing/versioning, runtime bindings and public compatibility rules. Reliability and placement/migration remain capability domains unless an approved topology ADR establishes independent deployment boundaries.
 
 ### Foundation Stage C — Core Implementation
 
@@ -400,7 +400,7 @@ Before approving this blueprint, confirm:
 
 ## 23. Approval State
 
-This blueprint is a REVIEW ARTIFACT until explicitly approved by the project owner.
+This blueprint is a REVIEW ARTIFACT until the executable R0-R4 governance gates are completed and the project owner explicitly approves the resulting frozen baseline.
 
 No new major implementation stage may be inferred from this document alone.
 
@@ -411,3 +411,25 @@ After explicit approval, the next action is to translate the approved blueprint 
 This blueprint complements, but does not silently override, the Open Core Architecture Contract, Function Catalog and GPT Continuous Master Document.
 
 Any conflict is resolved by the higher-level versioned architecture contract until an explicit amendment is approved.
+
+## 25. R0 Authority Reconciliation — Completed
+
+The project owner has confirmed the Foundation-First direction: D1-Fabric MUST first become an engineering foundation capable of constraining GPT, code, architecture and Cloudflare resources before continuous product implementation begins.
+
+ADR-0001 resolves the Worker topology ambiguity for the current baseline:
+
+```text
+Current independently deployable Workers:
+W01 / W02 / W03 / W04
+
+Capability domains:
+Reliability
+Placement / Migration
+
+Reserved future deployment boundaries:
+W05 / W06
+```
+
+W05/W06 require a new approved topology ADR before independent deployment.
+
+R0 is therefore PASS. R1 is the next foundation stage.
