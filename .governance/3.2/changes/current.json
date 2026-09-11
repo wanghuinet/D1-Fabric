@@ -1,25 +1,20 @@
 {
-  "change_id": "CHG-3.2-001",
+  "change_id": "CHG-3.2-002",
   "actor": {"type": "automation", "id": "gpt-architecture-governance"},
   "target_environment": "dev",
   "risk": "controlled",
   "owners": ["governance"],
   "capabilities": ["governance.machine-enforcement"],
-  "resources": [".governance/3.2", ".github/workflows/d1-fabric-governance.yml"],
+  "resources": [".governance/3.2", ".github/workflows/d1-fabric-governance.yml", "tools/governance"],
   "files": [
-    ".governance/3.2/adrs/registry.json",
-    ".governance/3.2/changes/current.json",
-    ".github/workflows/d1-fabric-governance.yml",
-    "tools/governance/validate_change_manifest.py"
+    ".governance/3.2/changes/current.json"
   ],
   "policy_version": "3.2.4",
   "verification_plan": [
     "validate JSON governance registries",
-    "validate ADR references and conflict uniqueness",
     "validate exact git diff scope against this manifest",
-    "validate historical isolation",
-    "validate worker topology and worker-admission policy",
-    "validate dependency DAG and binding authority"
+    "validate Level-4 behavioral invariants",
+    "validate worker topology, binding authority and bootstrap safety"
   ],
   "recovery_class": "controlled",
   "expiry": "9999-12-31T23:59:59Z",
