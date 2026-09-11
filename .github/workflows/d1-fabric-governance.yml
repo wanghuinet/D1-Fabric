@@ -8,6 +8,9 @@ on:
 permissions:
   contents: read
 
+env:
+  D1_FABRIC_GOVERNANCE_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+
 jobs:
   governance-structure:
     name: Governance Structural Gate
@@ -39,15 +42,28 @@ jobs:
               Path('tools/governance/validate_evidence_freshness.py')
           ]
           for p in required:
-              if not p.is_file(): raise SystemExit(f'MISSING_GOVERNANCE_FILE: {p}')
-              if p.suffix == '.json': json.loads(p.read_text(encoding='utf-8'))
+              if not p.is_file():
+                  raise SystemExit(f'MISSING_GOVERNANCE_FILE: {p}')
+              if p.suffix == '.json':
+                  try:
+                      json.loads(p.read_text(encoding='utf-8'))
+                  except json.JSONDecodeError as exc:
+                      raise SystemExit(f'GOVERNANCE_JSON_INVALID: {p}: {exc}')
+          print(f'GOVERNANCE_BASE_SHA={Path(".git").resolve().parent}')
           print('Governance structure: PASS')
 
       - name: Machine governance gate
         shell: bash
         env:
-          D1_FABRIC_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-        run: python tools/governance/validate_change_manifest.py
+          D1_FABRIC_BASE_SHA: ${{ env.D1_FABRIC_GOVERNANCE_BASE_SHA }}
+        run: |
+          set -euo pipefail
+          echo "GOVERNANCE_BASE_SHA=${D1_FABRIC_BASE_SHA}"
+          echo "GOVERNANCE_HEAD_SHA=$(git rev-parse HEAD)"
+          echo "GOVERNANCE_CHANGED_FILES_BEGIN"
+          git diff --name-only "${D1_FABRIC_BASE_SHA}" HEAD
+          echo "GOVERNANCE_CHANGED_FILES_END"
+          python tools/governance/validate_change_manifest.py
 
   governance-policy:
     name: Governance Policy Gate
