@@ -3,61 +3,92 @@ name: Foundation Governance Gate
 on:
   push:
     paths:
+      - ".d1-fabric/**"
+      - "docs/adr/**"
+      - "tools/governance/**"
+      - "workers/v2/**"
+      - "AGENTS.md"
       - "docs/D1-FABRIC-OPEN-CORE-ARCHITECTURE-CONTRACT-v1.0.md"
       - "docs/D1-FABRIC-3.1-FUNCTION-CATALOG.md"
       - "docs/D1-FABRIC-GPT-CONTINUOUS-MASTER-DOCUMENT.md"
-      - ".github/workflows/foundation-governance.yml"
+      - ".github/workflows/**"
   pull_request:
     paths:
+      - ".d1-fabric/**"
+      - "docs/adr/**"
+      - "tools/governance/**"
+      - "workers/v2/**"
+      - "AGENTS.md"
       - "docs/D1-FABRIC-OPEN-CORE-ARCHITECTURE-CONTRACT-v1.0.md"
       - "docs/D1-FABRIC-3.1-FUNCTION-CATALOG.md"
       - "docs/D1-FABRIC-GPT-CONTINUOUS-MASTER-DOCUMENT.md"
-      - ".github/workflows/foundation-governance.yml"
+      - ".github/workflows/**"
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   foundation-governance:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout exact commit
+      - name: Checkout exact commit with history
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Validate required architecture rules
-        shell: bash
-        run: |
-          set -euo pipefail
-          ARCH="docs/D1-FABRIC-OPEN-CORE-ARCHITECTURE-CONTRACT-v1.0.md"
-          CATALOG="docs/D1-FABRIC-3.1-FUNCTION-CATALOG.md"
-          GPT="docs/D1-FABRIC-GPT-CONTINUOUS-MASTER-DOCUMENT.md"
-
-          test -s "$ARCH"
-          test -s "$CATALOG"
-          test -s "$GPT"
-
-          grep -q "Cloudflare-Native-First Rule" "$ARCH"
-          grep -q "Worker and Module Boundaries" "$ARCH"
-          grep -q "Major-Stage Development Gate" "$ARCH"
-          grep -q "must use the native service" "$CATALOG"
-          grep -q "Worker / Module Ownership" "$CATALOG"
-          grep -q "Major-Stage Stop Rule" "$CATALOG"
-          grep -q "Cloudflare-Native-First" "$GPT"
-          grep -q "Worker is a deployment/runtime boundary" "$GPT"
-          grep -q "GPT MUST stop" "$GPT"
-
-      - name: Verify forbidden business scope is not authorized in Core
+      - name: Validate required governance artifacts
         shell: bash
         run: |
           set -euo pipefail
           for file in \
-            docs/D1-FABRIC-OPEN-CORE-ARCHITECTURE-CONTRACT-v1.0.md \
-            docs/D1-FABRIC-3.1-FUNCTION-CATALOG.md \
-            docs/D1-FABRIC-GPT-CONTINUOUS-MASTER-DOCUMENT.md; do
-            grep -q "business" "$file"
-            grep -q "Core Workers" "$file"
+            AGENTS.md \
+            .d1-fabric/registry/capabilities.json \
+            .d1-fabric/registry/adrs.json \
+            .d1-fabric/registry/ownership.json \
+            .d1-fabric/registry/dependencies.json \
+            .d1-fabric/registry/bindings.json \
+            .d1-fabric/change-manifest.json \
+            tools/governance/validate_foundation.py \
+            docs/adr/ADR-0001-worker-topology.md; do
+            test -s "$file"
           done
 
-      - name: Emit verification marker
+      - name: Validate foundation policy as code
+        shell: bash
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
         run: |
-          echo "FOUNDATION_GOVERNANCE=PASS"
-          echo "COMMIT_SHA=${GITHUB_SHA}"
+          set -euo pipefail
+          BASE="$PR_BASE_SHA"
+          if [ -z "$BASE" ]; then BASE="$PUSH_BEFORE_SHA"; fi
+          if [ "$BASE" = "0000000000000000000000000000000000000000" ]; then BASE=""; fi
+          python3 tools/governance/validate_foundation.py --base "$BASE" --head "$GITHUB_SHA"
+
+      - name: Validate normative documents remain present
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "Cloudflare-Native-First Rule" docs/D1-FABRIC-OPEN-CORE-ARCHITECTURE-CONTRACT-v1.0.md
+          grep -q "Worker / Module Ownership" docs/D1-FABRIC-3.1-FUNCTION-CATALOG.md
+          grep -q "GPT MUST stop" docs/D1-FABRIC-GPT-CONTINUOUS-MASTER-DOCUMENT.md
+          grep -q "Foundation implementation proceeds in this order" AGENTS.md
+
+      - name: Emit reproducible evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p governance-evidence
+          git rev-parse HEAD > governance-evidence/commit-sha.txt
+          python3 --version > governance-evidence/python-version.txt
+          cp .d1-fabric/registry/*.json governance-evidence/
+          cp .d1-fabric/change-manifest.json governance-evidence/
+
+      - name: Upload governance evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: foundation-governance-${{ github.sha }}
+          path: governance-evidence/
+          if-no-files-found: error
