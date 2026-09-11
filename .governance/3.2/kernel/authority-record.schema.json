@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "d1-fabric://governance/3.2/kernel/authority-record.schema.json",
+  "title": "D1-Fabric 3.2 Authority Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "object_type",
+    "object_id",
+    "authority_owner",
+    "authoritative_store",
+    "authoritative_writer",
+    "version_field",
+    "generation_or_epoch",
+    "mutation_policy",
+    "read_replicas",
+    "cache_policy",
+    "stale_reader_policy",
+    "conflict_policy",
+    "bootstrap_source",
+    "recovery_source",
+    "audit_source"
+  ],
+  "properties": {
+    "object_type": { "type": "string", "minLength": 1 },
+    "object_id": { "type": "string", "minLength": 1 },
+    "authority_owner": { "type": "string", "minLength": 1 },
+    "authoritative_store": { "type": "string", "minLength": 1 },
+    "authoritative_writer": { "type": "string", "minLength": 1 },
+    "version_field": { "type": "string", "minLength": 1 },
+    "generation_or_epoch": { "type": "string", "minLength": 1 },
+    "mutation_policy": { "type": "string", "minLength": 1 },
+    "read_replicas": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "cache_policy": { "type": "string", "minLength": 1 },
+    "stale_reader_policy": { "type": "string", "minLength": 1 },
+    "conflict_policy": { "type": "string", "minLength": 1 },
+    "bootstrap_source": { "type": "string", "minLength": 1 },
+    "recovery_source": { "type": "string", "minLength": 1 },
+    "audit_source": { "type": "string", "minLength": 1 }
+  }
+}
