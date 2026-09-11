@@ -1,8 +1,0 @@
-name = "d1-fabric-w05-reliability-plane"
-main = "src/index.ts"
-compatibility_date = "2026-09-10"
-compatibility_flags = ["enable_request_signal"]
-
-[[services]]
-binding = "W03"
-service = "w03-write-fabric"
