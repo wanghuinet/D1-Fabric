@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "status": "DRAFT",
   "target_enforcement_level": 6,
   "active_worker_topology": ["W01", "W02", "W03", "W04", "W05", "W06"],
@@ -15,7 +15,9 @@
     "dependencies",
     "bindings",
     "changes",
-    "evidence"
+    "evidence",
+    "security",
+    "capacity"
   ],
   "required_gates": [
     "historical-isolation",
@@ -30,10 +32,12 @@
     "behavioral-tests",
     "failure-recovery",
     "security",
+    "capacity",
     "evidence-freshness",
     "release-decision"
   ],
   "worker_addition_requires_adr": true,
   "worker_addition_requires_change_manifest": true,
-  "generated_files_are_non_authoritative": true
+  "generated_files_are_non_authoritative": true,
+  "governed_changes_use_pull_request_boundary": true
 }
