@@ -1,0 +1,63 @@
+name: Foundation Governance Gate
+
+on:
+  push:
+    paths:
+      - "docs/D1-FABRIC-OPEN-CORE-ARCHITECTURE-CONTRACT-v1.0.md"
+      - "docs/D1-FABRIC-3.1-FUNCTION-CATALOG.md"
+      - "docs/D1-FABRIC-GPT-CONTINUOUS-MASTER-DOCUMENT.md"
+      - ".github/workflows/foundation-governance.yml"
+  pull_request:
+    paths:
+      - "docs/D1-FABRIC-OPEN-CORE-ARCHITECTURE-CONTRACT-v1.0.md"
+      - "docs/D1-FABRIC-3.1-FUNCTION-CATALOG.md"
+      - "docs/D1-FABRIC-GPT-CONTINUOUS-MASTER-DOCUMENT.md"
+      - ".github/workflows/foundation-governance.yml"
+  workflow_dispatch:
+
+jobs:
+  foundation-governance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+
+      - name: Validate required architecture rules
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARCH="docs/D1-FABRIC-OPEN-CORE-ARCHITECTURE-CONTRACT-v1.0.md"
+          CATALOG="docs/D1-FABRIC-3.1-FUNCTION-CATALOG.md"
+          GPT="docs/D1-FABRIC-GPT-CONTINUOUS-MASTER-DOCUMENT.md"
+
+          test -s "$ARCH"
+          test -s "$CATALOG"
+          test -s "$GPT"
+
+          grep -q "Cloudflare-Native-First Rule" "$ARCH"
+          grep -q "Worker and Module Boundaries" "$ARCH"
+          grep -q "Major-Stage Development Gate" "$ARCH"
+          grep -q "must use the native service" "$CATALOG"
+          grep -q "Worker / Module Ownership" "$CATALOG"
+          grep -q "Major-Stage Stop Rule" "$CATALOG"
+          grep -q "Cloudflare-Native-First" "$GPT"
+          grep -q "Worker is a deployment/runtime boundary" "$GPT"
+          grep -q "GPT MUST stop" "$GPT"
+
+      - name: Verify forbidden business scope is not authorized in Core
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            docs/D1-FABRIC-OPEN-CORE-ARCHITECTURE-CONTRACT-v1.0.md \
+            docs/D1-FABRIC-3.1-FUNCTION-CATALOG.md \
+            docs/D1-FABRIC-GPT-CONTINUOUS-MASTER-DOCUMENT.md; do
+            grep -q "business" "$file"
+            grep -q "Core Workers" "$file"
+          done
+
+      - name: Emit verification marker
+        run: |
+          echo "FOUNDATION_GOVERNANCE=PASS"
+          echo "COMMIT_SHA=${GITHUB_SHA}"
