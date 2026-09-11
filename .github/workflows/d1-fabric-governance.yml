@@ -28,10 +28,15 @@ jobs:
               root/'config.json', root/'capabilities/registry.json', root/'adrs/registry.json',
               root/'ownership/registry.json', root/'dependencies/registry.json',
               root/'bindings/registry.json', root/'changes/schema.json', root/'changes/current.json',
-              root/'evidence/schema.json', root/'behavior/registry.json', root/'recovery/registry.json',
+              root/'evidence/schema.json', root/'evidence/freshness.json',
+              root/'behavior/registry.json', root/'recovery/registry.json',
+              root/'security/registry.json', root/'capacity/registry.json',
               Path('tools/governance/validate_change_manifest.py'),
               Path('tools/governance/validate_behavioral_governance.py'),
-              Path('tools/governance/validate_recovery_registry.py')
+              Path('tools/governance/validate_recovery_registry.py'),
+              Path('tools/governance/validate_security_governance.py'),
+              Path('tools/governance/validate_capacity_governance.py'),
+              Path('tools/governance/validate_evidence_freshness.py')
           ]
           for p in required:
               if not p.is_file(): raise SystemExit(f'MISSING_GOVERNANCE_FILE: {p}')
@@ -90,6 +95,39 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Validate recovery scenario coverage
+      - name: Execute recovery proofs
         shell: bash
         run: python tools/governance/validate_recovery_registry.py
+
+  governance-security:
+    name: Security and Tenant Isolation Gate
+    needs: governance-recovery
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Execute security policy simulations
+        shell: bash
+        run: python tools/governance/validate_security_governance.py
+
+  governance-capacity:
+    name: Capacity and Operational Boundary Gate
+    needs: governance-recovery
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Execute capacity boundary simulations
+        shell: bash
+        run: python tools/governance/validate_capacity_governance.py
+
+  governance-evidence:
+    name: Evidence Freshness Gate
+    needs: [governance-security, governance-capacity]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Execute evidence freshness checks
+        shell: bash
+        run: python tools/governance/validate_evidence_freshness.py
