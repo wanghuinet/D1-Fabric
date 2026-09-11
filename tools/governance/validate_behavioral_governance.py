@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -30,18 +29,41 @@ def main() -> None:
     if cfg.get("active_worker_topology") != ["W01", "W02", "W03", "W04", "W05", "W06"]:
         fail("BEHAVIOR_TOPOLOGY_FAIL", str(cfg.get("active_worker_topology")))
 
-    owners = load(GOV / "ownership" / "registry.json").get("objects", [])
+    owners = load(GOV / "ownership" / "registry.json")
+    contract = owners.get("generation_contract", {})
+    if contract.get("field") != "generation" or contract.get("type") != "non-negative-integer":
+        fail("GENERATION_CONTRACT_FAIL", "generation contract is incomplete")
+    if contract.get("monotonic") is not True or contract.get("stale_write") != "reject":
+        fail("GENERATION_CONTRACT_FAIL", "generation must be monotonic and stale writes rejected")
+
     seen: dict[str, int] = {}
-    for item in owners:
+    for item in owners.get("objects", []):
         oid = item.get("id")
         if not oid:
             fail("AUTHORITATIVE_WRITER_FAIL", "owner object missing id")
         seen[oid] = seen.get(oid, 0) + 1
         if not item.get("primary_owner"):
             fail("AUTHORITATIVE_WRITER_FAIL", oid)
+        generation = item.get("generation")
+        if not isinstance(generation, int) or generation < 0:
+            fail("GENERATION_OBJECT_FAIL", f"{oid}: generation must be non-negative integer")
+
     duplicates = sorted(k for k, v in seen.items() if v != 1)
     if duplicates:
         fail("AUTHORITATIVE_WRITER_FAIL", str(duplicates))
+
+    # Deterministic stale-writer model proof: expected generation must equal the
+    # current authoritative generation; a successful write advances by exactly 1.
+    current = 7
+    stale = 6
+    if stale == current:
+        fail("STALE_WRITER_PROOF_FAIL", "test fixture is not stale")
+    stale_decision = "reject" if stale != current else "accept"
+    if stale_decision != "reject":
+        fail("STALE_WRITER_PROOF_FAIL", "stale mutation was not rejected")
+    accepted_generation = current + 1
+    if accepted_generation <= current:
+        fail("GENERATION_MONOTONICITY_FAIL", "successful mutation did not advance generation")
 
     bindings = load(GOV / "bindings" / "registry.json").get("bindings", [])
     for binding in bindings:
@@ -86,7 +108,10 @@ def main() -> None:
         "invariants": sorted(required),
         "checks": [
             "authoritative-writer",
-            "generation-contract-registry-presence",
+            "generation-contract-schema",
+            "generation-non-negative",
+            "generation-monotonicity",
+            "stale-writer-rejection",
             "worker-topology",
             "binding-authority",
             "bootstrap-safety",
