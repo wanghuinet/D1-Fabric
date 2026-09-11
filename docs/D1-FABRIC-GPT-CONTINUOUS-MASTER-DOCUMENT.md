@@ -1,12 +1,13 @@
 # D1-Fabric GPT Continuous Master Document
 
-Version: 3.2.1  
+Version: 3.2.2  
 Status: ACTIVE / SOURCE OF TRUTH FOR GPT CONTINUITY  
-Forward Architecture Contract: `docs/D1-FABRIC-3.2-INFRASTRUCTURE-ARCHITECTURE-CONTRACT-v1.0.md` (Version 1.1, DRAFT FOR ARCHITECTURE REVIEW — HARDENED)
+Forward Architecture Contract: `docs/D1-FABRIC-3.2-INFRASTRUCTURE-ARCHITECTURE-CONTRACT-v1.0.md` (Version 1.1, DRAFT FOR ARCHITECTURE REVIEW — HARDENED)  
+Architecture Amendment: `docs/D1-FABRIC-3.2-ARCHITECTURE-HARDENING-AMENDMENT-v1.2.md` (DRAFT FOR ARCHITECTURE REVIEW — AMENDMENT)
 
 ## 1. Purpose
 
-This document preserves the current architectural direction and development continuity for GPT-led implementation. Formal contracts remain authoritative. The hardened 3.2 architecture contract is the current forward-looking architecture baseline pending architecture-review PASS.
+This document preserves the current architectural direction and development continuity for GPT-led implementation. Formal contracts remain authoritative. The hardened 3.2 architecture contract plus its v1.2 hardening amendment are the current forward-looking architecture baseline pending architecture-review PASS.
 
 ## 2. Current Product Model
 
@@ -84,24 +85,52 @@ The forward architecture requires explicit contracts for:
 
 These are contracts, not a requirement for additional workers.
 
-## 6. Mandatory Architecture Invariants
+## 6. Architecture Hardening v1.2
+
+The next hardening layer adds:
+
+- generation monotonicity
+- policy/object compatibility
+- identity-to-data binding
+- data-flow purpose limitation
+- explicit infrastructure state machines
+- durable change identity
+- verification evidence as a first-class state
+- API/event/storage/control compatibility matrix
+- data lineage and policy propagation
+- complete resource lifecycle
+- multi-dimensional capacity safety boundaries
+- explicit control-plane staleness rules
+- runtime security policy boundaries
+- routine/controlled/high-risk/emergency change classes
+- controlled failure-injection contract
+- AI evidence/uncertainty/scope contract
+- requirement-to-runtime evidence chain
+
+These are architecture invariants and governance requirements, not additional Workers.
+
+## 7. Mandatory Architecture Invariants
 
 1. Every mutable infrastructure object has exactly one authoritative writer.
 2. Every authoritative object has explicit version/generation/epoch semantics.
-3. Every control-plane dependency used by request execution has defined stale-data and fail-open/fail-closed behavior.
-4. Every tenant-scoped operation has explicit isolation and authorization semantics.
-5. Every externally retryable mutation has an idempotency contract.
-6. Every event consumer is idempotent or has an explicitly stronger delivery guarantee.
-7. Every production mutation has health predicates, blast-radius limits and rollback/recovery criteria.
-8. Every destructive operation has restore/recovery evidence.
-9. Every production capability has measurable reliability objectives.
-10. Every reconciliation loop has convergence and anti-oscillation rules.
-11. Every provider binding declares material runtime and cost constraints.
-12. AI cannot bypass deterministic governance or obtain unrestricted mutation authority.
-13. Historical architecture cannot silently become active architecture.
-14. No new worker is justified solely by logical decomposition.
+3. Authoritative generations are monotonic within their authority domain.
+4. Every control-plane dependency used by request execution has defined stale-data and fail-open/fail-closed behavior.
+5. Every tenant-scoped operation preserves identity through authorization, placement, execution, storage, cache and event boundaries.
+6. Every externally retryable mutation has an idempotency contract.
+7. Every event consumer is idempotent or has an explicitly stronger delivery guarantee.
+8. Every production mutation has health predicates, blast-radius limits and rollback/recovery criteria.
+9. Every destructive operation has restore/recovery evidence.
+10. Every production capability has measurable reliability objectives.
+11. Every reconciliation loop has convergence and anti-oscillation rules.
+12. Every critical infrastructure operation has an explicit legal state-transition model.
+13. Verification evidence is tied to the exact change generation.
+14. Every provider binding declares material runtime and cost constraints.
+15. AI cannot bypass deterministic governance or obtain unrestricted mutation authority.
+16. Historical architecture cannot silently become active architecture.
+17. No new worker is justified solely by logical decomposition.
+18. Resource retirement requires dependency and safety verification.
 
-## 7. AI Boundary
+## 8. AI Boundary
 
 AI and prediction MUST NOT become a synchronous availability dependency of Open Core.
 
@@ -113,19 +142,17 @@ Every mutation follows:
 
 `Agent → Proposal → Policy → Change Manifest → Diff Scope Gate → Approval/Auto-Approval → Execution → Verification → Audit.`
 
-Agents operate under capability scope, tenant/resource scope, action allowlists, blast-radius limits, time/budget limits and explicit recovery paths.
+Agents operate under capability scope, tenant/resource scope, action allowlists, blast-radius limits, time/budget limits, evidence requirements and explicit recovery paths.
 
-## 8. Super Management Center
+AI-generated diagnosis MUST distinguish observation, hypothesis and verified fact.
+
+## 9. Super Management Center
 
 The Super Management Center is the management/control surface for the substrate. It is not a new execution plane.
 
-Primary views include Command Center, Global Infrastructure, Application Fleet, Live Topology, Data Fabric, Reliability, Capacity, Cost Intelligence, AI Agent Fleet, Governance, Security, Deployments, Migrations, Audit and Developer/Operator Center.
-
 Every displayed operational fact must expose or derive from source authority, freshness/version and timestamp; estimated values must identify uncertainty.
 
-Initial visual direction: dark, high-density green/purple AI infrastructure command center. Visual state MUST be sourced from real management APIs/control-plane state and MUST NOT invent operational truth.
-
-## 9. Open Core / Advanced / Frontier
+## 10. Open Core / Advanced / Frontier
 
 Open Core remains independently operable and deterministic.
 
@@ -133,7 +160,7 @@ Advanced provides mature high-end capabilities without becoming a Core runtime d
 
 Frontier includes experimental, predictive and AI-assisted capabilities and remains bounded, auditable and non-critical to Core availability.
 
-## 10. Governance
+## 11. Governance
 
 Architecture-first, contract-first, module-first, verification-first and controlled evolution remain mandatory.
 
@@ -144,37 +171,37 @@ Machine-enforced governance includes:
 - Ownership Map
 - Dependency DAG
 - Binding Ownership
-- Change Manifest
-- Diff Scope Gate
 - Authority Registry
+- Tenant/Namespace Registry
 - Policy Registry
-- Recovery Classification
-- module contracts
-- compatibility rules
-- release classification
+- Failure-Domain Registry
+- Change Manifest Registry
+- Diff Scope Gate
+- Recovery Classification Registry
+- Compatibility Matrix
+- Provider Constraint Registry
+- Resource Lifecycle Registry
+- Evidence Registry
+- Release Classification
 - historical isolation rules
 
 Historical 1.x/2.x artifacts are immutable reference material and MUST NOT silently affect 3.2 development.
 
-## 11. Development Order
+## 12. Development Order
 
-Architecture hardening → machine governance → core capability/consistency/identity contracts → runtime safety contracts → state/change control → W01-W06 integration → Management API → Super Management Center → DR/chaos verification → AI agents → advanced adaptive optimization.
+Architecture hardening → machine governance → core capability/consistency/identity contracts → runtime safety contracts → state/change control → evidence model → W01-W06 integration → Management API → Super Management Center → DR/chaos verification → AI agents → advanced adaptive optimization.
 
 No feature is complete merely because code exists or tests pass. Contracted, implemented, verified, production-ready and active remain distinct states.
 
-## 12. Current Priority
+## 13. Current Priority
 
-The immediate priority is formal architecture review and closure of the hardened 3.2 contract.
+The immediate priority is formal architecture review and closure of the hardened 3.2 contract plus v1.2 amendment.
 
 The main contract remains `DRAFT FOR ARCHITECTURE REVIEW — HARDENED`.
 
-Implementation MUST NOT outrun the reviewed architecture. New 3.2 production code is blocked until the P0/P1 architecture gates are explicitly satisfied according to the main contract.
+Implementation MUST NOT outrun the reviewed architecture. New 3.2 production code is blocked until the P0/P1 architecture gates and amendment-level invariants are explicitly satisfied.
 
-## 13. Non-Goals
-
-This document does not authorize implementation of any feature by itself. The 3.2 architecture contract must pass review before implementation begins for new 3.2 capabilities.
-
-The following remain explicitly out of scope without new architectural evidence:
+## 14. Non-Goals
 
 - uncontrolled multi-cloud implementation
 - arbitrary extra workers
