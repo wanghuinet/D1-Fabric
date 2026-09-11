@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "bindings": [
+    {"id":"binding.d1","resource_type":"d1.database","provider":"cloudflare","authority":"W06","owner":"W06","generation_source":"authoritative-control-state","mutable":true},
+    {"id":"binding.r2","resource_type":"r2.bucket","provider":"cloudflare","authority":"W06","owner":"W06","generation_source":"authoritative-control-state","mutable":true},
+    {"id":"binding.kv","resource_type":"kv.namespace","provider":"cloudflare","authority":"W06","owner":"W06","generation_source":"authoritative-control-state","mutable":true},
+    {"id":"binding.queue","resource_type":"queues","provider":"cloudflare","authority":"W06","owner":"W06","generation_source":"authoritative-control-state","mutable":true},
+    {"id":"binding.do","resource_type":"durable-object","provider":"cloudflare","authority":"W06","owner":"W06","generation_source":"authoritative-control-state","mutable":true}
+  ]
+}
