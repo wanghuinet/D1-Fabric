@@ -1,16 +1,25 @@
 {
-  "change_id": "CHG-3.2-009",
+  "change_id": "CHG-3.2-010",
   "actor": {"type": "automation", "id": "gpt-architecture-governance"},
   "target_environment": "dev",
   "risk": "controlled",
   "owners": ["governance"],
   "capabilities": ["governance.machine-enforcement"],
-  "resources": [".governance/3.2/changes"],
-  "files": [".governance/3.2/changes/current.json"],
+  "resources": [".governance/3.2/changes", ".governance/3.2/kernel", "tools/governance"],
+  "files": [
+    ".governance/3.2/changes/current.json",
+    ".governance/3.2/kernel/evidence-registry.json",
+    ".governance/3.2/kernel/evidence-dag-registry.json",
+    ".governance/3.2/kernel/validator-spec.json",
+    "tools/governance/validate_kernel_governance.py",
+    "tools/governance/generate_kernel_evidence.py"
+  ],
   "policy_version": "3.2.6",
   "verification_plan": [
-    "validate exact git diff scope against this manifest",
-    "preserve kernel structural validation and ephemeral evidence production",
+    "validate evidence DAG edge semantics and terminal integrity",
+    "bind evidence change_id and scope to the current Change Manifest",
+    "bind commit and CI run to the current checkout",
+    "hash exact evidence artifacts and verify provenance",
     "preserve architecture and runtime admission as separate gates"
   ],
   "recovery_class": "controlled",
