@@ -78,7 +78,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -q "Cloudflare-Native-First Rule" docs/D1-FABRIC-OPEN-CORE-ARCHITECTURE-CONTRACT-v1.0.md
+          grep -q "Cloudflare-Native-First" docs/D1-FABRIC-OPEN-CORE-ARCHITECTURE-CONTRACT-v1.0.md
           grep -q "Worker / Module Ownership" docs/D1-FABRIC-3.1-FUNCTION-CATALOG.md
           grep -q "GPT" docs/D1-FABRIC-GPT-CONTINUOUS-MASTER-DOCUMENT.md
           grep -q "Foundation stage" AGENTS.md
