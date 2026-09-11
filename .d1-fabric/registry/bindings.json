@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0",
+  "allowed": {
+    "W01": {"d1":[],"kv":[],"r2":[],"durable_objects":[],"queues":[],"workflows":[],"services":["W02"]},
+    "W02": {"d1":["owned-or-approved"],"kv":["owned-or-approved"],"r2":[],"durable_objects":[],"queues":[],"workflows":[],"services":[]},
+    "W03": {"d1":["owned-or-approved"],"kv":[],"r2":[],"durable_objects":[],"queues":[],"workflows":[],"services":[]},
+    "W04": {"d1":["owned-or-approved"],"kv":["owned-or-approved"],"r2":[],"durable_objects":["approved-control-state"],"queues":["approved-control-events"],"workflows":["approved-control-workflows"],"services":["W01","W02","W03"]}
+  },
+  "forbidden_workers": ["W05","W06"],
+  "rules": [
+    "Every non-empty Cloudflare binding must be represented by an ownership rule.",
+    "Bindings must not be granted for future convenience.",
+    "Service bindings are cross-Worker contracts and require explicit ownership.",
+    "Secrets are not represented as ordinary runtime data bindings in this matrix.",
+    "An unknown binding kind or binding name is a CI failure."
+  ]
+}
