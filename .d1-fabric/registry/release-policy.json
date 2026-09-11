@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "status": "ACTIVE",
+  "current_foundation_line": "3.2",
+  "supported_contract_policy": "backward-compatible-by-default",
+  "breaking_change": {
+    "requires_new_version": true,
+    "requires_adr": true,
+    "requires_migration_plan": true,
+    "requires_verification_evidence": true
+  },
+  "release_admission": ["governance_pass","applicable_tests_pass","architecture_review_pass","evidence_recorded"],
+  "major_stage_stop": true,
+  "next_stage_requires_explicit_user_approval": true
+}
