@@ -1,7 +1,7 @@
 # D1-Fabric AI Engineering Instructions
 
-**Version:** 9.1
-**Status:** ACTIVE / 3.0 MASTER-LOCKED / 3.2 FOUNDATION GOVERNANCE
+**Version:** 9.2
+**Status:** ACTIVE / 3.0 MASTER-LOCKED / 3.2 FOUNDATION GOVERNANCE R1
 **Role:** AI唯一入口 / Router。
 
 ## 1. Repository authority
@@ -22,9 +22,13 @@ For the 3.2 foundation-governance workstream, the current authority is:
 AGENTS.md
 → approved Foundation Blueprint amendments
 → Open Core Architecture Contract
-→ Function Catalog / machine-readable Capability Registry
-→ applicable ADR
-→ Module / Task Contract
+→ Function Catalog / .d1-fabric/registry/capabilities.json
+→ .d1-fabric/registry/adrs.json + docs/adr/
+→ .d1-fabric/registry/ownership.json
+→ .d1-fabric/registry/dependencies.json
+→ .d1-fabric/registry/bindings.json
+→ applicable Module / Task Contract
+→ .d1-fabric/change-manifest.json
 ```
 
 Historical documents under `archive/` and `workers/old1.0/` have no active 3.0/3.2 authority.
@@ -49,6 +53,9 @@ AGENTS.md
 → Foundation Blueprint / approved amendment
 → relevant ADR
 → Capability Registry
+→ Ownership Map
+→ Dependency DAG
+→ Binding Ownership
 → Module / Contract definition
 → exact task scope
 → minimum relevant source/tests
@@ -191,7 +198,7 @@ The reviewer MUST treat the pushed GitHub SHA as the review input. Review is not
 
 Every T1/T2 task requires a Change Manifest and Diff Scope Gate. No drive-by refactor, dependency, schema, API, Worker, or infrastructure change.
 
-Every changed file must be justified by the manifest.
+Every changed file must be justified by the manifest. The machine gate is `tools/governance/validate_foundation.py` and MUST fail the workflow when a changed file is outside the active manifest.
 
 ## 15. GPT delivery law
 
@@ -199,6 +206,7 @@ Every changed file must be justified by the manifest.
 Master Contract + Foundation Governance
 → GPT implementation
 → local verification
+→ machine governance gate
 → diff/scope gate
 → commit
 → PUSH TO GITHUB
@@ -259,21 +267,35 @@ Verification may perform only contract-preserving refactoring. It may not add pr
 
 The 3.2 foundation work exists to make architecture rules executable rather than dependent on GPT memory.
 
-The repository MUST progressively enforce:
+The following are now machine-readable governance authorities:
 
-- machine-readable capability registration;
-- dependency DAG and forbidden dependency rules;
-- module/data ownership;
-- versioned ADRs for architecture changes;
-- Worker responsibility boundaries;
-- least-privilege Cloudflare bindings;
-- contract compatibility;
-- Cloudflare-native-first declarations;
+```text
+.d1-fabric/registry/capabilities.json
+.d1-fabric/registry/adrs.json
+.d1-fabric/registry/ownership.json
+.d1-fabric/registry/dependencies.json
+.d1-fabric/registry/bindings.json
+.d1-fabric/change-manifest.json
+```
+
+The repository MUST enforce:
+
+- capability registration and required capability metadata;
+- ADR ID/status/record integrity;
+- Worker/module ownership;
+- dependency DAG acyclicity and forbidden import direction;
+- least-privilege Cloudflare service bindings;
+- reserved W05/W06 deployment rejection;
 - Change Manifest / Diff Scope Gate;
-- dependency and supply-chain hygiene;
-- reproducible verification evidence.
+- reproducible governance evidence.
 
-A governance check may only report PASS when the underlying rule was actually evaluated. Documentation-presence or keyword-presence checks MUST NOT be represented as architecture enforcement.
+The canonical validator is:
+
+```text
+python3 tools/governance/validate_foundation.py
+```
+
+A governance PASS means these rules were actually evaluated. Documentation-presence or keyword-presence checks MUST NOT be represented as architecture enforcement.
 
 Foundation implementation proceeds in this order:
 
