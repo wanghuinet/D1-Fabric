@@ -22,8 +22,10 @@ jobs:
           fetch-depth: 0
 
       - name: Validate governance JSON
-        shell: python
+        shell: bash
         run: |
+          set -euo pipefail
+          python - <<'PY'
           import json
           from pathlib import Path
           root = Path('.governance/3.2')
@@ -49,8 +51,8 @@ jobs:
                       json.loads(p.read_text(encoding='utf-8'))
                   except json.JSONDecodeError as exc:
                       raise SystemExit(f'GOVERNANCE_JSON_INVALID: {p}: {exc}')
-          print(f'GOVERNANCE_BASE_SHA={Path(".git").resolve().parent}')
           print('Governance structure: PASS')
+          PY
 
       - name: Machine governance gate
         shell: bash
@@ -75,8 +77,10 @@ jobs:
         with:
           fetch-depth: 0
       - name: Enforce baseline topology
-        shell: python
+        shell: bash
         run: |
+          set -euo pipefail
+          python - <<'PY'
           import json
           from pathlib import Path
           cfg = json.loads(Path('.governance/3.2/config.json').read_text(encoding='utf-8'))
@@ -88,6 +92,7 @@ jobs:
           if cfg['worker_addition_requires_change_manifest'] is not True:
               raise SystemExit('WORKER_CHANGE_MANIFEST_POLICY_MISSING')
           print('Baseline topology and worker admission policy: PASS')
+          PY
 
   governance-behavior:
     name: Behavioral Governance Level 4 Gate
