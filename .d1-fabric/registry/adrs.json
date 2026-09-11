@@ -1,0 +1,9 @@
+{
+  "schema_version": "1.0",
+  "id_pattern": "ADR-[0-9]{4}",
+  "statuses": ["PROPOSED", "APPROVED", "SUPERSEDED", "REJECTED"],
+  "required_fields": ["id","title","status","owner","decision","affected_contracts","rollback_impact","supersedes","superseded_by","record_path"],
+  "adrs": [
+    {"id":"ADR-0001","title":"Current Worker topology is W01-W04; W05/W06 are reserved capability labels","status":"APPROVED","owner":"project-owner","decision":"Keep W01/W02/W03/W04 as the only independently deployable Workers at the current foundation baseline. Reliability and Placement/Migration remain capability domains. W05/W06 require a new approved topology ADR before independent deployment.","affected_contracts":["architecture","worker-boundary","module"],"rollback_impact":"Reopening Worker topology requires a new topology ADR and migration review.","supersedes":[],"superseded_by":[],"record_path":"docs/adr/ADR-0001-worker-topology.md"}
+  ]
+}
