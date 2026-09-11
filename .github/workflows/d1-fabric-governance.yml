@@ -40,8 +40,14 @@ jobs:
               Path('tools/governance/validate_kernel_governance.py')
           ]
           for p in required:
-              if not p.is_file(): raise SystemExit(f'MISSING_GOVERNANCE_FILE: {p}')
-              if p.suffix == '.json': json.loads(p.read_text(encoding='utf-8'))
+              print(f'CHECK: {p}')
+              if not p.is_file():
+                  raise SystemExit(f'MISSING_GOVERNANCE_FILE: {p}')
+              if p.suffix == '.json':
+                  try:
+                      json.loads(p.read_text(encoding='utf-8'))
+                  except Exception as exc:
+                      raise SystemExit(f'INVALID_GOVERNANCE_JSON: {p}: {exc}')
           print('Governance structure: PASS')
 
       - name: Machine governance gate
