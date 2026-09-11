@@ -1,5 +1,5 @@
 {
-  "change_id": "CHG-3.2-012",
+  "change_id": "CHG-3.2-013",
   "actor": {"type": "automation", "id": "gpt-architecture-governance"},
   "target_environment": "dev",
   "risk": "controlled",
@@ -8,7 +8,8 @@
   "resources": [".governance/3.2/changes", ".governance/3.2/kernel", "tools/governance"],
   "files": [
     ".governance/3.2/changes/current.json",
-    "tools/governance/validate_change_manifest.py",
+    ".governance/3.2/kernel/validator-spec.json",
+    "tools/governance/generate_kernel_evidence.py",
     "tools/governance/validate_kernel_governance.py"
   ],
   "evidence_artifacts": [
@@ -21,9 +22,10 @@
   ],
   "policy_version": "3.2.6",
   "verification_plan": [
+    "pin trusted Governance workflow and structural-gate job identity",
+    "allow only the canonical kernel evidence producer as verifier",
+    "bind CI event/ref provenance to generated evidence",
     "validate atomic Change Manifest payload scope",
-    "bind evidence artifacts through an explicit non-payload evidence_artifacts set",
-    "validate kernel evidence provenance against current checkout and CI identity",
     "preserve architecture and runtime admission separation"
   ],
   "recovery_class": "controlled",
