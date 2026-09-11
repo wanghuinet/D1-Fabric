@@ -1,18 +1,16 @@
 {
-  "change_id": "CHG-3.2-008",
+  "change_id": "CHG-3.2-009",
   "actor": {"type": "automation", "id": "gpt-architecture-governance"},
   "target_environment": "dev",
   "risk": "controlled",
   "owners": ["governance"],
   "capabilities": ["governance.machine-enforcement"],
-  "resources": [".governance/3.2/kernel", "tools/governance", ".github/workflows/d1-fabric-governance.yml"],
+  "resources": [".governance/3.2/changes"],
   "files": [".governance/3.2/changes/current.json"],
   "policy_version": "3.2.6",
   "verification_plan": [
     "validate exact git diff scope against this manifest",
-    "validate kernel structural gate and ephemeral evidence production",
-    "validate generated evidence provenance, scope and freshness",
-    "upload reproducible kernel verification evidence as CI artifact",
+    "preserve kernel structural validation and ephemeral evidence production",
     "preserve architecture and runtime admission as separate gates"
   ],
   "recovery_class": "controlled",
