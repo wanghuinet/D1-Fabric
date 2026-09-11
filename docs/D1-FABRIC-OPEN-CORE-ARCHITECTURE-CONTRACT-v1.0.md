@@ -71,16 +71,14 @@ Timeout, deadline, retry, bounded backoff, failure classification, circuit break
 
 Workers MUST be split by stable responsibility and deployment/scaling/security boundaries, not by arbitrary file size.
 
-The initial runtime topology MAY retain the W01-W06 separation:
+The current independently deployable runtime topology is exactly:
 
 - W01 Gateway: ingress, admission and request boundary;
 - W02 Execution: execution orchestration and read path;
 - W03 Write: write path, transactions and idempotent mutation execution;
-- W04 Control Plane: control APIs, policy evaluation and control-state orchestration;
-- W05 Reliability Plane: failure handling, retry/deadline/circuit/recovery mechanisms;
-- W06 Placement/Control Plane: placement, topology, migration, expansion and rebalance operations where an independent deployment boundary is justified.
+- W04 Control Plane: control APIs, policy evaluation and control-state orchestration.
 
-The exact Worker count MAY change after evidence. Adding a Worker only to make the architecture look more modular is forbidden.
+Reliability and placement/migration remain first-class capability domains. At the current foundation baseline they are hosted through explicit module/contracts within W01-W04 rather than independent Workers. W05 and W06 are reserved capability labels and MUST NOT become independently deployable Workers without an approved topology ADR establishing independent ownership, scaling, security, lifecycle or failure-isolation evidence.
 
 A module MUST have one primary responsibility and an explicit owner. Closely related modules MAY share a Worker when they have the same lifecycle, security boundary and scaling profile.
 
@@ -220,3 +218,7 @@ This contract is the architecture baseline for Open Core 1.0.
 A lower-level implementation document, prompt or agent suggestion cannot override it.
 
 Any architectural change requires an explicit versioned amendment and impact review.
+
+## 21. Current Foundation Topology Amendment
+
+For the 3.2 foundation-governance baseline, ADR-0001 is the controlling topology decision for the current runtime. It establishes W01-W04 as the only independently deployable Workers. References to W05/W06 elsewhere in historical or transitional documents MUST be interpreted as capability domains/reserved future deployment boundaries until a later approved topology ADR changes this decision.
