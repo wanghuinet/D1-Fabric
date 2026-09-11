@@ -1,7 +1,7 @@
 # D1-Fabric AI Engineering Instructions
 
-**Version:** 9.0
-**Status:** ACTIVE / 3.0 MASTER-LOCKED
+**Version:** 9.1
+**Status:** ACTIVE / 3.0 MASTER-LOCKED / 3.2 FOUNDATION GOVERNANCE
 **Role:** AI唯一入口 / Router。
 
 ## 1. Repository authority
@@ -16,9 +16,18 @@ AGENTS.md
 → applicable non-conflicting annex / phase packet
 ```
 
-`D1-FABRIC-3.0-FINAL-CONTRACT-v1.0.md` is a compatibility redirect and is NOT an independent authority. Other duplicated/legacy 3.0 contract documents cannot override the Master Contract.
+For the 3.2 foundation-governance workstream, the current authority is:
 
-Historical documents under `archive/` and `workers/old1.0/` have no active 3.0 authority.
+```text
+AGENTS.md
+→ approved Foundation Blueprint amendments
+→ Open Core Architecture Contract
+→ Function Catalog / machine-readable Capability Registry
+→ applicable ADR
+→ Module / Task Contract
+```
+
+Historical documents under `archive/` and `workers/old1.0/` have no active 3.0/3.2 authority.
 
 ## 2. Mandatory read order
 
@@ -33,11 +42,24 @@ AGENTS.md
 → Change Manifest
 ```
 
+For every 3.2 foundation task:
+
+```text
+AGENTS.md
+→ Foundation Blueprint / approved amendment
+→ relevant ADR
+→ Capability Registry
+→ Module / Contract definition
+→ exact task scope
+→ minimum relevant source/tests
+→ Change Manifest
+```
+
 If any referenced active document is missing or contradictory, STOP. Never substitute a historical file by guess.
 
 ## 3. AI authority boundary
 
-GPT is the primary implementation and verification agent for the current 3.0 development cycle.
+GPT is the primary implementation and verification agent for the current development cycle.
 
 GPT is an implementation executor, not an authority to redesign architecture, product semantics, ownership, security policy, or scope.
 
@@ -51,12 +73,14 @@ STOP → record exact conflict → versioned proposal/change approval → implem
 
 ## 4. Current runtime topology
 
-The approved execution boundaries are exactly:
+The currently approved independently deployable execution boundaries are exactly:
 
 - W01 Fabric Gateway
 - W02 Execution Fabric
 - W03 Write Fabric
 - W04 Control Plane
+
+Reliability and placement/migration are capability domains, not additional Workers at the current foundation baseline. W05/W06 MUST NOT be created or deployed without an approved topology ADR establishing the independent deployment boundary.
 
 Cache is a read-path capability, not a mandatory standalone network hop. Observability is emitted by the executing boundary, not a synchronous telemetry Worker.
 
@@ -139,7 +163,7 @@ A PASS must bind contract IDs, architecture IDs, changed files, tests, commit SH
 
 ## 13. Mandatory post-task independent review gate
 
-Every completed 3.0 implementation task MUST stop for GPT review before the next task or phase begins.
+Every completed implementation task MUST stop for GPT review before the next task or phase begins.
 
 The required loop is:
 
@@ -169,10 +193,10 @@ Every T1/T2 task requires a Change Manifest and Diff Scope Gate. No drive-by ref
 
 Every changed file must be justified by the manifest.
 
-## 15. GPT 3.0 delivery law
+## 15. GPT delivery law
 
 ```text
-Master Contract + Architecture
+Master Contract + Foundation Governance
 → GPT implementation
 → local verification
 → diff/scope gate
@@ -186,9 +210,7 @@ Master Contract + Architecture
 → STOP
 ```
 
-The pushed GitHub commit is the verification input. A local PASS is not delivery.
-
-GPT MUST NOT automatically continue to the next task or phase after a successful review.
+GPT MUST NOT automatically continue to the next major stage after a successful review.
 
 ## 16. Worker package/file rule
 
@@ -233,6 +255,57 @@ evidence reproducibility
 
 Verification may perform only contract-preserving refactoring. It may not add product/business functionality or change architecture.
 
-## 18. Final rule
+## 18. 3.2 Foundation Governance Law
 
-> Use the Master Contract as the only 3.0 semantic authority. Solve only the declared phase/task, implement the minimum correct boundary, prove all release-blocking invariants, push the verified commit, run the mandatory GPT review gate, record reproducible evidence, and stop.
+The 3.2 foundation work exists to make architecture rules executable rather than dependent on GPT memory.
+
+The repository MUST progressively enforce:
+
+- machine-readable capability registration;
+- dependency DAG and forbidden dependency rules;
+- module/data ownership;
+- versioned ADRs for architecture changes;
+- Worker responsibility boundaries;
+- least-privilege Cloudflare bindings;
+- contract compatibility;
+- Cloudflare-native-first declarations;
+- Change Manifest / Diff Scope Gate;
+- dependency and supply-chain hygiene;
+- reproducible verification evidence.
+
+A governance check may only report PASS when the underlying rule was actually evaluated. Documentation-presence or keyword-presence checks MUST NOT be represented as architecture enforcement.
+
+Foundation implementation proceeds in this order:
+
+```text
+R0 Authority Reconciliation
+→ R1 Executable Governance Foundation
+→ R2 Contract + Runtime Enforcement
+→ R3 Reliability + Cost + Observability
+→ R4 Full Foundation CI
+→ R5 Blueprint APPROVED / FROZEN
+→ explicit user approval
+→ R6 GPT implementation stages
+```
+
+Until R5 is PASS, no new major product implementation stage may be inferred.
+
+## 19. Foundation stage stop rule
+
+Within an explicitly approved foundation stage GPT may implement continuously within the frozen scope.
+
+At the end of the stage:
+
+```text
+all applicable CI green
+→ architecture audit PASS
+→ evidence captured
+→ GPT STOP
+→ explicit user approval required
+```
+
+No user approval may be inferred from a prior approval of a different stage.
+
+## 20. Final rule
+
+> Use the authoritative contract and executable foundation governance as the source of truth. Solve only the declared task, implement the minimum correct boundary, prove all release-blocking invariants, push the verified commit, run the mandatory review gate, record reproducible evidence, and stop.
