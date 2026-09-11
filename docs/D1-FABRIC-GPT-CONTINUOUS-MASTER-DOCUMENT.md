@@ -1,6 +1,6 @@
 # D1-Fabric GPT Continuous Master Document
 
-Version: 1.1  
+Version: 1.2  
 Status: ACTIVE / SOURCE OF TRUTH FOR GPT CONTINUITY
 
 ## 1. Purpose
@@ -10,6 +10,8 @@ This document defines the operating contract for GPT-led implementation of D1-Fa
 It does not replace formal contracts. Formal architecture, module, API, data, security and verification contracts remain authoritative.
 
 The objective is continuous implementation without uncontrolled architecture drift, Worker bloat, duplicate infrastructure and repeated redesign.
+
+The engineering foundation MUST be reviewed and approved before continuous implementation begins. The review artifact is `docs/D1-FABRIC-FOUNDATION-BLUEPRINT-AND-GOVERNANCE-REVIEW-v1.0.md`.
 
 ## 2. Product Model
 
@@ -22,7 +24,13 @@ The system is intentionally divided into:
 
 Business applications remain above the middleware.
 
-## 3. Cloudflare-Native-First
+## 3. Foundation-First Rule
+
+Before adding major functionality, GPT MUST ensure that architecture boundaries, capability ownership, dependency direction, data ownership, contract versioning and automated governance are sufficiently established for the next stage.
+
+The project optimizes for low rework cost, not maximum feature count.
+
+## 4. Cloudflare-Native-First
 
 Before implementing any infrastructure capability, GPT MUST check whether Cloudflare already provides it.
 
@@ -32,7 +40,7 @@ The default mapping includes Workers, D1, KV, R2, Durable Objects, Queues, Workf
 
 A proposed duplicate implementation requires an explicit architecture decision explaining why the native capability is insufficient.
 
-## 4. Core Architectural Boundary
+## 5. Core Architectural Boundary
 
 Open Core MUST run correctly with Advanced disabled.
 
@@ -42,7 +50,7 @@ Core MUST NOT depend on Advanced.
 
 Business modules MUST NOT be embedded into Core Workers merely because they can technically run there.
 
-## 5. Runtime / Worker Governance
+## 6. Runtime / Worker Governance
 
 Worker is a deployment/runtime boundary; it is not a feature container.
 
@@ -61,7 +69,7 @@ The following MUST remain outside Core Workers: user business logic, feed/busine
 
 A new Worker requires a concrete reason based on independent deployment, scaling, security, lifecycle or failure isolation. Component count alone is not a reason.
 
-## 6. Module Governance
+## 7. Module Governance
 
 Each module MUST have:
 
@@ -80,7 +88,17 @@ Unrelated functionality MUST NOT be merged into an existing module to save lines
 
 Tightly coupled functionality SHOULD remain together when separating it would create unnecessary network hops, duplicated serialization or lifecycle complexity.
 
-## 7. Continuous Development Operating Loop
+## 8. Capability Registry and Admission
+
+Every new capability MUST be registered before implementation.
+
+The registry MUST record classification, implementation mode, Cloudflare-native alternative, owner, module/Worker, dependencies, data owner, contracts, resource/cost impact, verification and rollback.
+
+The implementation modes are NATIVE, ORCHESTRATION, GAP and exceptional REPLACEMENT.
+
+No agent suggestion can itself authorize a new capability or subsystem.
+
+## 9. Continuous Development Operating Loop
 
 GPT works continuously inside the currently approved major stage:
 
@@ -90,7 +108,7 @@ GPT MUST NOT ask for approval between every small task.
 
 GPT MUST stop only at the declared major-stage boundary.
 
-## 8. Major-Stage Gate
+## 10. Major-Stage Gate
 
 Every major stage has an explicit scope and acceptance criteria.
 
@@ -114,7 +132,7 @@ GPT MUST NOT continue automatically after a stage PASS.
 
 A red CI check or unresolved blocking defect means the stage is NOT PASS.
 
-## 9. Scope-Control Rule
+## 11. Scope-Control Rule
 
 Once a major-stage scope is frozen, GPT MUST NOT silently add new capabilities.
 
@@ -124,7 +142,7 @@ Implementation MAY fix defects required for the current stage, but must not use 
 
 Architecture changes require an explicit impact record before implementation.
 
-## 10. Change Decision Order
+## 12. Change Decision Order
 
 For every proposed change, apply this order:
 
@@ -139,7 +157,7 @@ For every proposed change, apply this order:
 
 Prefer the smallest architecture that fully satisfies the requirement.
 
-## 11. Resource Discipline
+## 13. Resource Discipline
 
 GPT MUST account for Cloudflare runtime and billing characteristics when changing hot-path code.
 
@@ -149,7 +167,7 @@ Prefer native batching, caching, queues, workflows and durable coordination wher
 
 Performance and cost regressions MUST be treated as architecture defects when they materially affect the platform.
 
-## 12. Verification Discipline
+## 14. Verification Discipline
 
 No feature is complete merely because code exists or local tests pass.
 
@@ -159,7 +177,7 @@ DESIGNED → CONTRACTED → IMPLEMENTED → UNIT PASS → CONTRACT PASS → INTE
 
 Evidence MUST identify what was tested, on which commit/ref, and whether the result is local, CI or real Cloudflare runtime evidence.
 
-## 13. GPT Stop / Resume Protocol
+## 15. GPT Stop / Resume Protocol
 
 At the beginning of a session GPT MUST read the current state, context, TODO/roadmap and applicable contracts.
 
@@ -178,7 +196,7 @@ Then GPT MUST STOP.
 
 The next stage begins only after explicit user approval.
 
-## 14. Forbidden Development Behaviors
+## 16. Forbidden Development Behaviors
 
 GPT MUST NOT:
 
@@ -192,27 +210,28 @@ GPT MUST NOT:
 - continue into the next major stage after a PASS without user approval;
 - treat AI prediction/automation as a Core availability dependency.
 
-## 15. Source-of-Truth Hierarchy
+## 17. Source-of-Truth Hierarchy
 
 When sources conflict, use this order:
 
 1. versioned architecture and formal contracts;
 2. approved function catalog and roadmap;
-3. current state/context/evidence;
-4. implementation code;
-5. task prompt or agent suggestion.
+3. foundation blueprint and governance review;
+4. current state/context/evidence;
+5. implementation code;
+6. task prompt or agent suggestion.
 
 A lower-level prompt cannot override a higher-level contract.
 
-## 16. Current Priority
+## 18. Current Priority
 
-First freeze the lightweight Open Core architecture and governance model.
+First complete human review and approval of the Foundation Blueprint and governance baseline.
 
-Then implement the approved Open Core stages continuously, with GitHub Actions CI and architecture-boundary verification as hard gates.
+Then translate the approved blueprint into executable repository governance artifacts and implement the approved Open Core stages continuously, with GitHub Actions CI and architecture-boundary verification as hard gates.
 
 Advanced capabilities are queued behind the Core release gate unless explicitly reclassified by an approved architecture amendment.
 
-## 17. Non-Goals
+## 19. Non-Goals
 
 This document does not authorize business application development inside Open Core.
 
