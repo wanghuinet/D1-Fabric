@@ -1,0 +1,60 @@
+{
+  "schema_version": "1.0",
+  "capabilities": [
+    {
+      "id": "relational.sql",
+      "version": "3.2.0",
+      "status": "proposed",
+      "owner": "W04",
+      "provider": "cloudflare-d1",
+      "criticality": "critical",
+      "recovery_class": "high-risk",
+      "dependency_refs": [],
+      "binding_refs": ["binding.d1"]
+    },
+    {
+      "id": "object.storage",
+      "version": "3.2.0",
+      "status": "proposed",
+      "owner": "W04",
+      "provider": "cloudflare-r2",
+      "criticality": "high",
+      "recovery_class": "controlled",
+      "dependency_refs": [],
+      "binding_refs": ["binding.r2"]
+    },
+    {
+      "id": "edge.cache",
+      "version": "3.2.0",
+      "status": "proposed",
+      "owner": "W04",
+      "provider": "cloudflare-kv",
+      "criticality": "high",
+      "recovery_class": "controlled",
+      "dependency_refs": [],
+      "binding_refs": ["binding.kv"]
+    },
+    {
+      "id": "event.queue",
+      "version": "3.2.0",
+      "status": "proposed",
+      "owner": "W03",
+      "provider": "cloudflare-queues",
+      "criticality": "high",
+      "recovery_class": "controlled",
+      "dependency_refs": [],
+      "binding_refs": ["binding.queue"]
+    },
+    {
+      "id": "coordination",
+      "version": "3.2.0",
+      "status": "proposed",
+      "owner": "W06",
+      "provider": "cloudflare-do",
+      "criticality": "critical",
+      "recovery_class": "high-risk",
+      "dependency_refs": [],
+      "binding_refs": ["binding.do"]
+    }
+  ]
+}
