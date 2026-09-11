@@ -1,22 +1,15 @@
 {
-  "change_id": "CHG-3.2-006",
+  "change_id": "CHG-3.2-007",
   "actor": {"type": "automation", "id": "gpt-architecture-governance"},
   "target_environment": "dev",
   "risk": "controlled",
   "owners": ["governance"],
   "capabilities": ["governance.machine-enforcement"],
-  "resources": [".governance/3.2/kernel", "tools/governance"],
-  "files": [
-    ".governance/3.2/kernel/evidence-registry.json",
-    "tools/governance/validate_kernel_governance.py"
-  ],
+  "resources": [".governance/3.2/changes"],
+  "files": [".governance/3.2/changes/current.json"],
   "policy_version": "3.2.6",
   "verification_plan": [
-    "validate evidence record field contract",
-    "validate evidence provenance, scope, artifact and CI bindings",
-    "validate evidence timestamp ordering and expiry",
-    "validate exact git diff scope against this manifest",
-    "validate historical isolation and runtime admission boundary"
+    "validate exact git diff scope against this manifest"
   ],
   "recovery_class": "controlled",
   "expiry": "9999-12-31T23:59:59Z",
