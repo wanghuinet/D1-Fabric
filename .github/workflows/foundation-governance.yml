@@ -57,7 +57,7 @@ jobs:
             .d1-fabric/registry/exceptions.json \
             .d1-fabric/change-manifest.json \
             tools/governance/validate_foundation.py \
-            docs/adr/ADR-0001-worker-topology.md \
+            docs/adr/ADR-0001-runtime-topology-and-authority.md \
             docs/adr/ADR-0002-executable-governance-closure.md; do
             test -s "$file"
           done
