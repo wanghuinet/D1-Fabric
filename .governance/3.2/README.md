@@ -10,6 +10,9 @@ The authoritative governance model is defined by:
 - `docs/D1-FABRIC-3.2-ARCHITECTURE-HARDENING-AMENDMENT-v1.2.md`
 - `docs/D1-FABRIC-3.2.3-ARCHITECTURE-PROOF-AND-ENFORCEMENT-CONTRACT-v1.0.md`
 - `docs/D1-FABRIC-3.2.4-MACHINE-GOVERNANCE-ENFORCEMENT-CONTRACT-v1.0.md`
+- `docs/D1-FABRIC-3.2-GPT-AUTONOMOUS-EXECUTION-AND-STOP-CONTRACT-v1.0.md`
+
+The GPT execution contract governs AI continuity and stop behavior. It does not override architecture or governance authority.
 
 Machine-readable files under this directory are authoritative only within their declared registry scope.
 
@@ -31,3 +34,11 @@ Generated reports, dashboards, AI summaries and CI artifacts are projections/evi
 Target: Level 6 — Production Admission.
 
 Until all mandatory gates have executable checks and current evidence, 3.2 remains `DRAFT FOR ARCHITECTURE REVIEW`.
+
+## GPT Continuity Terminal Rule
+
+GPT may continue autonomously inside an already-authorized scope. It MUST stop when the repository reaches:
+
+`READY_FOR_NEXT_CODE_PHASE — STOPPED_FOR_USER_COMMAND`
+
+The next code-development phase may be reported but MUST NOT be started automatically.
