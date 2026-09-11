@@ -1,11 +1,11 @@
 {
-  "change_id": "CHG-3.2-004",
+  "change_id": "CHG-3.2-005",
   "actor": {"type": "automation", "id": "gpt-architecture-governance"},
   "target_environment": "dev",
   "risk": "controlled",
   "owners": ["governance"],
   "capabilities": ["governance.machine-enforcement"],
-  "resources": [".governance/3.2", ".github/workflows/d1-fabric-governance.yml", "tools/governance"],
+  "resources": [".governance/3.2", ".github/workflows/d1-fabric-governance.yml", "tools/governance", "docs/D1-FABRIC-3.2-CODEX-AUTONOMOUS-DEVELOPMENT-CONTRACT-v1.0.md"],
   "files": [
     ".github/workflows/d1-fabric-governance.yml",
     ".governance/3.2/capacity/registry.json",
@@ -16,6 +16,7 @@
     ".governance/3.2/recovery/registry.json",
     ".governance/3.2/security/registry.json",
     ".governance/3.2/changes/current.json",
+    "docs/D1-FABRIC-3.2-CODEX-AUTONOMOUS-DEVELOPMENT-CONTRACT-v1.0.md",
     "tools/governance/validate_behavioral_governance.py",
     "tools/governance/validate_capacity_governance.py",
     "tools/governance/validate_evidence_freshness.py",
@@ -24,7 +25,7 @@
   ],
   "dependency_edges_added": [],
   "dependency_edges_removed": [],
-  "authority_objects": ["governance.registries", "governance.gates"],
+  "authority_objects": ["governance.registries", "governance.gates", "codex.execution.contract"],
   "expected_generations": ["governance-registry:0->1"],
   "policy_version": "3.2.4",
   "verification_plan": [
@@ -36,6 +37,7 @@
     "execute capacity and operational boundary simulations",
     "execute evidence freshness and stale-evidence rejection checks",
     "validate baseline W01-W06 topology and binding authority",
+    "review Codex autonomous development admission and stop contract",
     "run GitHub Actions governance workflow"
   ],
   "recovery_class": "controlled",
