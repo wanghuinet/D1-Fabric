@@ -1,21 +1,29 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
-  "required": ["evidence_id","change_id","commit","registry_generation","policy_version","environment","probe","result","started_at","finished_at","verifier","expires_at"],
+  "required": [
+    "evidence_id", "change_id", "commit", "registry_generation", "policy_version",
+    "environment", "probe", "test_identity", "scope", "artifacts", "ci_run",
+    "gate", "result", "started_at", "finished_at", "verifier", "expires_at"
+  ],
   "properties": {
-    "evidence_id":{"type":"string"},
-    "change_id":{"type":"string"},
-    "commit":{"type":"string"},
-    "registry_generation":{"type":"string"},
-    "policy_version":{"type":"string"},
-    "environment":{"type":"string"},
-    "probe":{"type":"string"},
-    "result":{"enum":["pass","fail","waived"]},
-    "started_at":{"type":"string"},
-    "finished_at":{"type":"string"},
-    "verifier":{"type":"string"},
-    "expires_at":{"type":"string"},
-    "artifacts":{"type":"array"}
+    "evidence_id": {"type": "string", "minLength": 1},
+    "change_id": {"type": "string", "minLength": 1},
+    "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "registry_generation": {"type": "integer", "minimum": 1},
+    "policy_version": {"type": "string", "minLength": 1},
+    "environment": {"type": "string", "minLength": 1},
+    "probe": {"type": "string", "minLength": 1},
+    "test_identity": {"type": "string", "minLength": 1},
+    "scope": {"type": "string", "minLength": 1},
+    "artifacts": {"type": "array", "minItems": 1},
+    "ci_run": {"type": "string", "minLength": 1},
+    "gate": {"type": "string", "minLength": 1},
+    "result": {"enum": ["pass", "fail", "waived"]},
+    "started_at": {"type": "string", "format": "date-time"},
+    "finished_at": {"type": "string", "format": "date-time"},
+    "verifier": {"type": "string", "minLength": 1},
+    "expires_at": {"type": "string", "format": "date-time"}
   },
-  "additionalProperties": true
+  "additionalProperties": false
 }
