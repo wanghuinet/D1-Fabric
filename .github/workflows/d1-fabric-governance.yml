@@ -28,9 +28,10 @@ jobs:
               root/'config.json', root/'capabilities/registry.json', root/'adrs/registry.json',
               root/'ownership/registry.json', root/'dependencies/registry.json',
               root/'bindings/registry.json', root/'changes/schema.json', root/'changes/current.json',
-              root/'evidence/schema.json', root/'behavior/registry.json',
+              root/'evidence/schema.json', root/'behavior/registry.json', root/'recovery/registry.json',
               Path('tools/governance/validate_change_manifest.py'),
-              Path('tools/governance/validate_behavioral_governance.py')
+              Path('tools/governance/validate_behavioral_governance.py'),
+              Path('tools/governance/validate_recovery_registry.py')
           ]
           for p in required:
               if not p.is_file(): raise SystemExit(f'MISSING_GOVERNANCE_FILE: {p}')
@@ -79,3 +80,16 @@ jobs:
       - name: Execute behavioral invariants
         shell: bash
         run: python tools/governance/validate_behavioral_governance.py
+
+  governance-recovery:
+    name: Recovery Governance Level 5 Gate
+    needs: [governance-behavior, governance-policy]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate recovery scenario coverage
+        shell: bash
+        run: python tools/governance/validate_recovery_registry.py
