@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""D1-Fabric 3.2.6 Governance Kernel validator."""
+"""D1-Fabric 3.2.6 Governance Kernel validator.
+
+Structural validation and evidence validation are separate modes. An empty
+source Evidence Registry is never architecture PASS. CI evidence is bound to
+the current checkout, CI identity, Change Manifest, exact artifacts, and the
+Evidence DAG. This validator never grants runtime admission.
+"""
 from __future__ import annotations
 
 import argparse
@@ -204,13 +210,13 @@ def validate_evidence(records: object, evidence_doc: dict, generation: object) -
         artifacts = record.get("artifacts")
         if not isinstance(artifacts, list) or not artifacts:
             fail("V-007", f"{evidence_id}: artifacts must be non-empty")
-        manifest_files = set(manifest.get("files", []))
+        allowed_artifacts = set(manifest.get("evidence_artifacts", [])) | set(manifest.get("files", []))
         for artifact in artifacts:
             if not isinstance(artifact, dict) or not isinstance(artifact.get("path"), str) or not HEX64_RE.fullmatch(str(artifact.get("sha256", ""))):
                 fail("V-007", f"{evidence_id}: artifact requires path and sha256")
             path = artifact["path"]
-            if path not in manifest_files:
-                fail("V-007", f"{evidence_id}: artifact outside Change Manifest scope: {path}")
+            if path not in allowed_artifacts:
+                fail("V-007", f"{evidence_id}: artifact outside declared evidence scope: {path}")
             if artifact.get("reproducible") is not True or sha256_file(path) != artifact["sha256"]:
                 fail("V-007", f"{evidence_id}: artifact hash/provenance mismatch: {path}")
         validate_dag(record, expected_commit, expected_run)

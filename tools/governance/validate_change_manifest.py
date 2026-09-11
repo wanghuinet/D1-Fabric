@@ -35,7 +35,7 @@ def main() -> None:
     manifest = load(MANIFEST)
     required = [
         "change_id", "actor", "target_environment", "risk", "owners",
-        "capabilities", "resources", "files", "policy_version",
+        "capabilities", "resources", "files", "evidence_artifacts", "policy_version",
         "verification_plan", "recovery_class", "expiry", "adr_refs",
     ]
     for key in required:
@@ -43,22 +43,24 @@ def main() -> None:
             fail("CHANGE_MANIFEST_INVALID", f"missing {key}")
 
     files = sorted(set(manifest["files"]))
+    evidence_artifacts = sorted(set(manifest["evidence_artifacts"]))
     if not files:
         fail("CHANGE_MANIFEST_INVALID", "files must not be empty")
-    for path in files:
+    for path in files + evidence_artifacts:
         if path.startswith("/") or ".." in Path(path).parts:
             fail("CHANGE_MANIFEST_INVALID", f"unsafe path: {path}")
 
     base = os.environ.get("D1_FABRIC_BASE_SHA", "")
     changed = git_changed(base)
-    # The manifest is governance metadata describing the payload change; it is
-    # intentionally excluded from its own payload diff to avoid recursive scope.
     payload_changed = [p for p in changed if p != ".governance/3.2/changes/current.json"]
     declared = sorted(p for p in files if p != ".governance/3.2/changes/current.json")
     if payload_changed != declared:
         missing = sorted(set(payload_changed) - set(declared))
         extra = sorted(set(declared) - set(payload_changed))
         fail("DIFF_SCOPE_FAIL", f"undeclared={missing}; declared_not_changed={extra}")
+    for path in evidence_artifacts:
+        if not (ROOT / path).is_file():
+            fail("EVIDENCE_ARTIFACT_SCOPE_FAIL", f"missing={path}")
 
     historical = ("archive/api-v1.0/", "archive/legacy/")
     touched_historical = [p for p in changed if p.startswith(historical)]
@@ -129,6 +131,7 @@ def main() -> None:
         "change_id": manifest["change_id"],
         "changed_files": changed,
         "payload_changed_files": payload_changed,
+        "evidence_artifacts": evidence_artifacts,
         "adr_refs": manifest["adr_refs"],
         "gates": ["diff-scope", "historical-isolation", "adr", "ownership", "binding", "dependency-dag", "worker-admission"],
     }, ensure_ascii=False, indent=2))
