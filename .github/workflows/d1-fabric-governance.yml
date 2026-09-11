@@ -37,7 +37,8 @@ jobs:
               root/'kernel/validator-spec.json', Path('tools/governance/validate_change_manifest.py'),
               Path('tools/governance/validate_behavioral_governance.py'),
               Path('tools/governance/validate_recovery_registry.py'),
-              Path('tools/governance/validate_kernel_governance.py')
+              Path('tools/governance/validate_kernel_governance.py'),
+              Path('tools/governance/generate_kernel_evidence.py')
           ]
           for p in required:
               print(f'CHECK: {p}')
@@ -56,9 +57,26 @@ jobs:
           D1_FABRIC_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: python tools/governance/validate_change_manifest.py
 
-      - name: Governance Kernel gate
+      - name: Governance Kernel structural gate
         shell: bash
-        run: python tools/governance/validate_kernel_governance.py
+        run: python tools/governance/validate_kernel_governance.py --structural-only
+
+      - name: Generate kernel verification evidence
+        shell: bash
+        env:
+          D1_FABRIC_CHANGE_ID: ${{ github.event.pull_request.number && format('PR-{0}', github.event.pull_request.number) || github.event.head_commit.id }}
+        run: python tools/governance/generate_kernel_evidence.py
+
+      - name: Validate generated kernel evidence
+        shell: bash
+        run: python tools/governance/validate_kernel_governance.py --evidence-file .governance/3.2/kernel/ci-evidence.generated.json
+
+      - name: Upload kernel verification evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: d1-fabric-kernel-evidence-${{ github.run_id }}
+          path: .governance/3.2/kernel/ci-evidence.generated.json
+          if-no-files-found: error
 
   governance-policy:
     name: Governance Policy Gate
