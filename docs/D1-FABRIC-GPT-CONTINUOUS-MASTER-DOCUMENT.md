@@ -1,47 +1,128 @@
 # D1-Fabric GPT Continuous Master Document
 
-Version: 1.0  
-Status: ACTIVE / SOURCE OF TRUTH FOR GPT CONTINUITY
+Version: 3.2  
+Status: ACTIVE / SOURCE OF TRUTH FOR GPT CONTINUITY  
+Forward Architecture Contract: `docs/D1-FABRIC-3.2-INFRASTRUCTURE-ARCHITECTURE-CONTRACT-v1.0.md` (DRAFT FOR ARCHITECTURE REVIEW)
 
 ## 1. Purpose
 
-This document preserves the current architectural direction and development continuity for GPT-led implementation. It does not replace formal contracts; formal contracts remain authoritative.
+This document preserves the current architectural direction and development continuity for GPT-led implementation. Formal contracts remain authoritative. The 3.2 architecture contract is the current forward-looking architecture baseline pending architecture-review PASS.
 
 ## 2. Current Product Model
 
-D1-Fabric is a Cloudflare-native distributed relational data fabric built around D1, Workers, KV, R2 and, where justified, Durable Objects.
+D1-Fabric is evolving from a D1 sharding middleware into a Cloudflare-native distributed application infrastructure substrate for AI applications, content platforms, SaaS, games and other high-concurrency workloads.
 
-The product is explicitly split into two products:
+D1 remains a core relational capability, but D1 sharding is a Data Plane capability rather than the top-level product abstraction.
 
-1. Open Core 1.0 — complete open-source foundational middleware kernel.
-2. Advanced 1.0 — advanced capabilities built on Open Core contracts without becoming a runtime dependency of Open Core.
+## 3. Architectural Model
 
-## 3. Architectural Rule
+The primary abstraction is:
 
-Open Core MUST run correctly with Advanced disabled. Advanced MAY depend on Open Core, but MUST enter through stable contracts and extension points. Advanced MUST NOT directly couple to private implementation details of Core.
+Application Intent → Capability → Policy → Placement → Execution → Data/State → Reliability → Governance
 
-## 4. Open Core Scope
+The architecture is organized into logical planes:
 
-Gateway, Routing, Execution, Write, Shard Registry, Topology, Placement, Versioning, Idempotency, Reliability, expansion foundations, migration/rebalance foundations, contracts, verification and operational safety.
+- Application Plane
+- Gateway Plane
+- Execution Plane
+- Write Plane
+- Data Plane
+- Reliability Plane
+- Control Plane
+- Governance Plane
+- Observability Plane
+- AI Plane
+- Management Plane
 
-## 5. Advanced Scope
+Logical planes do not imply one Worker per plane.
 
-Online Data Movement, Migration Proof, Consistency Policy Engine, Policy-Gated Cutover, Hotspot Detection/Isolation, Adaptive Expansion, Workload-aware Placement, Cost-aware Routing, Shard Digital Twin, Simulation and bounded adaptive optimization.
+## 4. Deployment Baseline
 
-## 6. Development Order
+The current deployment baseline remains six Workers:
 
-Architecture Contract → Capability Contract → Module Contract → Minimal Implementation → Unit Tests → Contract Tests → Integration Tests → Cloudflare Runtime Verification → CI → Architecture Audit → PASS.
+- W01 Gateway
+- W02 Execution
+- W03 Write
+- W04 Data Plane
+- W05 Reliability
+- W06 Control Plane
 
-No feature is complete merely because code exists or tests pass. Contracted, implemented, verified, production-ready and active are distinct states.
+New workers require explicit architectural justification and MUST NOT be created merely to represent a logical plane.
 
-## 7. Governance
+## 5. 3.2 Core Architectural Additions
 
-Architecture-first, contract-first, module-first, verification-first and controlled evolution. Critical changes require explicit impact analysis, regression evidence and an auditable decision record.
+The forward architecture adds or elevates:
 
-## 8. Current Priority
+- Capability Registry
+- explicit Consistency Contract
+- Workload Model
+- Desired State / Actual State model
+- Reconciliation Engine
+- Event/Outbox Contract
+- machine-enforced Governance Plane
+- Observability Contract
+- AI Plane with bounded autonomy
+- Super Management Center
+- Cost Intelligence
+- Provider Adapter extension point
 
-Finish and freeze Open Core architecture before implementing Advanced. Every new capability must be classified as KERNEL, ADVANCED, D1-ADAPT, MOAT or FRONTIER and assigned to a contract and owner.
+## 6. AI Boundary
 
-## 9. Non-Goals
+AI and prediction MUST NOT become a synchronous availability dependency of Open Core.
 
-This document does not authorize implementation of any feature by itself. It records continuity and architectural direction only.
+AI autonomy levels are:
+
+L0 Observe → L1 Recommend → L2 Simulate → L3 Auto-Execute low-risk changes → L4 bounded Autonomous operation.
+
+Every mutation follows:
+
+Agent → Proposal → Policy → Change Manifest → Diff Scope Gate → Approval/Auto-Approval → Execution → Verification → Audit.
+
+## 7. Super Management Center
+
+The Super Management Center is the management/control surface for the substrate. It is not a new execution plane.
+
+Primary views include Command Center, Global Infrastructure, Application Fleet, Live Topology, Data Fabric, Reliability, Capacity, Cost Intelligence, AI Agent Fleet, Governance, Security, Deployments, Migrations, Audit and Developer/Operator Center.
+
+Initial visual direction: dark, high-density green/purple AI infrastructure command center. Visual state MUST be sourced from real management APIs/control-plane state and MUST NOT invent operational truth.
+
+## 8. Open Core / Advanced / Frontier
+
+Open Core remains independently operable.
+
+Advanced provides mature high-end capabilities without becoming a Core runtime dependency.
+
+Frontier includes experimental, predictive and AI-assisted capabilities and remains bounded, auditable and non-critical to Core availability.
+
+## 9. Governance
+
+Architecture-first, contract-first, module-first, verification-first and controlled evolution remain mandatory.
+
+Machine-enforced governance includes:
+
+- Capability Registry
+- ADR Registry
+- Ownership Map
+- Dependency DAG
+- Binding Ownership
+- Change Manifest
+- Diff Scope Gate
+- module contracts
+- compatibility rules
+- release classification
+
+Historical 1.x/2.x artifacts are immutable reference material and MUST NOT silently affect 3.2 development.
+
+## 10. Development Order
+
+Architecture/governance freeze → machine governance → Capability Registry → Consistency Contract → Desired/Actual State and Reconciliation → W01-W06 integration → Management API → Super Management Center → AI infrastructure agents → advanced adaptive optimization.
+
+No feature is complete merely because code exists or tests pass. Contracted, implemented, verified, production-ready and active remain distinct states.
+
+## 11. Current Priority
+
+The immediate priority is architecture review and closure of the 3.2 contract. Implementation MUST NOT outrun the reviewed architecture.
+
+## 12. Non-Goals
+
+This document does not authorize implementation of any feature by itself. The 3.2 architecture contract must pass review before implementation begins for new 3.2 capabilities.
