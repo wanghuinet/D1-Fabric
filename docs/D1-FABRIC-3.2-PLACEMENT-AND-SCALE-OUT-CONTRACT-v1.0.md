@@ -10,6 +10,8 @@ This contract defines how D1-Fabric scales physical data resources without makin
 
 The contract deliberately does **not** prescribe a permanent database count or a mandatory fixed expansion sequence.
 
+The detailed Cloudflare D1 create/initialize/attach/publish lifecycle is defined by `D1-FABRIC-3.2-D1-RESOURCE-PROVISIONING-CONTRACT-v1.0.md`.
+
 ## 2. Architectural Invariant
 
 The authoritative abstraction is:
@@ -57,6 +59,8 @@ The system MAY select another target count when policy and safety checks justify
 A physical expansion SHALL follow a controlled lifecycle:
 
 `Observe → Decide → Allocate → Register → Plan Placement → Migrate → Verify → Publish Generation → Cutover → Drain → Reconcile`
+
+When `Allocate` creates a new Cloudflare D1, the provisioning contract SHALL govern the resource lifecycle. Creation success alone SHALL NOT satisfy `Verify` or permit generation publication.
 
 The operation MUST be idempotent and restartable.
 
