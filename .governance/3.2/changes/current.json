@@ -20,6 +20,7 @@
     "docs/D1-FABRIC-3.2-FINAL-ARCHITECTURE-GATE-v1.0.md",
     "tools/governance/validate_behavioral_governance.py",
     "tools/governance/validate_capacity_governance.py",
+    "tools/governance/validate_code_development_admission.py",
     "tools/governance/validate_evidence_freshness.py",
     "tools/governance/validate_recovery_registry.py",
     "tools/governance/validate_security_governance.py"
@@ -37,6 +38,7 @@
     "execute security and tenant-isolation policy simulations",
     "execute capacity and operational boundary simulations",
     "execute evidence freshness and stale-evidence rejection checks",
+    "execute explicit code-development admission gate",
     "validate baseline W01-W06 topology and binding authority",
     "review Codex autonomous development admission and stop contract",
     "review explicit separation of code-development admission from production-active admission",
