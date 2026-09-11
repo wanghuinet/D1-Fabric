@@ -1,10 +1,10 @@
 {
   "schema_version": "1.0",
   "id_pattern": "ADR-[0-9]{4}",
-  "statuses": ["PROPOSED", "APPROVED", "SUPERSEDED", "REJECTED"],
+  "statuses": ["PROPOSED", "APPROVED", "ACCEPTED", "SUPERSEDED", "REJECTED"],
   "required_fields": ["id","title","status","owner","decision","affected_contracts","rollback_impact","supersedes","superseded_by","record_path"],
   "adrs": [
-    {"id":"ADR-0001","title":"Current Worker topology is W01-W04; W05/W06 are reserved capability labels","status":"APPROVED","owner":"project-owner","decision":"Keep W01/W02/W03/W04 as the only independently deployable Workers at the current foundation baseline. Reliability and Placement/Migration remain capability domains. W05/W06 require a new approved topology ADR before independent deployment.","affected_contracts":["architecture","worker-boundary","module"],"rollback_impact":"Reopening Worker topology requires a new topology ADR and migration review.","supersedes":[],"superseded_by":[],"record_path":"docs/adr/ADR-0001-worker-topology.md"},
+    {"id":"ADR-0001","title":"Runtime Topology and Architecture Authority","status":"ACCEPTED","owner":"project-owner","decision":"Keep W01/W02/W03/W04 as the only independently deployable Workers at the current foundation baseline. Reliability and Placement/Migration remain capability domains. W05/W06 require a new approved topology ADR before independent deployment.","affected_contracts":["architecture","worker-boundary","module"],"rollback_impact":"Reopening Worker topology requires a new topology ADR and migration review.","supersedes":[],"superseded_by":[],"record_path":"docs/adr/ADR-0001-runtime-topology-and-authority.md"},
     {"id":"ADR-0002","title":"Executable Governance Closure","status":"APPROVED","owner":"project-owner","decision":"Complete R1 machine enforcement for legacy isolation, contracts, data ownership, runtime envelopes, release policy and expiring exceptions without adding Workers or product functionality.","affected_contracts":["governance","contract","data-ownership","runtime","release"],"rollback_impact":"Reverting this ADR would reopen governance gaps and requires an explicit governance ADR.","supersedes":[],"superseded_by":[],"record_path":"docs/adr/ADR-0002-executable-governance-closure.md"}
   ]
 }
