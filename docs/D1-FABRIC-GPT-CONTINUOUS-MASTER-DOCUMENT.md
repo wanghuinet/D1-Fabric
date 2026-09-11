@@ -1,11 +1,12 @@
 # D1-Fabric GPT Continuous Master Document
 
-Version: 3.2.3  
+Version: 3.2.5  
 Status: ACTIVE / SOURCE OF TRUTH FOR GPT CONTINUITY  
 Forward Architecture Contract: `docs/D1-FABRIC-3.2-INFRASTRUCTURE-ARCHITECTURE-CONTRACT-v1.0.md`  
 Architecture Hardening: `docs/D1-FABRIC-3.2-ARCHITECTURE-HARDENING-AMENDMENT-v1.2.md`  
 Architecture Proof: `docs/D1-FABRIC-3.2.3-ARCHITECTURE-PROOF-AND-ENFORCEMENT-CONTRACT-v1.0.md`  
 Machine Governance: `docs/D1-FABRIC-3.2.4-MACHINE-GOVERNANCE-ENFORCEMENT-CONTRACT-v1.0.md`  
+Code Development Admission: `docs/D1-FABRIC-3.2.5-CODE-DEVELOPMENT-ADMISSION-CONTRACT-v1.0.md`  
 GPT Execution Router: `docs/D1-FABRIC-3.2-GPT-AUTONOMOUS-EXECUTION-AND-STOP-CONTRACT-v1.0.md`
 
 ## 1. Purpose
@@ -38,9 +39,9 @@ The hardened 3.2 architecture is **NOT YET ACTIVE**.
 
 Current architecture admission state:
 
-`DRAFT / REVIEW REQUIRED → machine governance hardening in progress`
+`DRAFT / REVIEW REQUIRED → machine governance implementation admitted`
 
-The red-team review remains `NO-GO` until its blocking findings and the final architecture gate are satisfied.
+The red-team review remains `NO-GO` for runtime architecture admission until its blocking findings and the final architecture evidence gate are satisfied.
 
 GPT MUST NOT interpret existence of governance code as architecture PASS.
 
@@ -48,7 +49,7 @@ GPT MUST NOT interpret existence of governance code as architecture PASS.
 
 The active objective is:
 
-> Complete the architecture-proof and machine-governance closure required to authorize the next 3.2 code-development phase, without starting that next phase automatically.
+> Implement and prove the machine-governance layer required to authorize the next 3.2 runtime code-development phase, without starting that runtime phase automatically.
 
 The current progression is:
 
@@ -63,9 +64,29 @@ Architecture Hardening
 → STOP
 ```
 
-The next code-development phase is NOT automatically entered after the boundary is reached.
+The next runtime code-development phase is NOT automatically entered after the boundary is reached.
 
-## 6. Machine Governance State
+## 6. Current Machine-Governance Admission
+
+The 3.2.5 Code Development Admission Contract explicitly admits implementation of the governance layer required to make the architecture contracts executable.
+
+Authorized governance scope:
+
+- Capability Registry;
+- ADR Registry;
+- Ownership Map;
+- Dependency DAG;
+- Binding Ownership;
+- Change Manifest;
+- Diff Scope Gate;
+- Historical Isolation;
+- Evidence Registry;
+- deterministic CI validation and evidence generation;
+- contract-preserving tests and repairs inside this scope.
+
+Runtime feature implementation remains blocked until final architecture evidence establishes `READY_FOR_NEXT_CODE_PHASE`.
+
+## 7. Machine Governance State
 
 Active governance root:
 
@@ -85,9 +106,9 @@ Current registry families include:
 
 Target enforcement level is Level 6 — Production Admission.
 
-The current repository baseline has begun executable governance, but the existence of schemas and initial CI checks does not by itself establish Level 6.
+The current repository baseline contains governance contracts and initial executable governance work, but Level 6 is not claimed until machine evidence proves it.
 
-## 7. Mandatory Architecture Invariants
+## 8. Mandatory Architecture Invariants
 
 1. Every mutable infrastructure object has exactly one authoritative writer.
 2. Every authoritative object has explicit version/generation/epoch semantics.
@@ -108,7 +129,7 @@ The current repository baseline has begun executable governance, but the existen
 17. No new Worker is justified solely by logical decomposition.
 18. Resource retirement requires dependency and safety verification.
 
-## 8. AI Boundary
+## 9. AI Boundary
 
 AI and prediction MUST NOT become a synchronous availability dependency of Open Core.
 
@@ -122,7 +143,7 @@ Every mutation follows:
 
 GPT is allowed to execute only actions already authorized by the active contract/phase boundary.
 
-## 9. Autonomous Continuation Rule
+## 10. Autonomous Continuation Rule
 
 When the user says `继续`, GPT SHALL:
 
@@ -143,7 +164,7 @@ GPT MUST NOT ask the user merely because ordinary implementation work remains in
 
 GPT MUST ask/stop when the boundary itself requires a new decision.
 
-## 10. Hard Stop Contract
+## 11. Hard Stop Contract
 
 GPT MUST stop immediately when:
 
@@ -161,9 +182,9 @@ GPT MUST stop immediately when:
 - the current gate reaches its exit condition;
 - the next code-development phase becomes authorized.
 
-## 11. Required Terminal State
+## 12. Required Terminal State
 
-When the architecture/proof/governance work is sufficient to authorize the next code-development phase, the canonical terminal state is:
+When the architecture/proof/governance work is sufficient to authorize the next runtime code-development phase, the canonical terminal state is:
 
 `READY_FOR_NEXT_CODE_PHASE — STOPPED_FOR_USER_COMMAND`
 
@@ -177,13 +198,13 @@ The final report MUST include:
 - exact next phase/task identifier;
 - `NEXT_PHASE_STARTED: NO`.
 
-## 12. Historical Isolation
+## 13. Historical Isolation
 
 Historical 1.x/2.x/old/legacy material is immutable reference material.
 
 It may be inspected for migration/reference/evidence analysis but cannot become current architecture or runtime authority without an explicit migration decision, ownership and Change Manifest.
 
-## 13. Open Core / Advanced / Frontier
+## 14. Open Core / Advanced / Frontier
 
 Open Core remains independently operable and deterministic.
 
@@ -191,19 +212,19 @@ Advanced provides mature high-end capabilities without becoming a Core runtime d
 
 Frontier includes experimental, predictive and AI-assisted capabilities and remains bounded, auditable and non-critical to Core availability.
 
-## 14. Development Order
+## 15. Development Order
 
 The approved development order is:
 
 ```text
 Architecture hardening
-→ machine governance
+→ machine governance implementation
 → behavioral/state-machine enforcement
 → failure/recovery enforcement
 → security/tenant isolation
 → evidence freshness / release decision
 → final architecture admission
-→ NEXT CODE-DEVELOPMENT PHASE (STOP BEFORE START)
+→ NEXT RUNTIME CODE-DEVELOPMENT PHASE (STOP BEFORE START)
 → W01-W06 implementation/integration
 → Management API
 → Super Management Center
@@ -214,7 +235,7 @@ Architecture hardening
 
 This order is governance, not a reason to create additional Workers.
 
-## 15. Definition of Ready for the Next Code Phase
+## 16. Definition of Ready for the Next Runtime Code Phase
 
 `READY_FOR_NEXT_CODE_PHASE` requires the repository's applicable gates to establish at minimum:
 
@@ -232,12 +253,12 @@ Required security/isolation evidence = PASS
 Evidence freshness = PASS
 No unresolved architecture contradiction = TRUE
 No undeclared scope = TRUE
-Next task/phase is explicitly identified = TRUE
+Next runtime task/phase is explicitly identified = TRUE
 ```
 
 Compilation, unit tests or documentation completeness alone never satisfies this state.
 
-## 16. Non-Goals
+## 17. Non-Goals
 
 - uncontrolled multi-cloud implementation
 - arbitrary extra Workers
@@ -248,9 +269,9 @@ Compilation, unit tests or documentation completeness alone never satisfies this
 - speculative broker replacement
 - unbounded automatic global rebalance
 - UI-first fake operational state
-- autonomous advancement into a newly authorized code phase
+- autonomous advancement into a newly authorized runtime code phase
 
-## 17. Final Rule
+## 18. Final Rule
 
 GPT SHALL be proactive inside the contract and conservative at the boundary.
 
