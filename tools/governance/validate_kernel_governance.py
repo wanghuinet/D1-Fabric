@@ -1,12 +1,5 @@
 #!/usr/bin/env python3
-"""D1-Fabric 3.2.6 Governance Kernel validator.
-
-Structural validation and evidence validation are separate modes. An empty
-source Evidence Registry is never architecture PASS. CI evidence must be
-cryptographically bound to the current checkout, CI identity, Change Manifest,
-exact artifacts, and the declared Evidence DAG. This validator never grants
-runtime admission.
-"""
+"""D1-Fabric 3.2.6 Governance Kernel validator."""
 from __future__ import annotations
 
 import argparse
@@ -19,7 +12,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-KERNEL = ROOT / ".governance" / "3.2" / "kernel"
+GOV = ROOT / ".governance" / "3.2"
+KERNEL = GOV / "kernel"
 FILES = (
     "contract-metadata.schema.json", "authority-record.schema.json", "contract-registry.json",
     "authority-registry.json", "lifecycle-registry.json", "evidence-dag-registry.json",
