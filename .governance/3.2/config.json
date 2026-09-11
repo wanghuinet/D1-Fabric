@@ -1,0 +1,39 @@
+{
+  "schema_version": "1.0",
+  "status": "DRAFT",
+  "target_enforcement_level": 6,
+  "active_worker_topology": ["W01", "W02", "W03", "W04", "W05", "W06"],
+  "historical_isolation": {
+    "forbidden_active_prefixes": ["1.0/", "2.0/", "old/", "legacy/"],
+    "forbidden_dependency_policy": "historical-material-cannot-become-active-runtime-authority",
+    "migration_requires_manifest": true
+  },
+  "required_registries": [
+    "capabilities",
+    "adrs",
+    "ownership",
+    "dependencies",
+    "bindings",
+    "changes",
+    "evidence"
+  ],
+  "required_gates": [
+    "historical-isolation",
+    "registry-schema",
+    "ownership",
+    "adr-resolution",
+    "dependency-dag",
+    "binding-authority",
+    "change-manifest",
+    "diff-scope",
+    "contract-compatibility",
+    "behavioral-tests",
+    "failure-recovery",
+    "security",
+    "evidence-freshness",
+    "release-decision"
+  ],
+  "worker_addition_requires_adr": true,
+  "worker_addition_requires_change_manifest": true,
+  "generated_files_are_non_authoritative": true
+}
