@@ -3,8 +3,8 @@
 
 Structural validation and evidence validation are separate modes. An empty
 source Evidence Registry is never architecture PASS. CI evidence is bound to
-the current checkout, CI identity, Change Manifest, exact artifacts, and the
-Evidence DAG. This validator never grants runtime admission.
+the current checkout, trusted CI identity, Change Manifest, exact artifacts,
+and the Evidence DAG. This validator never grants runtime admission.
 """
 from __future__ import annotations
 
@@ -154,7 +154,7 @@ def validate_dag(record: dict, expected_commit: str, expected_run: str) -> None:
         fail("V-007", f"{eid}: DAG provenance does not match current CI")
 
 
-def validate_evidence(records: object, evidence_doc: dict, generation: object) -> None:
+def validate_evidence(records: object, evidence_doc: dict, generation: object, spec: dict) -> None:
     if not isinstance(records, list) or not records:
         print("V-007: NOT_PASS: no current evidence records exist")
         raise SystemExit(2)
@@ -169,8 +169,14 @@ def validate_evidence(records: object, evidence_doc: dict, generation: object) -
     expected_run = os.getenv("GITHUB_RUN_ID")
     expected_workflow = os.getenv("GITHUB_WORKFLOW")
     expected_job = os.getenv("GITHUB_JOB")
-    if not expected_run or not expected_workflow or not expected_job:
-        fail("V-007", "CI provenance requires GITHUB_RUN_ID/GITHUB_WORKFLOW/GITHUB_JOB")
+    expected_event = os.getenv("GITHUB_EVENT_NAME")
+    expected_ref = os.getenv("GITHUB_REF")
+    trusted_ci = spec.get("trusted_ci", {})
+    if not expected_run or not expected_workflow or not expected_job or not expected_event or not expected_ref:
+        fail("V-007", "CI provenance requires run/workflow/job/event/ref identity")
+    if expected_workflow != trusted_ci.get("workflow_name") or expected_job != trusted_ci.get("job_id") or expected_event not in trusted_ci.get("allowed_events", []):
+        fail("V-007", "CI identity is not the declared trusted governance workflow/job")
+    trusted_verifiers = set(spec.get("trusted_verifiers", []))
     seen: set[str] = set()
     for record in records:
         if not isinstance(record, dict):
@@ -190,6 +196,12 @@ def validate_evidence(records: object, evidence_doc: dict, generation: object) -
             fail("V-007", f"{evidence_id}: commit is not the current verified checkout")
         if record.get("ci_run") != expected_run or record.get("ci_workflow") != expected_workflow or record.get("ci_job") != expected_job:
             fail("V-007", f"{evidence_id}: CI provenance mismatch")
+        if record.get("ci_event") != expected_event or record.get("ci_ref") != expected_ref:
+            fail("V-007", f"{evidence_id}: CI event/ref provenance mismatch")
+        if record.get("ci_workflow") != trusted_ci.get("workflow_name") or record.get("ci_job") != trusted_ci.get("job_id"):
+            fail("V-007", f"{evidence_id}: trusted CI identity mismatch")
+        if record.get("verifier") not in trusted_verifiers:
+            fail("V-007", f"{evidence_id}: verifier is not allowlisted")
         if record.get("registry_generation") != generation:
             fail("V-007", f"{evidence_id}: registry_generation mismatch")
         if record.get("policy_version") != expected_policy_version:
@@ -239,9 +251,9 @@ def main() -> None:
             payload = json.loads(Path(args.evidence_file).read_text(encoding="utf-8"))
         except (FileNotFoundError, json.JSONDecodeError) as exc:
             fail("V-007", f"invalid evidence file: {exc}")
-        validate_evidence(payload.get("records"), evidence_doc, spec.get("policy_generation"))
+        validate_evidence(payload.get("records"), evidence_doc, spec.get("policy_generation"), spec)
     else:
-        validate_evidence(evidence_doc.get("records"), evidence_doc, spec.get("policy_generation"))
+        validate_evidence(evidence_doc.get("records"), evidence_doc, spec.get("policy_generation"), spec)
     print(json.dumps({"decision": "PASS", "mode": "EVIDENCE_VALIDATED", "validator_id": spec.get("validator_id"), "policy_generation": spec.get("policy_generation"), "runtime_admission": "BLOCKED_UNTIL_FINAL_ARCHITECTURE_GATE_AND_CODE_DEVELOPMENT_ADMISSION"}, indent=2))
 
 
