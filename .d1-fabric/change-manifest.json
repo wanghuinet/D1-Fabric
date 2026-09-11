@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "task_id": "R1-EXECUTABLE-GOVERNANCE",
+  "stage": "R1",
+  "status": "APPROVED",
+  "owner": "project-owner",
+  "approved_capabilities": ["CAP-GATEWAY","CAP-ROUTING","CAP-SHARDING","CAP-READ-EXEC","CAP-WRITE-EXEC","CAP-IDEMPOTENCY","CAP-CONTROL","CAP-RELIABILITY","CAP-PLACEMENT-MIGRATION","CAP-D1-CONSISTENCY","CAP-COST-POLICY","CAP-MIGRATION-PROOF"],
+  "approved_paths": [".d1-fabric/","docs/adr/","docs/D1-FABRIC-FOUNDATION-BLUEPRINT-AND-GOVERNANCE-REVIEW-v1.0.md","AGENTS.md",".github/workflows/foundation-governance.yml"],
+  "forbidden_paths": ["workers/v2/W05-Reliability-Plane/","workers/v2/W06-Control-Plane/"],
+  "required_for_architecture_change": true,
+  "notes": "This manifest authorizes only the R1 governance foundation. It does not authorize Worker implementation or new product functionality."
+}
