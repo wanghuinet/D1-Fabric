@@ -1,47 +1,40 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "registry_id": "REGISTRY-3.2-EVIDENCE-DAG",
-  "registry_version": "1.0.0",
+  "registry_version": "1.1.0",
   "policy_generation": 1,
   "status": "ACTIVE",
   "authority_source": "docs/D1-FABRIC-3.2.6-GOVERNANCE-KERNEL-META-CONTRACT-v1.0.md",
   "node_types": [
-    "CONTRACT",
-    "INVARIANT",
-    "MACHINE_RULE",
-    "TEST_OR_PROBE",
-    "ARTIFACT",
-    "COMMIT",
-    "CI_RUN",
-    "EVIDENCE",
-    "GATE",
-    "ADMISSION_DECISION"
+    "CONTRACT", "INVARIANT", "MACHINE_RULE", "TEST_OR_PROBE", "ARTIFACT",
+    "COMMIT", "CI_RUN", "EVIDENCE", "GATE", "ADMISSION_DECISION"
   ],
   "edge_types": [
-    "REQUIRES",
-    "IMPLEMENTS",
-    "VERIFIES",
-    "PRODUCES",
-    "BINDS_TO",
-    "EXECUTED_BY",
-    "SUPPORTS",
-    "DECIDES"
+    "REQUIRES", "IMPLEMENTS", "VERIFIES", "PRODUCES", "BINDS_TO", "EXECUTED_BY", "SUPPORTS", "DECIDES"
   ],
   "evidence_registry": ".governance/3.2/kernel/evidence-registry.json",
   "terminal_integrity": {
     "required_terminal_nodes": ["GATE", "ADMISSION_DECISION"],
     "evidence_record_required_before_architecture_pass": true,
     "empty_evidence_registry": "NOT_PASS",
-    "missing_or_conflicting_edges": "NOT_PASS"
+    "missing_or_conflicting_edges": "NOT_PASS",
+    "kernel_structural_gate_decision": "KERNEL-VERIFIED",
+    "architecture_admission_decision_authority": "Final Architecture Gate",
+    "kernel_gate_must_not_decide_architecture_admission": true
   },
   "validity_rules": [
     "governing_contract_must_be_active",
     "policy_generation_must_match",
     "artifact_must_be_reproducible_and_present",
+    "artifact_sha256_must_match_checkout",
     "test_identity_and_scope_must_be_known",
     "evidence_freshness_must_be_within_policy",
     "evidence_scope_must_match_change_scope",
+    "commit_must_exist_and_match_current_ci_checkout",
+    "ci_run_must_match_current_ci_identity",
     "evidence_record_must_exist_for_architecture_pass",
+    "kernel_structural_gate_must_only_decide_kernel_verified",
+    "final_architecture_gate_is_required_for_architecture_admission",
     "missing_or_conflicting_edges_are_not_pass"
   ],
   "empty_registry_meaning": "bootstrap-only; NOT_PASS and no architecture or runtime PASS",
