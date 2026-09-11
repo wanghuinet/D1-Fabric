@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -52,14 +51,15 @@ def main() -> None:
 
     base = os.environ.get("D1_FABRIC_BASE_SHA", "")
     changed = git_changed(base)
-    declared = sorted(files)
-    if changed != declared:
-        missing = sorted(set(changed) - set(declared))
-        extra = sorted(set(declared) - set(changed))
+    # The manifest is governance metadata describing the payload change; it is
+    # intentionally excluded from its own payload diff to avoid recursive scope.
+    payload_changed = [p for p in changed if p != ".governance/3.2/changes/current.json"]
+    declared = sorted(p for p in files if p != ".governance/3.2/changes/current.json")
+    if payload_changed != declared:
+        missing = sorted(set(payload_changed) - set(declared))
+        extra = sorted(set(declared) - set(payload_changed))
         fail("DIFF_SCOPE_FAIL", f"undeclared={missing}; declared_not_changed={extra}")
 
-    # Historical material is immutable reference-only. These are the exact
-    # repository prefixes currently classified as historical in 3.2.
     historical = ("archive/api-v1.0/", "archive/legacy/")
     touched_historical = [p for p in changed if p.startswith(historical)]
     if touched_historical:
@@ -128,6 +128,7 @@ def main() -> None:
         "decision": "PASS",
         "change_id": manifest["change_id"],
         "changed_files": changed,
+        "payload_changed_files": payload_changed,
         "adr_refs": manifest["adr_refs"],
         "gates": ["diff-scope", "historical-isolation", "adr", "ownership", "binding", "dependency-dag", "worker-admission"],
     }, ensure_ascii=False, indent=2))
