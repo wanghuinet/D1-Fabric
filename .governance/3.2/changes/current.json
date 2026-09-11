@@ -1,19 +1,18 @@
 {
-  "change_id": "CHG-3.2-002",
+  "change_id": "CHG-3.2-003",
   "actor": {"type": "automation", "id": "gpt-architecture-governance"},
   "target_environment": "dev",
   "risk": "controlled",
   "owners": ["governance"],
   "capabilities": ["governance.machine-enforcement"],
   "resources": [".governance/3.2", ".github/workflows/d1-fabric-governance.yml", "tools/governance"],
-  "files": [
-    ".governance/3.2/changes/current.json"
-  ],
+  "files": [".governance/3.2/changes/current.json"],
   "policy_version": "3.2.4",
   "verification_plan": [
     "validate JSON governance registries",
     "validate exact git diff scope against this manifest",
     "validate Level-4 behavioral invariants",
+    "validate Level-5 recovery scenario coverage",
     "validate worker topology, binding authority and bootstrap safety"
   ],
   "recovery_class": "controlled",
