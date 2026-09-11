@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "edges": [
+    {"from":"W01","to":"W02","kind":"runtime","criticality":"required","bootstrap_required":false,"recovery_required":true},
+    {"from":"W02","to":"W03","kind":"runtime","criticality":"required","bootstrap_required":false,"recovery_required":true},
+    {"from":"W02","to":"W04","kind":"runtime","criticality":"required","bootstrap_required":false,"recovery_required":true},
+    {"from":"W03","to":"W04","kind":"runtime","criticality":"required","bootstrap_required":false,"recovery_required":true},
+    {"from":"W04","to":"W06","kind":"control","criticality":"degraded","bootstrap_required":false,"recovery_required":false},
+    {"from":"W05","to":"W06","kind":"control","criticality":"degraded","bootstrap_required":false,"recovery_required":false}
+  ],
+  "forbidden_recovery_cycles": true
+}
