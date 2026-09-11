@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["evidence_id","change_id","commit","registry_generation","policy_version","environment","probe","result","started_at","finished_at","verifier","expires_at"],
+  "properties": {
+    "evidence_id":{"type":"string"},
+    "change_id":{"type":"string"},
+    "commit":{"type":"string"},
+    "registry_generation":{"type":"string"},
+    "policy_version":{"type":"string"},
+    "environment":{"type":"string"},
+    "probe":{"type":"string"},
+    "result":{"enum":["pass","fail","waived"]},
+    "started_at":{"type":"string"},
+    "finished_at":{"type":"string"},
+    "verifier":{"type":"string"},
+    "expires_at":{"type":"string"},
+    "artifacts":{"type":"array"}
+  },
+  "additionalProperties": true
+}
