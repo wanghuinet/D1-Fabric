@@ -1,13 +1,18 @@
 # D1-Fabric GPT Continuous Master Document
 
-Version: 3.2.2  
+Version: 3.2.3  
 Status: ACTIVE / SOURCE OF TRUTH FOR GPT CONTINUITY  
-Forward Architecture Contract: `docs/D1-FABRIC-3.2-INFRASTRUCTURE-ARCHITECTURE-CONTRACT-v1.0.md` (Version 1.1, DRAFT FOR ARCHITECTURE REVIEW — HARDENED)  
-Architecture Amendment: `docs/D1-FABRIC-3.2-ARCHITECTURE-HARDENING-AMENDMENT-v1.2.md` (DRAFT FOR ARCHITECTURE REVIEW — AMENDMENT)
+Forward Architecture Contract: `docs/D1-FABRIC-3.2-INFRASTRUCTURE-ARCHITECTURE-CONTRACT-v1.0.md`  
+Architecture Hardening: `docs/D1-FABRIC-3.2-ARCHITECTURE-HARDENING-AMENDMENT-v1.2.md`  
+Architecture Proof: `docs/D1-FABRIC-3.2.3-ARCHITECTURE-PROOF-AND-ENFORCEMENT-CONTRACT-v1.0.md`  
+Machine Governance: `docs/D1-FABRIC-3.2.4-MACHINE-GOVERNANCE-ENFORCEMENT-CONTRACT-v1.0.md`  
+GPT Execution Router: `docs/D1-FABRIC-3.2-GPT-AUTONOMOUS-EXECUTION-AND-STOP-CONTRACT-v1.0.md`
 
 ## 1. Purpose
 
-This document preserves the current architectural direction and development continuity for GPT-led implementation. Formal contracts remain authoritative. The hardened 3.2 architecture contract plus its v1.2 hardening amendment are the current forward-looking architecture baseline pending architecture-review PASS.
+This document preserves the current architectural direction and development continuity for GPT-led implementation.
+
+Formal contracts remain authoritative. This document determines continuity: what GPT is currently allowed to advance, what it must verify, and where it must stop.
 
 ## 2. Current Product Model
 
@@ -23,91 +28,64 @@ The primary abstraction is:
 
 This is a logical system model, not a worker-per-stage deployment model.
 
-The architecture is organized into logical planes:
+The deployment baseline is exactly:
 
-- Application Plane
-- Gateway Plane
-- Identity/Tenant Plane
-- Execution Plane
-- Write Plane
-- Admission/Flow-Control Plane
-- Data Plane
-- Event Plane
-- Reliability Plane
-- Control Plane
-- Governance Plane
-- Observability Plane
-- AI Plane
-- Management Plane
+`W01 Gateway | W02 Execution | W03 Write | W04 Data | W05 Reliability | W06 Control`
 
-## 4. Deployment Baseline
+## 4. Current Architecture Status
 
-The current deployment baseline remains six Workers:
+The hardened 3.2 architecture is **NOT YET ACTIVE**.
 
-- W01 Gateway
-- W02 Execution
-- W03 Write
-- W04 Data Plane
-- W05 Reliability
-- W06 Control Plane
+Current architecture admission state:
 
-New workers require explicit architectural justification, ownership, failure-domain analysis and operational cost analysis. They MUST NOT be created merely to represent a logical plane.
+`DRAFT / REVIEW REQUIRED → machine governance hardening in progress`
 
-## 5. Hardened 3.2 Architecture Contracts
+The red-team review remains `NO-GO` until its blocking findings and the final architecture gate are satisfied.
 
-The forward architecture requires explicit contracts for:
+GPT MUST NOT interpret existence of governance code as architecture PASS.
 
-- Authority / Source of Truth
-- Control-Plane Bootstrap / Recovery
-- Identity / Tenant Isolation
-- SLO / Error Budget / RPO / RTO
-- Failure Domains
-- Admission / Backpressure
+## 5. Current Development Objective
+
+The active objective is:
+
+> Complete the architecture-proof and machine-governance closure required to authorize the next 3.2 code-development phase, without starting that next phase automatically.
+
+The current progression is:
+
+```text
+Architecture Hardening
+→ Machine Governance
+→ Behavioral Governance
+→ Failure / Recovery Governance
+→ Security / Evidence Freshness
+→ Final Architecture Gate
+→ READY_FOR_NEXT_CODE_PHASE
+→ STOP
+```
+
+The next code-development phase is NOT automatically entered after the boundary is reached.
+
+## 6. Machine Governance State
+
+Active governance root:
+
+`.governance/3.2/`
+
+Current registry families include:
+
 - Capability Registry
-- Consistency
-- Cache
-- Hot-Key / Hot-Shard Protection
-- Desired State / Actual State / Reconciliation
-- Idempotency
-- Event / Outbox / Delivery / Replay
-- Provider Constraints
-- Capacity / Cost
-- Migration / Cutover / Rollback
-- Schema Evolution
-- Deployment Safety
-- Disaster Recovery / Restore
-- Security / Threat Model
-- Observability / Causality
-- Data Residency / Locality
-- Resource Retirement
-- AI Agent Sandbox
-- Failure Injection / Chaos Verification
+- ADR Registry
+- Ownership Map
+- Dependency DAG
+- Binding Ownership
+- Change Manifest
+- Diff Scope Gate
+- Historical Isolation
+- Evidence Registry
 
-These are contracts, not a requirement for additional workers.
+Target enforcement level is Level 6 — Production Admission.
 
-## 6. Architecture Hardening v1.2
-
-The next hardening layer adds:
-
-- generation monotonicity
-- policy/object compatibility
-- identity-to-data binding
-- data-flow purpose limitation
-- explicit infrastructure state machines
-- durable change identity
-- verification evidence as a first-class state
-- API/event/storage/control compatibility matrix
-- data lineage and policy propagation
-- complete resource lifecycle
-- multi-dimensional capacity safety boundaries
-- explicit control-plane staleness rules
-- runtime security policy boundaries
-- routine/controlled/high-risk/emergency change classes
-- controlled failure-injection contract
-- AI evidence/uncertainty/scope contract
-- requirement-to-runtime evidence chain
-
-These are architecture invariants and governance requirements, not additional Workers.
+The current repository baseline has begun executable governance, but the existence of schemas and initial CI checks does not by itself establish Level 6.
 
 ## 7. Mandatory Architecture Invariants
 
@@ -127,7 +105,7 @@ These are architecture invariants and governance requirements, not additional Wo
 14. Every provider binding declares material runtime and cost constraints.
 15. AI cannot bypass deterministic governance or obtain unrestricted mutation authority.
 16. Historical architecture cannot silently become active architecture.
-17. No new worker is justified solely by logical decomposition.
+17. No new Worker is justified solely by logical decomposition.
 18. Resource retirement requires dependency and safety verification.
 
 ## 8. AI Boundary
@@ -142,17 +120,70 @@ Every mutation follows:
 
 `Agent → Proposal → Policy → Change Manifest → Diff Scope Gate → Approval/Auto-Approval → Execution → Verification → Audit.`
 
-Agents operate under capability scope, tenant/resource scope, action allowlists, blast-radius limits, time/budget limits, evidence requirements and explicit recovery paths.
+GPT is allowed to execute only actions already authorized by the active contract/phase boundary.
 
-AI-generated diagnosis MUST distinguish observation, hypothesis and verified fact.
+## 9. Autonomous Continuation Rule
 
-## 9. Super Management Center
+When the user says `继续`, GPT SHALL:
 
-The Super Management Center is the management/control surface for the substrate. It is not a new execution plane.
+1. read `AGENTS.md` and the active 3.2 authority chain;
+2. establish current GitHub repository state;
+3. identify the active gate/task and unresolved findings;
+4. select only the next action explicitly authorized by the current boundary;
+5. declare/validate Change Manifest scope before governed edits;
+6. implement the smallest correct change;
+7. run the required tests/gates;
+8. repair only contract-preserving defects inside the same scope;
+9. bind evidence to the exact pushed commit/generation;
+10. reassess whether the same authorized boundary still has unfinished work;
+11. continue only while it remains within that boundary;
+12. stop as soon as the next-code-development boundary is reached.
 
-Every displayed operational fact must expose or derive from source authority, freshness/version and timestamp; estimated values must identify uncertainty.
+GPT MUST NOT ask the user merely because ordinary implementation work remains inside the declared boundary.
 
-## 10. Open Core / Advanced / Frontier
+GPT MUST ask/stop when the boundary itself requires a new decision.
+
+## 10. Hard Stop Contract
+
+GPT MUST stop immediately when:
+
+- a new architecture decision is required;
+- active authority documents contradict one another;
+- a proposed change lacks a declared owner;
+- Diff Scope cannot truthfully contain the change;
+- Worker topology would change;
+- semantic ownership or authority would change;
+- public compatibility would change without an approved transition;
+- destructive/irreversible action is required;
+- security or recovery evidence is missing;
+- evidence is stale or non-reproducible;
+- current repository state cannot be established;
+- the current gate reaches its exit condition;
+- the next code-development phase becomes authorized.
+
+## 11. Required Terminal State
+
+When the architecture/proof/governance work is sufficient to authorize the next code-development phase, the canonical terminal state is:
+
+`READY_FOR_NEXT_CODE_PHASE — STOPPED_FOR_USER_COMMAND`
+
+The final report MUST include:
+
+- current repository commit SHA;
+- completed scope;
+- gate results;
+- evidence references;
+- unresolved blockers, if any;
+- exact next phase/task identifier;
+- `NEXT_PHASE_STARTED: NO`.
+
+## 12. Historical Isolation
+
+Historical 1.x/2.x/old/legacy material is immutable reference material.
+
+It may be inspected for migration/reference/evidence analysis but cannot become current architecture or runtime authority without an explicit migration decision, ownership and Change Manifest.
+
+## 13. Open Core / Advanced / Frontier
 
 Open Core remains independently operable and deterministic.
 
@@ -160,51 +191,56 @@ Advanced provides mature high-end capabilities without becoming a Core runtime d
 
 Frontier includes experimental, predictive and AI-assisted capabilities and remains bounded, auditable and non-critical to Core availability.
 
-## 11. Governance
+## 14. Development Order
 
-Architecture-first, contract-first, module-first, verification-first and controlled evolution remain mandatory.
+The approved development order is:
 
-Machine-enforced governance includes:
+```text
+Architecture hardening
+→ machine governance
+→ behavioral/state-machine enforcement
+→ failure/recovery enforcement
+→ security/tenant isolation
+→ evidence freshness / release decision
+→ final architecture admission
+→ NEXT CODE-DEVELOPMENT PHASE (STOP BEFORE START)
+→ W01-W06 implementation/integration
+→ Management API
+→ Super Management Center
+→ DR/chaos qualification
+→ bounded AI agents
+→ Advanced/Frontier optimization
+```
 
-- Capability Registry
-- ADR Registry
-- Ownership Map
-- Dependency DAG
-- Binding Ownership
-- Authority Registry
-- Tenant/Namespace Registry
-- Policy Registry
-- Failure-Domain Registry
-- Change Manifest Registry
-- Diff Scope Gate
-- Recovery Classification Registry
-- Compatibility Matrix
-- Provider Constraint Registry
-- Resource Lifecycle Registry
-- Evidence Registry
-- Release Classification
-- historical isolation rules
+This order is governance, not a reason to create additional Workers.
 
-Historical 1.x/2.x artifacts are immutable reference material and MUST NOT silently affect 3.2 development.
+## 15. Definition of Ready for the Next Code Phase
 
-## 12. Development Order
+`READY_FOR_NEXT_CODE_PHASE` requires the repository's applicable gates to establish at minimum:
 
-Architecture hardening → machine governance → core capability/consistency/identity contracts → runtime safety contracts → state/change control → evidence model → W01-W06 integration → Management API → Super Management Center → DR/chaos verification → AI agents → advanced adaptive optimization.
+```text
+Contract alignment = PASS
+Architecture alignment = PASS
+Governance gates = PASS
+Ownership = PASS
+Dependency DAG = PASS
+Binding authority = PASS
+Change Manifest / Diff Scope = PASS
+Behavioral requirements = PASS
+Required failure/recovery evidence = PASS
+Required security/isolation evidence = PASS
+Evidence freshness = PASS
+No unresolved architecture contradiction = TRUE
+No undeclared scope = TRUE
+Next task/phase is explicitly identified = TRUE
+```
 
-No feature is complete merely because code exists or tests pass. Contracted, implemented, verified, production-ready and active remain distinct states.
+Compilation, unit tests or documentation completeness alone never satisfies this state.
 
-## 13. Current Priority
-
-The immediate priority is formal architecture review and closure of the hardened 3.2 contract plus v1.2 amendment.
-
-The main contract remains `DRAFT FOR ARCHITECTURE REVIEW — HARDENED`.
-
-Implementation MUST NOT outrun the reviewed architecture. New 3.2 production code is blocked until the P0/P1 architecture gates and amendment-level invariants are explicitly satisfied.
-
-## 14. Non-Goals
+## 16. Non-Goals
 
 - uncontrolled multi-cloud implementation
-- arbitrary extra workers
+- arbitrary extra Workers
 - AI governance bypass
 - autonomous destructive migration
 - speculative universal distributed transactions
@@ -212,3 +248,16 @@ Implementation MUST NOT outrun the reviewed architecture. New 3.2 production cod
 - speculative broker replacement
 - unbounded automatic global rebalance
 - UI-first fake operational state
+- autonomous advancement into a newly authorized code phase
+
+## 17. Final Rule
+
+GPT SHALL be proactive inside the contract and conservative at the boundary.
+
+The intended behavior is:
+
+`AUTOMATIC CONTINUATION → COMPLETE CURRENT AUTHORIZED SCOPE → PROVE READINESS → STOP`
+
+Never:
+
+`AUTOMATIC CONTINUATION → INVENT NEXT SCOPE → START NEXT PHASE`
