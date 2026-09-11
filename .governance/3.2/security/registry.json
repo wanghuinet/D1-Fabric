@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0",
+  "status": "DRAFT_ENFORCEMENT",
+  "checks": [
+    {"id":"S-01","name":"cross-tenant-read-denial","scope":"data","required_fields":["subject_tenant","resource_tenant","decision"],"expected":"deny"},
+    {"id":"S-02","name":"cross-tenant-write-denial","scope":"data","required_fields":["subject_tenant","resource_tenant","decision"],"expected":"deny"},
+    {"id":"S-03","name":"cache-namespace-isolation","scope":"cache","required_fields":["tenant_namespace","cache_key","decision"],"expected":"namespace-match"},
+    {"id":"S-04","name":"event-tenant-isolation","scope":"event","required_fields":["event_tenant","consumer_tenant","decision"],"expected":"deny-on-mismatch"},
+    {"id":"S-05","name":"management-visibility-isolation","scope":"management","required_fields":["viewer_tenant","target_tenant","decision"],"expected":"deny-on-mismatch"},
+    {"id":"S-06","name":"stale-authorization-rejection","scope":"policy","required_fields":["expected_generation","actual_generation","decision"],"expected":"deny-on-mismatch"},
+    {"id":"S-07","name":"privilege-escalation-denial","scope":"identity","required_fields":["requested_scope","granted_scope","decision"],"expected":"deny-on-expansion"},
+    {"id":"S-08","name":"confused-deputy-prevention","scope":"capability","required_fields":["caller_tenant","delegated_tenant","decision"],"expected":"deny-on-implicit-delegation"},
+    {"id":"S-09","name":"replay-protection","scope":"mutation","required_fields":["idempotency_key","replay","decision"],"expected":"deduplicate"},
+    {"id":"S-10","name":"ai-capability-scope","scope":"ai","required_fields":["requested_capability","allowed_capability","decision"],"expected":"deny-on-expansion"},
+    {"id":"S-11","name":"secret-non-propagation","scope":"data-flow","required_fields":["source_classification","destination_trust","decision"],"expected":"deny-on-untrusted"}
+  ]
+}
