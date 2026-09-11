@@ -54,7 +54,16 @@ jobs:
           print('Governance structure: PASS')
           PY
 
-      - name: Machine governance gate
+  governance-manifest:
+    name: Change Manifest and Diff Scope Gate
+    needs: governance-structure
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Execute machine governance gate
         shell: bash
         env:
           D1_FABRIC_BASE_SHA: ${{ env.D1_FABRIC_GOVERNANCE_BASE_SHA }}
@@ -69,7 +78,7 @@ jobs:
 
   governance-policy:
     name: Governance Policy Gate
-    needs: governance-structure
+    needs: governance-manifest
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -96,7 +105,7 @@ jobs:
 
   governance-behavior:
     name: Behavioral Governance Level 4 Gate
-    needs: [governance-structure, governance-policy]
+    needs: [governance-manifest, governance-policy]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
