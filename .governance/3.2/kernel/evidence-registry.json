@@ -1,29 +1,16 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "registry_id": "REGISTRY-3.2-EVIDENCE",
-  "registry_version": "1.1.0",
+  "registry_version": "1.2.0",
   "policy_generation": 1,
+  "active_governance_policy_version": "3.2.6",
   "status": "ACTIVE",
   "authority_source": "docs/D1-FABRIC-3.2.6-GOVERNANCE-KERNEL-META-CONTRACT-v1.0.md",
   "records": [],
   "required_record_fields": [
-    "evidence_id",
-    "change_id",
-    "commit",
-    "registry_generation",
-    "policy_version",
-    "environment",
-    "probe",
-    "test_identity",
-    "scope",
-    "artifacts",
-    "ci_run",
-    "gate",
-    "result",
-    "started_at",
-    "finished_at",
-    "verifier",
-    "expires_at"
+    "evidence_id", "change_id", "commit", "registry_generation", "policy_version",
+    "environment", "probe", "test_identity", "scope", "artifacts", "ci_run", "gate",
+    "result", "started_at", "finished_at", "verifier", "expires_at", "dag_edges"
   ],
   "record_integrity_rules": [
     "evidence_id_must_be_unique",
@@ -37,7 +24,8 @@
     "gate_must_be_identifiable",
     "result_must_be_pass_for_pass_evidence",
     "finished_at_must_not_precede_started_at",
-    "expires_at_must_be_after_finished_at"
+    "expires_at_must_be_after_finished_at",
+    "dag_edges_must_form_complete_terminal_chain"
   ],
   "empty_registry_meaning": "NOT_PASS; no current evidence exists for architecture admission",
   "historical_policy": "evidence produced under superseded governance cannot satisfy current admission without explicit revalidation"
