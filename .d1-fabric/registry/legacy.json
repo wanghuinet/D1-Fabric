@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "status": "ACTIVE",
+  "policy": "LEGACY-ISOLATION",
+  "paths": [
+    "archive/",
+    "workers/old1.0/",
+    "workers/old2.0/",
+    "docs/1.0/",
+    "docs/2.0/",
+    "docs/old/"
+  ],
+  "read_only": true,
+  "allow_new_version_import": false,
+  "allow_capability_registration": false,
+  "allow_ownership_registration": false,
+  "allow_dependency_registration": false,
+  "allow_binding_registration": false,
+  "allow_deployment": false,
+  "allow_new_development": false,
+  "exception_mode": "EXPLICIT_LEGACY_REPAIR_ONLY",
+  "notes": "Paths that do not exist are inert; any matching path is historical and cannot participate in the active foundation unless an explicit legacy-repair authorization is present."
+}
