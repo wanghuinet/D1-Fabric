@@ -11,7 +11,8 @@
     ".governance/3.2/changes/current.json",
     "docs/D1-FABRIC-3.2-DEVELOPMENT-ADMISSION-CLOSURE-v1.0.md",
     "docs/D1-FABRIC-3.2-DEVELOPMENT-ADMISSION-MANIFEST-v1.0.json",
-    "tools/governance/validate_adversarial_governance.py"
+    "tools/governance/validate_adversarial_governance.py",
+    "tools/governance/validate_evidence_freshness.py"
   ],
   "policy_version": "3.2.4",
   "verification_plan": [
@@ -20,6 +21,7 @@
     "validate Level-4 behavioral invariants",
     "validate mutation-based adversarial acceptance",
     "validate Level-5 recovery scenario coverage",
+    "validate evidence freshness, replay and forgery rejection",
     "validate worker topology, binding authority and bootstrap safety"
   ],
   "recovery_class": "controlled",
