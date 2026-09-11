@@ -1,6 +1,6 @@
 # D1-Fabric 3.2 Function Catalog
 
-Version: 1.1  
+Version: 1.2  
 Status: ACTIVE  
 Purpose: unified capability registry, admission gate and development queue for the post-3.0 product line.
 
@@ -79,20 +79,23 @@ This table is a default decision guide, not permission to use every product. Cap
 
 Worker is a deployment boundary, not a business feature bucket.
 
-Initial ownership boundaries:
+### Current independently deployable Worker topology
 
 - W01 — Gateway / ingress / admission boundary;
 - W02 — Execution / read-path orchestration;
 - W03 — Write / mutation / transaction / idempotency execution;
-- W04 — Control Plane / control APIs / policy orchestration;
-- W05 — Reliability Plane / retry / timeout / recovery / circuit protection;
-- W06 — Placement and migration control where an independent deployment boundary is justified.
+- W04 — Control Plane / control APIs / policy orchestration.
+
+### Capability domains hosted by the current topology
+
+- Reliability Plane — retry / timeout / recovery / circuit protection, implemented through explicit modules/contracts across W01-W04 as applicable;
+- Placement and Migration Control — placement / topology / migration / expansion / rebalance, owned by the Control Plane boundary unless a later approved ADR establishes an independent deployment boundary.
+
+W05 and W06 are reserved capability labels, not current deployment Workers. Creating W05/W06 requires an approved topology ADR with evidence of independent ownership, scaling, security, deployment lifecycle or failure-isolation benefit.
 
 Business-specific features such as users, feeds, games, novels, manga, live, ads, creator/MCN, commerce, UI and product-specific recommendation logic MUST NOT be placed in these Core Workers.
 
 A Worker MAY contain several cohesive modules. It MUST NOT contain unrelated capabilities solely to reduce Worker count.
-
-Adding a Worker requires evidence of independent ownership, scaling, security, deployment or failure-isolation benefit.
 
 ## 10. Industry Ideas to Absorb
 
@@ -149,3 +152,7 @@ Do not merge unrelated features merely because they are small.
 Do not split tightly coupled code merely to increase component count.
 
 The goal is high cohesion, low coupling, explicit ownership and low rework cost.
+
+## 15. Current Topology Authority
+
+ADR-0001 is the current topology decision for the 3.2 foundation baseline. W01-W04 are the only independently deployable Core Workers. Reliability and placement/migration remain capability domains until a later approved topology ADR changes the deployment boundary.
