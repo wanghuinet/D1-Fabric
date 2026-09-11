@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "registry_id": "REGISTRY-3.2-EVIDENCE",
+  "registry_version": "1.0.0",
+  "policy_generation": 1,
+  "status": "ACTIVE",
+  "authority_source": "docs/D1-FABRIC-3.2.6-GOVERNANCE-KERNEL-META-CONTRACT-v1.0.md",
+  "records": [],
+  "required_record_fields": [
+    "evidence_id",
+    "change_id",
+    "commit",
+    "registry_generation",
+    "policy_version",
+    "environment",
+    "probe",
+    "result",
+    "started_at",
+    "finished_at",
+    "verifier",
+    "expires_at"
+  ],
+  "empty_registry_meaning": "NOT_PASS; no current evidence exists for architecture admission",
+  "historical_policy": "evidence produced under superseded governance cannot satisfy current admission without explicit revalidation"
+}

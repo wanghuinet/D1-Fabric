@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """D1-Fabric 3.2.6 Governance Kernel registry validator.
 
-This validator checks only machine-governance registries. It never grants
-runtime admission; Final Architecture Gate and Code Development Admission
-remain authoritative.
+The validator distinguishes structural validity from evidence completeness.
+An empty evidence registry is explicitly NOT_PASS and can never be reported
+as PASS. The validator never grants runtime admission.
 """
 from __future__ import annotations
 
@@ -21,6 +21,7 @@ FILES = (
     "authority-registry.json",
     "lifecycle-registry.json",
     "evidence-dag-registry.json",
+    "evidence-registry.json",
     "capacity-cost-provider-registry.json",
     "registry-integrity-rules.json",
     "validator-spec.json",
@@ -31,7 +32,7 @@ def load(name: str):
     path = KERNEL / name
     try:
         return json.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError as exc:
+    except FileNotFoundError:
         fail("V-001", f"missing {name}")
     except json.JSONDecodeError as exc:
         fail("V-001", f"invalid JSON {name}: {exc}")
@@ -44,9 +45,9 @@ def fail(code: str, detail: str) -> None:
 
 def main() -> None:
     docs = {name: load(name) for name in FILES}
+    spec = docs["validator-spec.json"]
 
     # V-001: all declared kernel inputs must exist and parse.
-    spec = docs["validator-spec.json"]
     declared = set(spec.get("inputs", []))
     missing = declared - set(docs)
     if missing:
@@ -88,16 +89,45 @@ def main() -> None:
     # V-006: lifecycle declares every transition and current state.
     lifecycle = docs["lifecycle-registry.json"]
     states = set(lifecycle.get("states", []))
-    for transition in lifecycle.get("transitions", []):
-        if transition.get("from") not in states or transition.get("to") not in states:
+    for transition in lifecycle.get("forward_transitions", []):
+        if len(transition) != 2 or transition[0] not in states or transition[1] not in states:
             fail("V-006", str(transition))
+    if lifecycle.get("current_project_state") not in states:
+        fail("V-006", "current_project_state is not declared")
 
-    # V-007: the DAG definition must terminate through gate/admission nodes.
+    # V-007: DAG definition AND actual evidence records must be complete.
     dag = docs["evidence-dag-registry.json"]
     nodes = set(dag.get("node_types", []))
-    required_nodes = {"Contract", "Invariant", "Machine Rule", "Test / Probe", "Artifact", "Commit", "CI Run", "Evidence", "Gate", "Admission Decision"}
+    required_nodes = {"CONTRACT", "INVARIANT", "MACHINE_RULE", "TEST_OR_PROBE", "ARTIFACT", "COMMIT", "CI_RUN", "EVIDENCE", "GATE", "ADMISSION_DECISION"}
     if not required_nodes.issubset(nodes):
         fail("V-007", f"missing DAG node types: {sorted(required_nodes - nodes)}")
+    terminal = dag.get("terminal_integrity", {})
+    if terminal.get("evidence_record_required_before_architecture_pass") is not True:
+        fail("V-007", "architecture evidence requirement is not fail-closed")
+
+    evidence = docs["evidence-registry.json"]
+    records = evidence.get("records")
+    if not isinstance(records, list):
+        fail("V-007", "evidence registry records must be an array")
+    if not records:
+        print("V-007: NOT_PASS: evidence registry is empty; no current architecture evidence exists")
+        print(json.dumps({
+            "decision": "NOT_PASS",
+            "validator_id": spec.get("validator_id"),
+            "policy_generation": generation,
+            "checks": [f"V-{i:03d}" for i in range(1, 11)],
+            "incomplete_checks": ["V-007"],
+            "runtime_admission": "BLOCKED_UNTIL_FINAL_ARCHITECTURE_GATE_AND_CODE_DEVELOPMENT_ADMISSION"
+        }, ensure_ascii=False, indent=2))
+        raise SystemExit(2)
+
+    required_evidence_fields = set(evidence.get("required_record_fields", []))
+    for record in records:
+        missing_fields = sorted(required_evidence_fields - record.keys())
+        if missing_fields:
+            fail("V-007", f"{record.get('evidence_id', 'unknown')}: missing evidence fields {missing_fields}")
+        if record.get("result") != "pass":
+            fail("V-007", f"{record.get('evidence_id', 'unknown')}: result is not pass")
 
     # V-008: capacity records must not claim PASS with unknown limits/policy.
     capacity = docs["capacity-cost-provider-registry.json"]

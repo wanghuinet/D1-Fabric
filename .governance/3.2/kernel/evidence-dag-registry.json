@@ -27,7 +27,13 @@
     "SUPPORTS",
     "DECIDES"
   ],
-  "records": [],
+  "evidence_registry": ".governance/3.2/kernel/evidence-registry.json",
+  "terminal_integrity": {
+    "required_terminal_nodes": ["GATE", "ADMISSION_DECISION"],
+    "evidence_record_required_before_architecture_pass": true,
+    "empty_evidence_registry": "NOT_PASS",
+    "missing_or_conflicting_edges": "NOT_PASS"
+  },
   "validity_rules": [
     "governing_contract_must_be_active",
     "policy_generation_must_match",
@@ -35,8 +41,9 @@
     "test_identity_and_scope_must_be_known",
     "evidence_freshness_must_be_within_policy",
     "evidence_scope_must_match_change_scope",
+    "evidence_record_must_exist_for_architecture_pass",
     "missing_or_conflicting_edges_are_not_pass"
   ],
-  "empty_registry_meaning": "bootstrap-only; no architecture or runtime PASS",
+  "empty_registry_meaning": "bootstrap-only; NOT_PASS and no architecture or runtime PASS",
   "historical_policy": "evidence produced under superseded governance cannot satisfy current admission without explicit revalidation"
 }

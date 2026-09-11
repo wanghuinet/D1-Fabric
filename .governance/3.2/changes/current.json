@@ -1,19 +1,25 @@
 {
-  "change_id": "CHG-3.2-004",
+  "change_id": "CHG-3.2-005",
   "actor": {"type": "automation", "id": "gpt-architecture-governance"},
   "target_environment": "dev",
   "risk": "controlled",
   "owners": ["governance"],
   "capabilities": ["governance.machine-enforcement"],
-  "resources": [".governance/3.2/changes/current.json"],
-  "files": [".governance/3.2/changes/current.json"],
-  "policy_version": "3.2.4",
+  "resources": [".governance/3.2/kernel", "tools/governance"],
+  "files": [
+    ".governance/3.2/kernel/evidence-registry.json",
+    ".governance/3.2/kernel/evidence-dag-registry.json",
+    ".governance/3.2/kernel/validator-spec.json",
+    "tools/governance/validate_kernel_governance.py",
+    ".governance/3.2/changes/current.json"
+  ],
+  "policy_version": "3.2.6",
   "verification_plan": [
-    "validate JSON governance registries",
+    "validate kernel registry JSON and policy-generation alignment",
+    "validate evidence DAG terminal integrity",
+    "prove empty evidence registry cannot return PASS",
     "validate exact git diff scope against this manifest",
-    "validate Level-4 behavioral invariants",
-    "validate Level-5 recovery scenario coverage",
-    "validate worker topology, binding authority and bootstrap safety"
+    "validate historical isolation and runtime admission boundary"
   ],
   "recovery_class": "controlled",
   "expiry": "9999-12-31T23:59:59Z",
