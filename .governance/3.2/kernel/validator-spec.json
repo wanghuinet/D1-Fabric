@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "validator_id": "VALIDATOR-3.2-KERNEL",
+  "validator_version": "1.0.0",
+  "policy_generation": 1,
+  "status": "ACTIVE",
+  "authority_source": "docs/D1-FABRIC-3.2.6-GOVERNANCE-KERNEL-META-CONTRACT-v1.0.md",
+  "inputs": [
+    "contract-metadata.schema.json",
+    "authority-record.schema.json",
+    "contract-registry.json",
+    "authority-registry.json",
+    "lifecycle-registry.json",
+    "evidence-dag-registry.json",
+    "capacity-cost-provider-registry.json",
+    "registry-integrity-rules.json"
+  ],
+  "checks": [
+    {"check_id":"V-001","name":"schema_presence","failure":"FAIL-CLOSED"},
+    {"check_id":"V-002","name":"policy_generation_alignment","failure":"FAIL-CLOSED"},
+    {"check_id":"V-003","name":"contract_identity_uniqueness","failure":"FAIL-CLOSED"},
+    {"check_id":"V-004","name":"authority_uniqueness","failure":"FAIL-CLOSED"},
+    {"check_id":"V-005","name":"authority_required_fields","failure":"FAIL-CLOSED"},
+    {"check_id":"V-006","name":"lifecycle_transition_declaration","failure":"FAIL-CLOSED"},
+    {"check_id":"V-007","name":"evidence_dag_terminal_integrity","failure":"NOT-PASS"},
+    {"check_id":"V-008","name":"capacity_limit_classification","failure":"NOT-PASS"},
+    {"check_id":"V-009","name":"historical_isolation","failure":"FAIL-CLOSED"},
+    {"check_id":"V-010","name":"runtime_admission_boundary","failure":"FAIL-CLOSED"}
+  ],
+  "result_semantics": {
+    "PASS": "all applicable checks pass and no unknown or conflicting authority exists",
+    "NOT_PASS": "one or more evidence-dependent checks are incomplete",
+    "FAIL": "a fail-closed governance invariant is violated"
+  },
+  "runtime_policy": "validator PASS does not itself authorize runtime code; Final Architecture Gate and Code Development Admission remain authoritative"
+}
