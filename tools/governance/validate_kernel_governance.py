@@ -3,29 +3,33 @@
 
 The validator distinguishes structural validity from evidence completeness.
 An empty evidence registry is explicitly NOT_PASS and can never be reported
-as PASS. The validator never grants runtime admission.
+as PASS. Evidence records are validated for identity, scope, provenance,
+reproducibility metadata, freshness, and terminal gate binding. The validator
+never grants runtime admission.
 """
 from __future__ import annotations
 
 import json
+import re
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 KERNEL = ROOT / ".governance" / "3.2" / "kernel"
-
 FILES = (
-    "contract-metadata.schema.json",
-    "authority-record.schema.json",
-    "contract-registry.json",
-    "authority-registry.json",
-    "lifecycle-registry.json",
-    "evidence-dag-registry.json",
-    "evidence-registry.json",
-    "capacity-cost-provider-registry.json",
-    "registry-integrity-rules.json",
+    "contract-metadata.schema.json", "authority-record.schema.json",
+    "contract-registry.json", "authority-registry.json", "lifecycle-registry.json",
+    "evidence-dag-registry.json", "evidence-registry.json",
+    "capacity-cost-provider-registry.json", "registry-integrity-rules.json",
     "validator-spec.json",
 )
+SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+
+
+def fail(code: str, detail: str) -> None:
+    print(f"{code}: {detail}")
+    raise SystemExit(1)
 
 
 def load(name: str):
@@ -38,9 +42,16 @@ def load(name: str):
         fail("V-001", f"invalid JSON {name}: {exc}")
 
 
-def fail(code: str, detail: str) -> None:
-    print(f"{code}: {detail}")
-    raise SystemExit(1)
+def parse_time(value: object, field: str, evidence_id: str) -> datetime:
+    if not isinstance(value, str) or not value:
+        fail("V-007", f"{evidence_id}: {field} must be an ISO-8601 string")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        fail("V-007", f"{evidence_id}: invalid {field}")
+    if parsed.tzinfo is None:
+        fail("V-007", f"{evidence_id}: {field} must include timezone")
+    return parsed.astimezone(timezone.utc)
 
 
 def main() -> None:
@@ -112,8 +123,7 @@ def main() -> None:
     if not records:
         print("V-007: NOT_PASS: evidence registry is empty; no current architecture evidence exists")
         print(json.dumps({
-            "decision": "NOT_PASS",
-            "validator_id": spec.get("validator_id"),
+            "decision": "NOT_PASS", "validator_id": spec.get("validator_id"),
             "policy_generation": generation,
             "checks": [f"V-{i:03d}" for i in range(1, 11)],
             "incomplete_checks": ["V-007"],
@@ -122,12 +132,47 @@ def main() -> None:
         raise SystemExit(2)
 
     required_evidence_fields = set(evidence.get("required_record_fields", []))
+    seen_ids: set[str] = set()
+    expected_policy_version = evidence.get("active_governance_policy_version")
     for record in records:
+        evidence_id = str(record.get("evidence_id", "unknown"))
         missing_fields = sorted(required_evidence_fields - record.keys())
         if missing_fields:
-            fail("V-007", f"{record.get('evidence_id', 'unknown')}: missing evidence fields {missing_fields}")
+            fail("V-007", f"{evidence_id}: missing evidence fields {missing_fields}")
+        if evidence_id in seen_ids:
+            fail("V-007", f"duplicate evidence_id: {evidence_id}")
+        seen_ids.add(evidence_id)
         if record.get("result") != "pass":
-            fail("V-007", f"{record.get('evidence_id', 'unknown')}: result is not pass")
+            fail("V-007", f"{evidence_id}: result is not pass")
+        if not isinstance(record.get("change_id"), str) or not record["change_id"]:
+            fail("V-007", f"{evidence_id}: change_id is empty")
+        if not isinstance(record.get("commit"), str) or not SHA_RE.fullmatch(record["commit"]):
+            fail("V-007", f"{evidence_id}: commit must be a full 40-character SHA")
+        if record.get("registry_generation") != generation:
+            fail("V-007", f"{evidence_id}: registry_generation mismatch")
+        if expected_policy_version and record.get("policy_version") != expected_policy_version:
+            fail("V-007", f"{evidence_id}: policy_version mismatch")
+        if not isinstance(record.get("environment"), str) or not record["environment"]:
+            fail("V-007", f"{evidence_id}: environment is empty")
+        if not isinstance(record.get("probe"), str) or not record["probe"]:
+            fail("V-007", f"{evidence_id}: probe is empty")
+        if not isinstance(record.get("test_identity"), str) or not record["test_identity"]:
+            fail("V-007", f"{evidence_id}: test_identity is empty")
+        if not isinstance(record.get("scope"), str) or not record["scope"]:
+            fail("V-007", f"{evidence_id}: scope is empty")
+        if not isinstance(record.get("artifacts"), list) or not record["artifacts"]:
+            fail("V-007", f"{evidence_id}: artifacts must be non-empty")
+        if not isinstance(record.get("ci_run"), str) or not record["ci_run"]:
+            fail("V-007", f"{evidence_id}: ci_run is empty")
+        if not isinstance(record.get("gate"), str) or not record["gate"]:
+            fail("V-007", f"{evidence_id}: gate is empty")
+        started = parse_time(record.get("started_at"), "started_at", evidence_id)
+        finished = parse_time(record.get("finished_at"), "finished_at", evidence_id)
+        expires = parse_time(record.get("expires_at"), "expires_at", evidence_id)
+        if finished < started:
+            fail("V-007", f"{evidence_id}: finished_at precedes started_at")
+        if expires <= finished:
+            fail("V-007", f"{evidence_id}: expires_at must be after finished_at")
 
     # V-008: capacity records must not claim PASS with unknown limits/policy.
     capacity = docs["capacity-cost-provider-registry.json"]
@@ -147,8 +192,7 @@ def main() -> None:
         fail("V-010", "runtime admission boundary missing")
 
     print(json.dumps({
-        "decision": "PASS",
-        "validator_id": spec.get("validator_id"),
+        "decision": "PASS", "validator_id": spec.get("validator_id"),
         "policy_generation": generation,
         "checks": [f"V-{i:03d}" for i in range(1, 11)],
         "runtime_admission": "BLOCKED_UNTIL_FINAL_ARCHITECTURE_GATE_AND_CODE_DEVELOPMENT_ADMISSION"
