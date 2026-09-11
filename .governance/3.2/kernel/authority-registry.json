@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "registry_id": "REGISTRY-3.2-AUTHORITY",
+  "registry_version": "1.0.0",
+  "policy_generation": 1,
+  "status": "ACTIVE",
+  "authority_source": "docs/D1-FABRIC-3.2.6-GOVERNANCE-KERNEL-META-CONTRACT-v1.0.md",
+  "records": [],
+  "uniqueness_rule": "exactly-one-authority-record-per-mutable-infrastructure-object",
+  "required_fields": [
+    "object_type",
+    "object_id",
+    "authority_owner",
+    "authoritative_store",
+    "authoritative_writer",
+    "version_field",
+    "generation_or_epoch",
+    "mutation_policy",
+    "read_replicas",
+    "cache_policy",
+    "stale_reader_policy",
+    "conflict_policy",
+    "bootstrap_source",
+    "recovery_source",
+    "audit_source"
+  ],
+  "conflict_policy": "duplicate-authority-is-fail-closed",
+  "bootstrap_policy": "registry-bootstrap-must-not-depend-on-the-object-being-governed",
+  "historical_policy": "historical-material-cannot-create-current-authority"
+}
