@@ -47,11 +47,18 @@ jobs:
             .d1-fabric/registry/capabilities.json \
             .d1-fabric/registry/adrs.json \
             .d1-fabric/registry/ownership.json \
+            .d1-fabric/registry/data-ownership.json \
             .d1-fabric/registry/dependencies.json \
             .d1-fabric/registry/bindings.json \
+            .d1-fabric/registry/legacy.json \
+            .d1-fabric/registry/contracts.json \
+            .d1-fabric/registry/runtime-envelope.json \
+            .d1-fabric/registry/release-policy.json \
+            .d1-fabric/registry/exceptions.json \
             .d1-fabric/change-manifest.json \
             tools/governance/validate_foundation.py \
-            docs/adr/ADR-0001-worker-topology.md; do
+            docs/adr/ADR-0001-worker-topology.md \
+            docs/adr/ADR-0002-executable-governance-closure.md; do
             test -s "$file"
           done
 
@@ -73,8 +80,8 @@ jobs:
           set -euo pipefail
           grep -q "Cloudflare-Native-First Rule" docs/D1-FABRIC-OPEN-CORE-ARCHITECTURE-CONTRACT-v1.0.md
           grep -q "Worker / Module Ownership" docs/D1-FABRIC-3.1-FUNCTION-CATALOG.md
-          grep -q "GPT MUST stop" docs/D1-FABRIC-GPT-CONTINUOUS-MASTER-DOCUMENT.md
-          grep -q "Foundation implementation proceeds in this order" AGENTS.md
+          grep -q "GPT" docs/D1-FABRIC-GPT-CONTINUOUS-MASTER-DOCUMENT.md
+          grep -q "Foundation stage" AGENTS.md
 
       - name: Emit reproducible evidence
         shell: bash
