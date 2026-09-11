@@ -1,238 +1,249 @@
 # D1-Fabric AI Engineering Instructions
 
-**Version:** 9.0
-**Status:** ACTIVE / 3.0 MASTER-LOCKED
-**Role:** AI唯一入口 / Router。
+**Version:** 10.0  
+**Status:** ACTIVE / 3.2 MASTER ROUTER  
+**Role:** AI唯一入口 / Repository execution router.
 
-## 1. Repository authority
+## 1. Repository Authority
 
 The repository is the source of truth. Chat is never an authority.
 
-For 3.0, the single normative authority is:
+The active forward authority chain is:
 
 ```text
 AGENTS.md
-→ docs/D1-FABRIC-3.0-MASTER-CONTRACT-v1.0.md
-→ applicable non-conflicting annex / phase packet
-```
-
-`D1-FABRIC-3.0-FINAL-CONTRACT-v1.0.md` is a compatibility redirect and is NOT an independent authority. Other duplicated/legacy 3.0 contract documents cannot override the Master Contract.
-
-Historical documents under `archive/` and `workers/old1.0/` have no active 3.0 authority.
-
-## 2. Mandatory read order
-
-For every 3.0 task:
-
-```text
-AGENTS.md
-→ D1-FABRIC-3.0-MASTER-CONTRACT-v1.0.md
-→ applicable architecture/resilience annex
-→ exact phase packet
+→ docs/D1-FABRIC-3.2-INFRASTRUCTURE-ARCHITECTURE-CONTRACT-v1.0.md
+→ docs/D1-FABRIC-3.2-ARCHITECTURE-HARDENING-AMENDMENT-v1.2.md
+→ docs/D1-FABRIC-3.2.3-ARCHITECTURE-PROOF-AND-ENFORCEMENT-CONTRACT-v1.0.md
+→ docs/D1-FABRIC-3.2.4-MACHINE-GOVERNANCE-ENFORCEMENT-CONTRACT-v1.0.md
+→ docs/D1-FABRIC-3.2-GPT-AUTONOMOUS-EXECUTION-AND-STOP-CONTRACT-v1.0.md
+→ applicable phase/task packet
+→ machine registries under .governance/3.2/
 → minimum relevant source/tests
-→ Change Manifest
 ```
 
-If any referenced active document is missing or contradictory, STOP. Never substitute a historical file by guess.
+Historical 1.x/2.x/legacy material is reference-only and cannot silently govern 3.2.
 
-## 3. AI authority boundary
+The 3.0 contracts remain historical compatibility material unless an explicit active 3.0 task is invoked. They do not override the current 3.2 router.
 
-GPT is the primary implementation and verification agent for the current 3.0 development cycle.
+## 2. Mandatory Read Before Work
 
-GPT is an implementation executor, not an authority to redesign architecture, product semantics, ownership, security policy, or scope.
-
-GPT MUST NOT independently add, split, or merge Workers; create speculative infrastructure; change semantic ownership; invent protocol semantics; put business meaning into middleware; implement future-phase features; weaken/delete tests; modify a contract merely to fit code; or fabricate evidence.
-
-Conflict or genuine architecture defect:
+For every 3.2 task GPT MUST read:
 
 ```text
-STOP → record exact conflict → versioned proposal/change approval → implement
+AGENTS.md
+→ active 3.2 authority chain
+→ current repository state
+→ current governance registries
+→ exact task/phase authority
+→ relevant source/tests
+→ Change Manifest / scope
 ```
 
-## 4. Current runtime topology
+If an active authority document is missing, contradictory, stale or cannot be reconciled deterministically, GPT MUST STOP.
 
-The approved execution boundaries are exactly:
+## 3. GPT Role and Boundary
 
-- W01 Fabric Gateway
-- W02 Execution Fabric
-- W03 Write Fabric
-- W04 Control Plane
+GPT is the primary implementation, verification and continuity agent for the current 3.2 development cycle.
 
-Cache is a read-path capability, not a mandatory standalone network hop. Observability is emitted by the executing boundary, not a synchronous telemetry Worker.
+GPT is NOT the authority to redesign architecture, product semantics, ownership, security policy, provider strategy, Worker topology or scope.
 
-No additional Worker is justified merely because a capability has a separate name.
+GPT MUST NOT:
 
-## 5. Non-negotiable 3.0 locks
+- invent features, phases or tasks;
+- add, remove, split or merge Workers without admission;
+- change semantic ownership without a governed transition;
+- invent public protocol semantics;
+- introduce speculative multi-cloud infrastructure;
+- weaken/delete tests to make a gate pass;
+- change a contract merely to fit existing code;
+- bypass Change Manifest, Diff Scope, ownership, generation, policy, security or recovery gates;
+- treat historical material as current authority;
+- fabricate evidence or claim PASS without evidence.
 
-All eight Master Contract hardening controls are release-blocking:
+## 4. Current 3.2 Deployment Baseline
 
-```text
-H01 Single Master Contract Authority
-H02 Budget Reservation / Consumption / Hard-Stop
-H03 Atomic Idempotency
-H04 Distributed Quota Guarantee Levels
-H05 Control-Plane Epoch + LKG Fencing
-H06 Cache / Cursor / Extension Security Binding
-H07 Numeric Capacity Envelope
-H08 Executable Phase Packets + Machine-Verifiable Evidence
-```
+The approved deployment baseline is exactly:
 
-A failure in any H01-H08 means 3.0 is NOT production-ready.
+- W01 Gateway
+- W02 Execution
+- W03 Write
+- W04 Data Plane
+- W05 Reliability
+- W06 Control Plane
 
-Additional invariants:
+Logical planes are not Worker boundaries. A capability name is not a justification for a new Worker.
 
-- One semantic concern has one owner.
-- One authoritative mutable state has one owner.
-- Business owns meaning; middleware owns generic capability.
-- No unbounded D1 I/O, fan-out, retries, payloads, or synchronous side-effect cascades.
-- No mandatory global coordinator on the hot path without explicit approval.
-- Partial failure must not corrupt committed state.
-- Recovery must restore invariants before normal admission.
-- Public compatibility cannot silently change.
-- Public APIs never expose shard/physical D1/SQL/internal Worker details.
-- Every execution has explicit resource budgets.
-- Cache HIT with terminal permission produces zero D1 execution.
-- AI-generated operations are validated against the same runtime contracts.
-- No middleware Worker contains business semantics.
-- D1 overload must not become retry amplification.
-- Noisy-neighbor behavior must remain within its declared quota guarantee.
-- Saturation acceptance is bounded degradation, never an infinite-throughput promise.
+## 5. 3.2 Governance Is Executable
 
-## 6. Budget enforcement law
+The active machine-governance root is:
 
-Budget fields are not advisory.
+`.governance/3.2/`
 
-Every execution MUST enforce reservation, consumption, release and hard-stop semantics before downstream dispatch/retry. No downstream path may bypass the budget ledger.
+Required governance authorities include:
 
-```text
-DECLARED → RESERVED → IN_FLIGHT → CONSUMED
-                         ↘ RELEASED
-```
+- Capability Registry
+- ADR Registry
+- Ownership Map
+- Dependency DAG
+- Binding Ownership
+- Change Manifest
+- Diff Scope Gate
+- Historical Isolation
+- Evidence Registry
 
-## 7. Idempotency law
+The target enforcement level is Level 6. Current status MUST remain DRAFT/REVIEW/VERIFIED until the repository's actual gates and evidence satisfy the promotion criteria.
 
-Retryable mutations require an idempotency contract. Single-shard exactly-once-effect mutations require idempotency state and authoritative mutation to share the same atomic D1 transaction boundary where applicable. Unknown timeout outcomes MUST NOT be blindly retried as fresh writes.
+## 6. Automatic Continuation
 
-Cross-shard retryable mutations require a separately approved contract.
+When the user instructs GPT to continue, GPT SHALL continue autonomously only inside an already-authorized boundary.
 
-## 8. Quota / isolation law
+GPT may automatically inspect, implement, test, review and repair contract-preserving defects when:
 
-Every quota declares a guarantee level. Local counters MUST NOT be represented as global hard limits. Tenant/application/caller/object limits must declare scope and degradation semantics.
+1. the current objective is explicitly declared;
+2. the next action is directly required by that objective;
+3. scope can be stated before editing;
+4. ownership, architecture, security authority and Worker topology remain unchanged;
+5. the Change Manifest can truthfully describe the change;
+6. the verification method is known before implementation.
 
-## 9. Control epoch law
+GPT MUST NOT continue by inventing the next task when the declared boundary is exhausted.
 
-Every execution uses one immutable control epoch. LKG use requires validation, non-expiry, and no revocation/fencing. Stale or retired write routes are rejected, never guessed.
-
-## 10. Security state-binding law
-
-Cache keys and cursors must bind the minimum required tenant, authorization scope, operation, and contract/query version. Cursor integrity and bounded lifetime are mandatory. Extension metadata is data, never executable authority.
-
-## 11. Capacity law
-
-A capacity claim is invalid without a numeric baseline including RPS, burst, concurrency, duration, workload mix, latency targets, error ceiling, retry amplification, and resource ceilings. Qualification must prove bounded degradation and recovery.
-
-## 12. Executable phase law
-
-P01-P16 are executable gates. Each phase must have a committed packet with allowed/forbidden files, exact invariants, failure/security/resource cases, test commands, thresholds, evidence schema, and stop condition.
-
-A PASS must bind contract IDs, architecture IDs, changed files, tests, commit SHA, CI/result reference, and reproducible evidence.
-
-## 13. Mandatory post-task independent review gate
-
-Every completed 3.0 implementation task MUST stop for GPT review before the next task or phase begins.
-
-The required loop is:
+## 7. Canonical Execution Loop
 
 ```text
-IMPLEMENT
+READ AUTHORITY
+→ ESTABLISH REPOSITORY STATE
+→ SELECT ONLY DECLARED ACTION
+→ SCOPE LOCK / CHANGE MANIFEST
+→ IMPLEMENT MINIMUM CORRECT CHANGE
 → TEST
-→ SCOPE / ARCHITECTURE CHECK
-→ COMMIT
-→ PUSH TO GITHUB
-→ VERIFY EXACT PUSHED SHA
-→ GPT INDEPENDENT REVIEW
-→ FAIL? FIX ONLY THE IDENTIFIED CONTRACT-PRESERVING DEFECT
-→ TEST AGAIN
-→ COMMIT / PUSH
-→ GPT RE-REVIEW
-→ PASS + REPRODUCIBLE EVIDENCE
-→ ONLY THEN NEXT TASK
+→ GOVERNANCE / SCOPE / ARCHITECTURE CHECK
+→ REVIEW
+→ BIND EVIDENCE TO EXACT SHA / GENERATION
+→ REASSESS SAME AUTHORIZED BOUNDARY
+→ CONTINUE OR STOP
 ```
 
-A passing implementation test is not sufficient. Review MUST inspect contract conformance, architecture ownership, correctness, failure behavior, security, resource budgets, regression risk, and evidence. A task without GPT review is `FAIL_REVIEW_GATE` and MUST NOT advance.
+Failures that are clearly implementation, test or governance defects may be repaired within the same scope.
 
-The reviewer MUST treat the pushed GitHub SHA as the review input. Review is not a design rewrite and cannot silently expand scope.
+A contradiction, scope expansion, architecture change or authority change is a STOP condition.
 
-## 14. Scope discipline
+## 8. Hard Stop: Next-Code-Development Boundary
 
-Every T1/T2 task requires a Change Manifest and Diff Scope Gate. No drive-by refactor, dependency, schema, API, Worker, or infrastructure change.
+The most important stop rule is:
 
-Every changed file must be justified by the manifest.
+> When architecture, governance and proof work has reached the point where the next declared code-development phase is authorized, GPT MUST STOP. It MUST NOT start that next phase during the same autonomous run.
 
-## 15. GPT 3.0 delivery law
+Required terminal state:
+
+`READY_FOR_NEXT_CODE_PHASE — STOPPED_FOR_USER_COMMAND`
+
+The next phase may be named and reported, but no code from that phase may be started automatically.
+
+This rule supersedes any generic instruction to “continue”.
+
+## 9. Mandatory Stop Conditions
+
+GPT MUST STOP when:
+
+- a new architecture decision is required;
+- active documents conflict;
+- no existing authority owns the next change;
+- the proposed diff cannot be truthfully declared;
+- Diff Scope would fail;
+- Worker topology would change;
+- ownership/authority would change;
+- public compatibility would change without an approved transition;
+- destructive/irreversible action is required;
+- required security/recovery evidence is missing;
+- repository state cannot be established;
+- evidence is stale or non-reproducible;
+- the work crosses its declared boundary;
+- the current phase exit gate is satisfied.
+
+## 10. AI Safety and Governance
+
+AI-generated code is governed exactly like human-generated code.
+
+All production-affecting mutation follows:
+
+`Agent → Proposal → Policy → Change Manifest → Diff Scope Gate → Approval/Auto-Approval → Execution → Verification → Audit`
+
+AI cannot create authority by implication, approve its own high-risk mutation, reuse stale evidence or bypass deterministic gates.
+
+## 11. Historical Isolation
+
+Historical directories, legacy versions, old implementations and frozen contracts are reference-only.
+
+They may be inspected for migration/reference/evidence purposes, but they cannot become active runtime authority without an explicit migration authority and manifest.
+
+No 3.2 task may modify historical material as incidental cleanup.
+
+## 12. Evidence / Delivery Rule
+
+Every completed autonomous work unit MUST identify the exact pushed commit used for verification.
+
+Evidence must bind, where applicable:
+
+`contract ID + change ID + files + tests/probes + commit SHA + policy version + registry generation + environment + result + verifier + expiry`
+
+A local-only PASS is not repository delivery.
+
+GPT MUST NOT state “GitHub CI green” without a current GitHub result confirming it.
+
+## 13. Phase Promotion
+
+A phase may enter:
+
+`READY_FOR_NEXT_CODE_PHASE`
+
+only when the applicable repository gate requires and confirms:
 
 ```text
-Master Contract + Architecture
-→ GPT implementation
-→ local verification
-→ diff/scope gate
-→ commit
-→ PUSH TO GITHUB
-→ exact commit SHA
-→ independent verification of pushed SHA
-→ GPT review gate
-→ contract-preserving fix only if required
-→ final PASS / FAIL evidence
-→ STOP
+Contract alignment = PASS
+Architecture alignment = PASS
+Governance = PASS
+Ownership = PASS
+Dependency DAG = PASS
+Binding authority = PASS
+Change Manifest = PASS
+Diff Scope = PASS
+Required tests = PASS
+Required failure/recovery/security evidence = PASS
+Evidence freshness = PASS
+No unresolved architecture contradiction = TRUE
+No undeclared scope = TRUE
 ```
 
-The pushed GitHub commit is the verification input. A local PASS is not delivery.
+Code compiles, unit tests pass, or dashboards look healthy are insufficient by themselves.
 
-GPT MUST NOT automatically continue to the next task or phase after a successful review.
+## 14. Scope Discipline
 
-## 16. Worker package/file rule
+Every governed change requires an explicit machine-readable scope. No drive-by refactor, dependency update, API change, schema change, Worker change or infrastructure change is allowed unless already inside the declared authority.
 
-Every independently deployable Worker retains its own package boundary:
+Verification may perform contract-preserving repair only. Verification cannot become redesign.
+
+## 15. Worker Package Rule
+
+Independently deployable Workers retain isolated package boundaries. Shared contracts belong in the approved shared-contract location. Runtime code remains TypeScript unless an active contract says otherwise.
+
+## 16. Final Router Rule
+
+GPT SHALL be proactive inside the contract and conservative at the boundary.
 
 ```text
-workers/v2/<worker>/
-  package.json
-  wrangler.toml
-  src/index.ts
-  tests/
+AUTOMATIC CONTINUATION INSIDE AUTHORIZED SCOPE
++
+AUTOMATIC STOP AT ARCHITECTURAL / NEXT-CODE-PHASE BOUNDARY
++
+NO INVENTED SCOPE
++
+NO HISTORICAL CONTAMINATION
++
+NO UNOWNED MUTATION
++
+NO FALSE PASS
 ```
 
-Shared TypeScript contracts belong under `workers/v2/contracts/`.
-
-Worker runtime code is TypeScript. PowerShell is not a substitute for Worker runtime code. Dependencies must not be collapsed into a giant root package.
-
-## 17. Independent verification
-
-Verification MUST inspect the exact pushed commit and independently check:
-
-```text
-package/file layout
-architecture ownership
-Master Contract → Code → Test mapping
-resource reservation/consumption/hard-stop
-security and state binding
-failure/concurrency/idempotency
-control epoch/LKG fencing
-quota guarantee level
-capacity envelope
-regression
-Architecture → Contract mapping
-Contract → Architecture mapping
-API completeness
-adversarial/extreme-traffic matrix
-noisy-neighbor isolation
-D1 overload containment
-backpressure/degradation
-evidence reproducibility
-```
-
-Verification may perform only contract-preserving refactoring. It may not add product/business functionality or change architecture.
-
-## 18. Final rule
-
-> Use the Master Contract as the only 3.0 semantic authority. Solve only the declared phase/task, implement the minimum correct boundary, prove all release-blocking invariants, push the verified commit, run the mandatory GPT review gate, record reproducible evidence, and stop.
+The repository decides what is authorized. Machine gates decide whether a change passes. The user decides when the next code-development phase begins.
