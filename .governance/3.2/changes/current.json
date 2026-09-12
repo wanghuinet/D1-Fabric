@@ -1,27 +1,33 @@
 {
-  "change_id": "CHG-3.2-014",
+  "change_id": "CHG-3.2-017",
   "actor": {"type": "automation", "id": "gpt-architecture-governance"},
   "target_environment": "dev",
   "risk": "controlled",
   "owners": ["governance"],
   "capabilities": ["governance.machine-enforcement"],
-  "resources": [".governance/3.2/changes", ".governance/3.2/kernel", "tools/governance"],
+  "resources": ["docs/", ".governance/3.2/kernel", ".governance/3.2/changes", "tools/governance"],
   "files": [
-    ".governance/3.2/changes/current.json"
+    ".governance/3.2/changes/current.json",
+    ".governance/3.2/kernel/contract-registry.json",
+    "docs/D1-FABRIC-3.2.1-ARCHITECTURE-HARDENING-AMENDMENT-v1.3.md",
+    "tools/governance/validate_kernel_governance.py"
   ],
   "evidence_artifacts": [
     ".governance/3.2/changes/current.json",
+    ".governance/3.2/kernel/contract-registry.json",
     ".governance/3.2/kernel/evidence-registry.json",
     ".governance/3.2/kernel/evidence-dag-registry.json",
     ".governance/3.2/kernel/validator-spec.json",
-    "tools/governance/validate_kernel_governance.py",
-    "tools/governance/generate_kernel_evidence.py"
+    "docs/D1-FABRIC-3.2.1-ARCHITECTURE-HARDENING-AMENDMENT-v1.3.md",
+    "tools/governance/validate_kernel_governance.py"
   ],
   "policy_version": "3.2.6",
   "verification_plan": [
-    "record trusted Governance workflow and structural-gate job identity",
-    "allow only the canonical kernel evidence producer as verifier",
-    "bind CI event/ref provenance to generated evidence",
+    "close DeepSeek P0/P1 architecture findings through an explicit 3.2.1 hardening amendment",
+    "canonicalize contract status to the schema-defined lowercase active enum",
+    "fail closed when the active contract set is empty",
+    "require machine evidence for every P0 and mandatory P1 requirement before architecture admission",
+    "preserve fail-closed Evidence Registry and Evidence DAG semantics",
     "preserve architecture and runtime admission separation"
   ],
   "recovery_class": "controlled",

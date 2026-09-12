@@ -1,54 +1,18 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "registry_id": "REGISTRY-3.2-CONTRACT",
-  "registry_version": "1.0.0",
+  "registry_version": "1.0.1",
   "policy_generation": 1,
   "status": "ACTIVE",
   "authority_source": "docs/D1-FABRIC-3.2.6-GOVERNANCE-KERNEL-META-CONTRACT-v1.0.md",
   "records": [
-    {
-      "contract_id": "ARCH-3.2-INFRASTRUCTURE",
-      "version": "1.0.0",
-      "status": "active",
-      "authority_level": "L1",
-      "path": "docs/D1-FABRIC-3.2-INFRASTRUCTURE-ARCHITECTURE-CONTRACT-v1.0.md"
-    },
-    {
-      "contract_id": "ARCH-3.2-HARDENING",
-      "version": "1.2.0",
-      "status": "active",
-      "authority_level": "L1",
-      "path": "docs/D1-FABRIC-3.2-ARCHITECTURE-HARDENING-AMENDMENT-v1.2.md"
-    },
-    {
-      "contract_id": "PROOF-3.2.3",
-      "version": "1.0.0",
-      "status": "active",
-      "authority_level": "L3",
-      "path": "docs/D1-FABRIC-3.2.3-ARCHITECTURE-PROOF-AND-ENFORCEMENT-CONTRACT-v1.0.md"
-    },
-    {
-      "contract_id": "GOV-3.2.4-MACHINE-ENFORCEMENT",
-      "version": "1.0.0",
-      "status": "active",
-      "authority_level": "L3",
-      "path": "docs/D1-FABRIC-3.2.4-MACHINE-GOVERNANCE-ENFORCEMENT-CONTRACT-v1.0.md"
-    },
-    {
-      "contract_id": "ADMISSION-3.2.5",
-      "version": "1.0.0",
-      "status": "active",
-      "authority_level": "L4",
-      "path": "docs/D1-FABRIC-3.2.5-CODE-DEVELOPMENT-ADMISSION-CONTRACT-v1.0.md"
-    },
-    {
-      "contract_id": "KERNEL-3.2.6",
-      "version": "1.0.0",
-      "status": "active",
-      "authority_level": "L1",
-      "path": "docs/D1-FABRIC-3.2.6-GOVERNANCE-KERNEL-META-CONTRACT-v1.0.md"
-    }
+    {"contract_id":"ARCH-3.2-INFRASTRUCTURE","version":"1.0.0","status":"active","authority_level":"L1","path":"docs/D1-FABRIC-3.2-INFRASTRUCTURE-ARCHITECTURE-CONTRACT-v1.0.md"},
+    {"contract_id":"ARCH-3.2-HARDENING","version":"1.2.0","status":"active","authority_level":"L1","path":"docs/D1-FABRIC-3.2-ARCHITECTURE-HARDENING-AMENDMENT-v1.2.md"},
+    {"contract_id":"PROOF-3.2.3","version":"1.0.0","status":"active","authority_level":"L3","path":"docs/D1-FABRIC-3.2.3-ARCHITECTURE-PROOF-AND-ENFORCEMENT-CONTRACT-v1.0.md"},
+    {"contract_id":"GOV-3.2.4-MACHINE-ENFORCEMENT","version":"1.0.0","status":"active","authority_level":"L3","path":"docs/D1-FABRIC-3.2.4-MACHINE-GOVERNANCE-ENFORCEMENT-CONTRACT-v1.0.md"},
+    {"contract_id":"ADMISSION-3.2.5","version":"1.0.0","status":"active","authority_level":"L4","path":"docs/D1-FABRIC-3.2.5-CODE-DEVELOPMENT-ADMISSION-CONTRACT-v1.0.md"},
+    {"contract_id":"KERNEL-3.2.6","version":"1.0.0","status":"active","authority_level":"L1","path":"docs/D1-FABRIC-3.2.6-GOVERNANCE-KERNEL-META-CONTRACT-v1.0.md"}
   ],
-  "conflict_policy": "higher-authority-wins; same-level explicit-supersession-required; unresolved-conflict-is-stop",
-  "historical_policy": "1.x, 2.x, legacy and stale documents are reference-only unless explicitly reactivated by governed migration"
+  "conflict_policy":"higher-authority-wins; same-level explicit-supersession-required; unresolved-conflict-is-stop",
+  "historical_policy":"1.x, 2.x, legacy and stale documents are reference-only unless explicitly reactivated by governed migration"
 }
