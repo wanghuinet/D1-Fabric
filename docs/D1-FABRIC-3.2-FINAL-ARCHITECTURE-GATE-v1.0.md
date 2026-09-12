@@ -5,7 +5,8 @@ Status: GATE DEFINITION — REVIEW REQUIRED
 Scope: 3.2 production architecture admission gate  
 Primary Contract: `docs/D1-FABRIC-3.2-INFRASTRUCTURE-ARCHITECTURE-CONTRACT-v1.0.md`  
 Red-Team Review: `docs/D1-FABRIC-3.2-ARCHITECTURE-GAP-AUDIT-RED-TEAM-REVIEW-v1.0.md`  
-P0-02 Remediation Contract: `docs/D1-FABRIC-3.2.1-P0-02-CONTROL-PLANE-BOOTSTRAP-AND-RECOVERY-CONTRACT-v1.0.md`
+P0-02 Remediation Contract: `docs/D1-FABRIC-3.2.1-P0-02-CONTROL-PLANE-BOOTSTRAP-AND-RECOVERY-CONTRACT-v1.0.md`  
+Evidence Integrity Contract: `docs/D1-FABRIC-3.2.6-EVIDENCE-DAG-AND-KERNEL-VALIDATOR-CONTRACT-v1.0.md`
 
 ## 0. Decision
 
@@ -238,7 +239,8 @@ AI-generated mutations use exactly the same gate.
 - failure-injection scenarios cover the red-team cases;
 - CI can reject unauthorized ownership, dependency, contract and scope changes;
 - P0-02 bootstrap/recovery evidence is current and bound to the governed generation;
-- Evidence Registry is non-empty for every mandatory gate claim used in the promotion decision.
+- Evidence Registry is non-empty for every mandatory gate claim used in the promotion decision;
+- Kernel Validator reports PASS only after complete, current, trusted Evidence DAG closure; empty, stale, orphaned, unresolved or wrong-generation evidence MUST result in FAIL.
 
 ## 9. Red-Team Mandatory Scenarios
 
@@ -264,6 +266,10 @@ The final review MUST execute or formally simulate at minimum:
 18. Recovery generation regresses or conflicts.
 19. Recovery verification evidence is absent, stale or bound to the wrong generation.
 20. W06 unavailable during a high-risk mutation.
+21. Evidence Registry is empty for a mandatory gate.
+22. Evidence DAG contains an orphan record.
+23. Evidence references resolve but point to the wrong commit/policy/registry generation.
+24. Kernel Validator is presented with no valid evidence but no explicit failure record.
 
 ## 10. Final Verdict States
 
