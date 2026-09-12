@@ -1,10 +1,10 @@
 {
-  "change_id": "CHG-3.2-016",
+  "change_id": "CHG-3.2-017",
   "actor": {"type": "automation", "id": "gpt-architecture-governance"},
   "target_environment": "dev",
   "risk": "controlled",
-  "owners": ["governance", "architecture"],
-  "capabilities": ["governance.machine-enforcement", "architecture.hardening"],
+  "owners": ["governance"],
+  "capabilities": ["governance.machine-enforcement"],
   "resources": ["docs/", ".governance/3.2/kernel", ".governance/3.2/changes", "tools/governance"],
   "files": [
     ".governance/3.2/changes/current.json",
@@ -24,7 +24,7 @@
   "policy_version": "3.2.6",
   "verification_plan": [
     "close DeepSeek P0/P1 architecture findings through an explicit 3.2.1 hardening amendment",
-    "canonicalize contract status to the schema-defined lowercase enum",
+    "canonicalize contract status to the schema-defined lowercase active enum",
     "fail closed when the active contract set is empty",
     "require machine evidence for every P0 and mandatory P1 requirement before architecture admission",
     "preserve fail-closed Evidence Registry and Evidence DAG semantics",
