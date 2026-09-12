@@ -4,7 +4,8 @@ Version: 1.0
 Status: GATE DEFINITION — REVIEW REQUIRED  
 Scope: 3.2 production architecture admission gate  
 Primary Contract: `docs/D1-FABRIC-3.2-INFRASTRUCTURE-ARCHITECTURE-CONTRACT-v1.0.md`  
-Red-Team Review: `docs/D1-FABRIC-3.2-ARCHITECTURE-GAP-AUDIT-RED-TEAM-REVIEW-v1.0.md`
+Red-Team Review: `docs/D1-FABRIC-3.2-ARCHITECTURE-GAP-AUDIT-RED-TEAM-REVIEW-v1.0.md`  
+P0-02 Remediation Contract: `docs/D1-FABRIC-3.2.1-P0-02-CONTROL-PLANE-BOOTSTRAP-AND-RECOVERY-CONTRACT-v1.0.md`
 
 ## 0. Decision
 
@@ -44,15 +45,20 @@ FAIL condition: two components can independently mutate the same infrastructure 
 
 ### G-P0-02 Bootstrap and Control-Plane Independence
 
-PASS requires:
+PASS requires all of the following:
 
-- minimal bootstrap dependency graph;
-- authoritative control-state recovery source;
-- last-known-good state rules;
-- degraded data-plane behavior when W06 is unavailable;
-- verified recovery before reactivation.
+- the dedicated P0-02 remediation contract is incorporated into the architecture baseline;
+- minimal bootstrap dependency graph is machine-readable and acyclic;
+- a Recovery Root exists and identifies a trusted authority and authoritative recovery source;
+- every recoverable control-state object has one authoritative recovery source;
+- last-known-good state carries generation/epoch and bounded freshness;
+- safe degraded serving is explicitly defined and bounded;
+- high-risk mutations fail closed while W06 is unavailable, stale or fenced;
+- recovery uses generation/epoch fencing so stale concurrent recovery cannot commit;
+- recovery reaches ACTIVE only after deterministic verification evidence exists for the recovered generation;
+- required negative verification scenarios pass: missing Recovery Root, unknown authority, bootstrap cycle, expired state, generation regression, equal-generation conflict, policy mismatch, missing/failed verification evidence, stale recovery epoch and W06-unavailable high-risk mutation.
 
-FAIL condition: normal request serving or system restart requires a control-plane operation that itself cannot start without the system being restarted.
+FAIL condition: control-plane startup depends on a decision that can only be produced after that same control plane is already operational, or recovery can transition to ACTIVE without current verification evidence.
 
 ### G-P0-03 SLO / Error Budget / RPO / RTO
 
@@ -192,15 +198,15 @@ The architecture governance system SHALL expose machine-readable rules for:
 3. Ownership Map
 4. Dependency DAG
 5. Binding Ownership
-6. Policy Registry
-7. Failure-Domain Registry
-8. Change Manifest
-9. Diff Scope Gate
-10. Recovery Classification
-11. Compatibility Matrix
-12. Provider Constraint Registry
-13. Release Classification
-14. Historical Isolation Rules
+6. Change Manifest
+7. Diff Scope Gate
+8. Recovery Classification
+9. Compatibility Matrix
+10. Provider Constraint Registry
+11. Release Classification
+12. Historical Isolation Rules
+13. Recovery Root / Bootstrap Registry
+14. Evidence Registry
 
 ## 7. Production Mutation Gate
 
@@ -230,7 +236,9 @@ AI-generated mutations use exactly the same gate.
 - provider constraints are represented as executable rules;
 - DR/restore evidence exists for destructive operations;
 - failure-injection scenarios cover the red-team cases;
-- CI can reject unauthorized ownership, dependency, contract and scope changes.
+- CI can reject unauthorized ownership, dependency, contract and scope changes;
+- P0-02 bootstrap/recovery evidence is current and bound to the governed generation;
+- Evidence Registry is non-empty for every mandatory gate claim used in the promotion decision.
 
 ## 9. Red-Team Mandatory Scenarios
 
@@ -251,6 +259,11 @@ The final review MUST execute or formally simulate at minimum:
 13. Reconciliation oscillation.
 14. Restore after destructive migration checkpoint.
 15. AI agent proposes an unsafe mutation.
+16. Recovery Root missing or invalid.
+17. Bootstrap dependency cycle introduced.
+18. Recovery generation regresses or conflicts.
+19. Recovery verification evidence is absent, stale or bound to the wrong generation.
+20. W06 unavailable during a high-risk mutation.
 
 ## 10. Final Verdict States
 
