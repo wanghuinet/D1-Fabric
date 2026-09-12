@@ -67,7 +67,9 @@ def validate_structure(docs: dict, spec: dict) -> None:
         if "policy_generation" in doc and doc["policy_generation"] != generation:
             fail("V-002", f"{name}: {doc.get('policy_generation')} != {generation}")
     contracts = docs["contract-registry.json"].get("records", [])
-    active = [x for x in contracts if x.get("status") == "ACTIVE"]
+    active = [x for x in contracts if x.get("status") == "active"]
+    if not active:
+        fail("V-003", "no active contracts are registered")
     identities = [(x.get("contract_id"), x.get("version")) for x in active]
     if any(not cid or not ver for cid, ver in identities) or len(identities) != len(set(identities)):
         fail("V-003", "active contract identity missing or duplicated")
@@ -75,9 +77,7 @@ def validate_structure(docs: dict, spec: dict) -> None:
     object_ids = [x.get("object_id") for x in authorities]
     if any(not x for x in object_ids) or len(object_ids) != len(set(object_ids)):
         fail("V-004", "authority object_id missing or duplicated")
-    required = {"object_type", "object_id", "authority_owner", "authoritative_store", "authoritative_writer",
-                "version_field", "generation_or_epoch", "mutation_policy", "read_replicas", "cache_policy",
-                "stale_reader_policy", "conflict_policy", "bootstrap_source", "recovery_source", "audit_source"}
+    required = {"object_type", "object_id", "authority_owner", "authoritative_store", "authoritative_writer", "version_field", "generation_or_epoch", "mutation_policy", "read_replicas", "cache_policy", "stale_reader_policy", "conflict_policy", "bootstrap_source", "recovery_source", "audit_source"}
     for record in authorities:
         missing_fields = sorted(required - record.keys())
         if missing_fields:
@@ -102,7 +102,7 @@ def validate_structure(docs: dict, spec: dict) -> None:
             fail("V-008", f"incomplete capacity record: {record.get('resource', 'unknown')}")
     historical = ("archive/api-v1.0/", "archive/legacy/", "old/", "legacy/")
     for record in contracts:
-        if record.get("status") == "ACTIVE" and str(record.get("source", "")).startswith(historical):
+        if record.get("status") == "active" and str(record.get("source", "")).startswith(historical):
             fail("V-009", str(record.get("source")))
     expected_runtime_policy = "validator PASS does not itself authorize runtime code; Final Architecture Gate and Code Development Admission remain authoritative"
     if spec.get("runtime_policy") != expected_runtime_policy:
@@ -136,17 +136,7 @@ def validate_dag(record: dict, expected_commit: str, expected_run: str) -> None:
     commit = record["commit"]
     run_id = record["ci_run"]
     artifact_node = f"ARTIFACT-KERNEL-{commit[:12]}"
-    expected = [
-        ("KERNEL-3.2.6", "REQUIRES", "INVARIANT-KERNEL-INTEGRITY"),
-        ("INVARIANT-KERNEL-INTEGRITY", "IMPLEMENTS", "MACHINE_RULE-KERNEL-VALIDATOR"),
-        ("MACHINE_RULE-KERNEL-VALIDATOR", "VERIFIES", "governance-kernel-structural-validation"),
-        ("governance-kernel-structural-validation", "PRODUCES", artifact_node),
-        (artifact_node, "BINDS_TO", commit),
-        (commit, "EXECUTED_BY", run_id),
-        (artifact_node, "PRODUCES", eid),
-        (eid, "SUPPORTS", "Governance Kernel Structural Gate"),
-        ("Governance Kernel Structural Gate", "DECIDES", "KERNEL-VERIFIED"),
-    ]
+    expected = [("KERNEL-3.2.6", "REQUIRES", "INVARIANT-KERNEL-INTEGRITY"), ("INVARIANT-KERNEL-INTEGRITY", "IMPLEMENTS", "MACHINE_RULE-KERNEL-VALIDATOR"), ("MACHINE_RULE-KERNEL-VALIDATOR", "VERIFIES", "governance-kernel-structural-validation"), ("governance-kernel-structural-validation", "PRODUCES", artifact_node), (artifact_node, "BINDS_TO", commit), (commit, "EXECUTED_BY", run_id), (artifact_node, "PRODUCES", eid), (eid, "SUPPORTS", "Governance Kernel Structural Gate"), ("Governance Kernel Structural Gate", "DECIDES", "KERNEL-VERIFIED")]
     actual = [(x.get("from"), x.get("edge"), x.get("to")) for x in edges if isinstance(x, dict)]
     if actual != expected:
         fail("V-007", f"{eid}: DAG terminal chain mismatch")
@@ -160,9 +150,8 @@ def validate_evidence(records: object, evidence_doc: dict, generation: object, s
         raise SystemExit(2)
     required = set(evidence_doc.get("required_record_fields", []))
     expected_policy_version = evidence_doc.get("active_governance_policy_version")
-    manifest_path = GOV / "changes" / "current.json"
     try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest = json.loads((GOV / "changes" / "current.json").read_text(encoding="utf-8"))
     except (FileNotFoundError, json.JSONDecodeError) as exc:
         fail("V-007", f"invalid current Change Manifest: {exc}")
     expected_commit = current_commit()
@@ -179,58 +168,38 @@ def validate_evidence(records: object, evidence_doc: dict, generation: object, s
     trusted_verifiers = set(spec.get("trusted_verifiers", []))
     seen: set[str] = set()
     for record in records:
-        if not isinstance(record, dict):
-            fail("V-007", "evidence record must be an object")
+        if not isinstance(record, dict): fail("V-007", "evidence record must be an object")
         evidence_id = str(record.get("evidence_id", "unknown"))
         missing = sorted(required - record.keys())
-        if missing:
-            fail("V-007", f"{evidence_id}: missing evidence fields {missing}")
-        if evidence_id in seen:
-            fail("V-007", f"duplicate evidence_id: {evidence_id}")
+        if missing: fail("V-007", f"{evidence_id}: missing evidence fields {missing}")
+        if evidence_id in seen: fail("V-007", f"duplicate evidence_id: {evidence_id}")
         seen.add(evidence_id)
-        if record.get("result") != "pass":
-            fail("V-007", f"{evidence_id}: result is not pass")
-        if record.get("change_id") != manifest.get("change_id"):
-            fail("V-007", f"{evidence_id}: change_id is not the current Change Manifest")
-        if record.get("commit") != expected_commit or not SHA_RE.fullmatch(str(record.get("commit", ""))):
-            fail("V-007", f"{evidence_id}: commit is not the current verified checkout")
-        if record.get("ci_run") != expected_run or record.get("ci_workflow") != expected_workflow or record.get("ci_job") != expected_job:
-            fail("V-007", f"{evidence_id}: CI provenance mismatch")
-        if record.get("ci_event") != expected_event or record.get("ci_ref") != expected_ref:
-            fail("V-007", f"{evidence_id}: CI event/ref provenance mismatch")
-        if record.get("ci_workflow") != trusted_ci.get("workflow_name") or record.get("ci_job") != trusted_ci.get("job_id"):
-            fail("V-007", f"{evidence_id}: trusted CI identity mismatch")
-        if record.get("verifier") not in trusted_verifiers:
-            fail("V-007", f"{evidence_id}: verifier is not allowlisted")
-        if record.get("registry_generation") != generation:
-            fail("V-007", f"{evidence_id}: registry_generation mismatch")
-        if record.get("policy_version") != expected_policy_version:
-            fail("V-007", f"{evidence_id}: policy_version mismatch")
-        if record.get("gate") != "Governance Kernel Structural Gate" or record.get("gate_result") != "pass":
-            fail("V-007", f"{evidence_id}: gate authenticity mismatch")
-        if record.get("admission_decision") != "KERNEL-VERIFIED; ARCHITECTURE-ADMISSION-BLOCKED":
-            fail("V-007", f"{evidence_id}: invalid admission decision")
+        if record.get("result") != "pass": fail("V-007", f"{evidence_id}: result is not pass")
+        if record.get("change_id") != manifest.get("change_id"): fail("V-007", f"{evidence_id}: change_id is not the current Change Manifest")
+        if record.get("commit") != expected_commit or not SHA_RE.fullmatch(str(record.get("commit", ""))): fail("V-007", f"{evidence_id}: commit is not the current verified checkout")
+        if record.get("ci_run") != expected_run or record.get("ci_workflow") != expected_workflow or record.get("ci_job") != expected_job: fail("V-007", f"{evidence_id}: CI provenance mismatch")
+        if record.get("ci_event") != expected_event or record.get("ci_ref") != expected_ref: fail("V-007", f"{evidence_id}: CI event/ref provenance mismatch")
+        if record.get("ci_workflow") != trusted_ci.get("workflow_name") or record.get("ci_job") != trusted_ci.get("job_id"): fail("V-007", f"{evidence_id}: trusted CI identity mismatch")
+        if record.get("verifier") not in trusted_verifiers: fail("V-007", f"{evidence_id}: verifier is not allowlisted")
+        if record.get("registry_generation") != generation: fail("V-007", f"{evidence_id}: registry_generation mismatch")
+        if record.get("policy_version") != expected_policy_version: fail("V-007", f"{evidence_id}: policy_version mismatch")
+        if record.get("gate") != "Governance Kernel Structural Gate" or record.get("gate_result") != "pass": fail("V-007", f"{evidence_id}: gate authenticity mismatch")
+        if record.get("admission_decision") != "KERNEL-VERIFIED; ARCHITECTURE-ADMISSION-BLOCKED": fail("V-007", f"{evidence_id}: invalid admission decision")
         for field in ("environment", "probe", "test_identity", "scope", "verifier"):
-            if not isinstance(record.get(field), str) or not record[field]:
-                fail("V-007", f"{evidence_id}: {field} is empty")
+            if not isinstance(record.get(field), str) or not record[field]: fail("V-007", f"{evidence_id}: {field} is empty")
         started = parse_time(record.get("started_at"), "started_at", evidence_id)
         finished = parse_time(record.get("finished_at"), "finished_at", evidence_id)
         expires = parse_time(record.get("expires_at"), "expires_at", evidence_id)
         now = datetime.now(timezone.utc)
-        if finished < started or expires <= finished or expires <= now:
-            fail("V-007", f"{evidence_id}: invalid or expired evidence time window")
+        if finished < started or expires <= finished or expires <= now: fail("V-007", f"{evidence_id}: invalid or expired evidence time window")
         artifacts = record.get("artifacts")
-        if not isinstance(artifacts, list) or not artifacts:
-            fail("V-007", f"{evidence_id}: artifacts must be non-empty")
+        if not isinstance(artifacts, list) or not artifacts: fail("V-007", f"{evidence_id}: artifacts must be non-empty")
         allowed_artifacts = set(manifest.get("evidence_artifacts", [])) | set(manifest.get("files", []))
         for artifact in artifacts:
-            if not isinstance(artifact, dict) or not isinstance(artifact.get("path"), str) or not HEX64_RE.fullmatch(str(artifact.get("sha256", ""))):
-                fail("V-007", f"{evidence_id}: artifact requires path and sha256")
+            if not isinstance(artifact, dict) or not isinstance(artifact.get("path"), str) or not HEX64_RE.fullmatch(str(artifact.get("sha256", ""))): fail("V-007", f"{evidence_id}: artifact requires path and sha256")
             path = artifact["path"]
-            if path not in allowed_artifacts:
-                fail("V-007", f"{evidence_id}: artifact outside declared evidence scope: {path}")
-            if artifact.get("reproducible") is not True or sha256_file(path) != artifact["sha256"]:
-                fail("V-007", f"{evidence_id}: artifact hash/provenance mismatch: {path}")
+            if path not in allowed_artifacts: fail("V-007", f"{evidence_id}: artifact outside declared evidence scope: {path}")
+            if artifact.get("reproducible") is not True or sha256_file(path) != artifact["sha256"]: fail("V-007", f"{evidence_id}: artifact hash/provenance mismatch: {path}")
         validate_dag(record, expected_commit, expected_run)
 
 
@@ -243,18 +212,16 @@ def main() -> None:
     spec = docs["validator-spec.json"]
     validate_structure(docs, spec)
     if args.structural_only:
-        print(json.dumps({"decision": "PASS", "mode": "STRUCTURAL_ONLY", "validator_id": spec.get("validator_id"), "policy_generation": spec.get("policy_generation"), "runtime_admission": "BLOCKED_UNTIL_FINAL_ARCHITECTURE_GATE_AND_CODE_DEVELOPMENT_ADMISSION"}, indent=2))
+        print(json.dumps({"decision":"PASS","mode":"STRUCTURAL_ONLY","validator_id":spec.get("validator_id"),"policy_generation":spec.get("policy_generation"),"runtime_admission":"BLOCKED_UNTIL_FINAL_ARCHITECTURE_GATE_AND_CODE_DEVELOPMENT_ADMISSION"}, indent=2))
         return
     evidence_doc = docs["evidence-registry.json"]
     if args.evidence_file:
-        try:
-            payload = json.loads(Path(args.evidence_file).read_text(encoding="utf-8"))
-        except (FileNotFoundError, json.JSONDecodeError) as exc:
-            fail("V-007", f"invalid evidence file: {exc}")
+        try: payload = json.loads(Path(args.evidence_file).read_text(encoding="utf-8"))
+        except (FileNotFoundError, json.JSONDecodeError) as exc: fail("V-007", f"invalid evidence file: {exc}")
         validate_evidence(payload.get("records"), evidence_doc, spec.get("policy_generation"), spec)
     else:
         validate_evidence(evidence_doc.get("records"), evidence_doc, spec.get("policy_generation"), spec)
-    print(json.dumps({"decision": "PASS", "mode": "EVIDENCE_VALIDATED", "validator_id": spec.get("validator_id"), "policy_generation": spec.get("policy_generation"), "runtime_admission": "BLOCKED_UNTIL_FINAL_ARCHITECTURE_GATE_AND_CODE_DEVELOPMENT_ADMISSION"}, indent=2))
+    print(json.dumps({"decision":"PASS","mode":"EVIDENCE_VALIDATED","validator_id":spec.get("validator_id"),"policy_generation":spec.get("policy_generation"),"runtime_admission":"BLOCKED_UNTIL_FINAL_ARCHITECTURE_GATE_AND_CODE_DEVELOPMENT_ADMISSION"}, indent=2))
 
 
 if __name__ == "__main__":
