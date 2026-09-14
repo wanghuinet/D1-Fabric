@@ -20,19 +20,19 @@ export class AuthoritativeMetadataStoreError extends Error {
   }
 }
 
-export class TopologyVersionNotPublishedError extends Error {
-  readonly code = "TOPOLOGY_VERSION_NOT_PUBLISHED" as const;
+export class ShardMapVersionNotPublishedError extends Error {
+  readonly code = "SHARD_MAP_VERSION_NOT_PUBLISHED" as const;
   constructor(message: string) {
     super(message);
-    this.name = "TopologyVersionNotPublishedError";
+    this.name = "ShardMapVersionNotPublishedError";
   }
 }
 
-export class TopologyPublicationConflictError extends Error {
-  readonly code = "TOPOLOGY_PUBLICATION_CONFLICT" as const;
+export class ShardMapPublicationConflictError extends Error {
+  readonly code = "SHARD_MAP_PUBLICATION_CONFLICT" as const;
   constructor(message: string) {
     super(message);
-    this.name = "TopologyPublicationConflictError";
+    this.name = "ShardMapPublicationConflictError";
   }
 }
 
@@ -40,18 +40,28 @@ interface ShardRow {
   logical_database_id: string;
   logical_shard_id: string;
   physical_shard_id: string;
-  topology_version: number;
-  lifecycle: AuthoritativeShardMetadata["lifecycle"];
+  shard_map_version: number;
+  shard_status: AuthoritativeShardMetadata["shardStatus"];
+  keyspace_lower_inclusive: string;
+  keyspace_upper_exclusive: string;
+  control_epoch: number;
   capacity_state: AuthoritativeShardMetadata["capacityState"];
-  creation_timestamp: number;
-  last_transition_timestamp: number;
+  created_at: string;
+  updated_at: string;
 }
 
-interface HeadRow { topology_version: number }
+interface HeadRow {
+  shard_map_version: number;
+  control_epoch: number;
+}
 
-export interface TopologyPublication {
+export interface ShardMapPublication {
   snapshot: MetadataSnapshot;
-  expectedCurrentVersion: number | null;
+  expectedCurrent: { shardMapVersion: number; controlEpoch: number } | null;
+}
+
+function validVersion(value: number): boolean {
+  return Number.isSafeInteger(value) && value >= 1;
 }
 
 export class D1AuthoritativeMetadataStore {
@@ -61,96 +71,140 @@ export class D1AuthoritativeMetadataStore {
     this.db = db;
   }
 
-  async readSnapshot(logicalDatabaseId: string, topologyVersion: number): Promise<MetadataSnapshot> {
+  async readSnapshot(logicalDatabaseId: string, shardMapVersion: number): Promise<MetadataSnapshot> {
     const head = await this.db.prepare(`
-      SELECT topology_version
-      FROM d1f_w06_topology_head
+      SELECT shard_map_version, control_epoch
+      FROM d1f_w06_shard_map_head
       WHERE logical_database_id = ?
     `).bind(logicalDatabaseId).all<HeadRow>();
 
-    if (head.results.length !== 1 || head.results[0].topology_version !== topologyVersion) {
-      throw new TopologyVersionNotPublishedError("requested topology version is not the published head");
+    if (
+      head.results.length !== 1 ||
+      head.results[0].shard_map_version !== shardMapVersion
+    ) {
+      throw new ShardMapVersionNotPublishedError("requested shard map version is not the published head");
+    }
+
+    const controlEpoch = head.results[0].control_epoch;
+    if (!validVersion(controlEpoch)) {
+      throw new AuthoritativeMetadataStoreError("published control epoch is invalid");
     }
 
     const result = await this.db.prepare(`
       SELECT logical_database_id, logical_shard_id, physical_shard_id,
-             topology_version, lifecycle, capacity_state,
-             creation_timestamp, last_transition_timestamp
-      FROM d1f_w06_shard_metadata
-      WHERE logical_database_id = ? AND topology_version = ?
+             shard_map_version, shard_status,
+             keyspace_lower_inclusive, keyspace_upper_exclusive,
+             control_epoch, capacity_state, created_at, updated_at
+      FROM d1f_w06_shard_metadata_v11
+      WHERE logical_database_id = ? AND shard_map_version = ?
       ORDER BY logical_shard_id ASC
-    `).bind(logicalDatabaseId, topologyVersion).all<ShardRow>();
+    `).bind(logicalDatabaseId, shardMapVersion).all<ShardRow>();
 
     const shards: AuthoritativeShardMetadata[] = result.results.map((row) => ({
       logicalDatabaseId: row.logical_database_id,
       logicalShardId: row.logical_shard_id,
       physicalShardId: row.physical_shard_id,
-      topologyVersion: row.topology_version,
-      lifecycle: row.lifecycle,
+      shardMapVersion: row.shard_map_version,
+      shardStatus: row.shard_status,
+      keySpace: {
+        lowerInclusive: row.keyspace_lower_inclusive,
+        upperExclusive: row.keyspace_upper_exclusive,
+      },
+      controlEpoch: row.control_epoch,
       capacityState: row.capacity_state,
-      creationTimestamp: row.creation_timestamp,
-      lastTransitionTimestamp: row.last_transition_timestamp,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
     }));
 
-    const snapshot: MetadataSnapshot = { logicalDatabaseId, topologyVersion, shards };
+    const snapshot: MetadataSnapshot = {
+      logicalDatabaseId,
+      shardMapVersion,
+      controlEpoch,
+      shards,
+    };
     validateSnapshot(snapshot);
     return snapshot;
   }
 
-  async publish({ snapshot, expectedCurrentVersion }: TopologyPublication): Promise<void> {
+  async publish({ snapshot, expectedCurrent }: ShardMapPublication): Promise<void> {
     validateSnapshot(snapshot);
-    if (
-      expectedCurrentVersion !== null &&
-      (!Number.isSafeInteger(expectedCurrentVersion) || expectedCurrentVersion < 1 || expectedCurrentVersion >= snapshot.topologyVersion)
-    ) {
-      throw new TopologyPublicationConflictError("expected current topology version is invalid or not older than the candidate");
+
+    if (expectedCurrent !== null) {
+      if (
+        !validVersion(expectedCurrent.shardMapVersion) ||
+        !validVersion(expectedCurrent.controlEpoch) ||
+        expectedCurrent.shardMapVersion >= snapshot.shardMapVersion ||
+        expectedCurrent.controlEpoch > snapshot.controlEpoch
+      ) {
+        throw new ShardMapPublicationConflictError("expected current shard map version or control epoch is invalid");
+      }
     }
 
     const statements = [
       this.db.prepare(`
-        INSERT INTO d1f_w06_topology_versions (logical_database_id, topology_version)
-        VALUES (?, ?)
-      `).bind(snapshot.logicalDatabaseId, snapshot.topologyVersion),
+        INSERT INTO d1f_w06_shard_map_versions (
+          logical_database_id, shard_map_version, control_epoch, publication_state
+        ) VALUES (?, ?, ?, 'PUBLISHED')
+      `).bind(snapshot.logicalDatabaseId, snapshot.shardMapVersion, snapshot.controlEpoch),
       ...snapshot.shards.map((shard) => this.db.prepare(`
-        INSERT INTO d1f_w06_shard_metadata (
+        INSERT INTO d1f_w06_shard_metadata_v11 (
           logical_database_id, logical_shard_id, physical_shard_id,
-          topology_version, lifecycle, capacity_state,
-          creation_timestamp, last_transition_timestamp
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          shard_map_version, shard_status,
+          keyspace_lower_inclusive, keyspace_upper_exclusive,
+          control_epoch, capacity_state, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         shard.logicalDatabaseId,
         shard.logicalShardId,
         shard.physicalShardId,
-        shard.topologyVersion,
-        shard.lifecycle,
+        shard.shardMapVersion,
+        shard.shardStatus,
+        shard.keySpace.lowerInclusive,
+        shard.keySpace.upperExclusive,
+        shard.controlEpoch,
         shard.capacityState,
-        shard.creationTimestamp,
-        shard.lastTransitionTimestamp,
+        shard.createdAt,
+        shard.updatedAt,
       )),
-      expectedCurrentVersion === null
+      expectedCurrent === null
         ? this.db.prepare(`
-            INSERT INTO d1f_w06_topology_head (logical_database_id, topology_version)
-            SELECT ?, ?
-            WHERE NOT EXISTS (
-              SELECT 1 FROM d1f_w06_topology_head WHERE logical_database_id = ?
+            INSERT INTO d1f_w06_shard_map_head (
+              logical_database_id, shard_map_version, control_epoch
             )
-          `).bind(snapshot.logicalDatabaseId, snapshot.topologyVersion, snapshot.logicalDatabaseId)
+            SELECT ?, ?, ?
+            WHERE NOT EXISTS (
+              SELECT 1 FROM d1f_w06_shard_map_head WHERE logical_database_id = ?
+            )
+          `).bind(
+            snapshot.logicalDatabaseId,
+            snapshot.shardMapVersion,
+            snapshot.controlEpoch,
+            snapshot.logicalDatabaseId,
+          )
         : this.db.prepare(`
-            UPDATE d1f_w06_topology_head
-            SET topology_version = ?
-            WHERE logical_database_id = ? AND topology_version = ?
-          `).bind(snapshot.topologyVersion, snapshot.logicalDatabaseId, expectedCurrentVersion),
+            UPDATE d1f_w06_shard_map_head
+            SET shard_map_version = ?, control_epoch = ?
+            WHERE logical_database_id = ?
+              AND shard_map_version = ?
+              AND control_epoch = ?
+          `).bind(
+            snapshot.shardMapVersion,
+            snapshot.controlEpoch,
+            snapshot.logicalDatabaseId,
+            expectedCurrent.shardMapVersion,
+            expectedCurrent.controlEpoch,
+          ),
     ];
 
     const results = await this.db.batch(statements);
     const headResult = results[results.length - 1];
     if (!headResult || headResult.success !== true || (headResult.meta?.changes ?? 0) !== 1) {
-      throw new TopologyPublicationConflictError("topology publication lost the compare-and-set race");
+      throw new ShardMapPublicationConflictError("shard map publication lost the compare-and-set race");
     }
   }
 
   async resolve(request: PlacementRequest): Promise<PlacementResult> {
-    const snapshot = await this.readSnapshot(request.logicalDatabaseId, request.topologyVersion);
+    const snapshot = await this.readSnapshot(request.logicalDatabaseId, request.shardMapVersion);
     return resolvePlacement(request, snapshot.shards);
   }
 }
