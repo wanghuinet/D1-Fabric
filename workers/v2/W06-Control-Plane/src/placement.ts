@@ -128,19 +128,23 @@ export function resolvePlacement(
     throw new PlacementError("STALE_VERSION", "requested shard map version is not published for this database");
   }
 
-  const activeMatches = versionMatches.filter(
-    (entry) => entry.shardStatus === "ACTIVE" && entry.capacityState === "ADMITTED" && keyInRange(request.logicalShardKey, entry.keySpace),
-  );
-
-  if (activeMatches.length === 0) {
-    throw new PlacementError("MISSING_PLACEMENT", "no active placement covers the requested shard key");
+  const rangeMatches = versionMatches.filter((entry) => keyInRange(request.logicalShardKey, entry.keySpace));
+  if (rangeMatches.length === 0) {
+    throw new PlacementError("MISSING_PLACEMENT", "no placement covers the requested shard key");
   }
 
-  if (activeMatches.length !== 1) {
-    throw new PlacementError("AMBIGUOUS_PLACEMENT", "placement must resolve to exactly one active physical shard");
+  if (rangeMatches.length !== 1) {
+    throw new PlacementError("AMBIGUOUS_PLACEMENT", "placement must resolve to exactly one shard keyspace");
   }
 
-  const selected = activeMatches[0];
+  const selected = rangeMatches[0];
+  if (selected.shardStatus !== "ACTIVE") {
+    throw new PlacementError("MISSING_PLACEMENT", "placement target is not active");
+  }
+  if (selected.capacityState === "BLOCKED") {
+    throw new PlacementError("CAPACITY_BLOCKED", "placement target is currently blocked by capacity admission state");
+  }
+
   return {
     logicalDatabaseId: selected.logicalDatabaseId,
     logicalShardId: selected.logicalShardId,
