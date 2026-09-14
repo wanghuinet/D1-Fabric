@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { D1AuthoritativeMetadataStore, TopologyPublicationConflictError } from "../src/authoritative-store.ts";
+import { D1AuthoritativeMetadataStore, ShardMapPublicationConflictError, ShardMapVersionNotPublishedError } from "../src/authoritative-store.ts";
 import type { MetadataSnapshot } from "../src/metadata.ts";
 
 class FakeStatement {
@@ -19,7 +19,7 @@ class FakeStatement {
   }
 
   async all<T = Record<string, unknown>>(): Promise<{ results: T[] }> {
-    if (this.rows.length === 1 && "topology_version" in this.rows[0] && Object.keys(this.rows[0]).length === 1) {
+    if (this.rows.length === 1 && "shard_map_version" in this.rows[0] && "control_epoch" in this.rows[0] && Object.keys(this.rows[0]).length === 2) {
       assert.deepEqual(this.values, ["db-1"]);
     } else {
       assert.deepEqual(this.values, ["db-1", 4]);
@@ -35,21 +35,24 @@ class FakeStatement {
 class FakeDb {
   batchCalls: number[] = [];
   prepare(sql: string): FakeStatement {
-    if (sql.includes("FROM d1f_w06_topology_head")) {
-      return new FakeStatement([{ topology_version: 4 }]);
+    if (sql.includes("FROM d1f_w06_shard_map_head")) {
+      return new FakeStatement([{ shard_map_version: 4, control_epoch: 9 }]);
     }
     return new FakeStatement([{
       logical_database_id: "db-1",
       logical_shard_id: "ls-7",
       physical_shard_id: "ps-3",
-      topology_version: 4,
-      lifecycle: "ACTIVE",
+      shard_map_version: 4,
+      shard_status: "ACTIVE",
+      keyspace_lower_inclusive: "0000",
+      keyspace_upper_exclusive: "ffff",
+      control_epoch: 9,
       capacity_state: "ADMITTED",
-      creation_timestamp: 1,
-      last_transition_timestamp: 2,
+      created_at: "2026-01-01T00:00:00.000Z",
+      updated_at: "2026-01-01T00:00:00.000Z",
     }]);
   }
-  async batch(statements: FakeStatement[]): Promise<Array<{ success: boolean; meta?: { changes?: number } }>> {
+  async batch(statements: FakeStatement[]): Promise<Array<{ success: boolean; meta?: { changes?: number }>> {
     this.batchCalls.push(statements.length);
     return statements.map(() => ({ success: true, meta: { changes: 1 } }));
   }
@@ -57,58 +60,64 @@ class FakeDb {
 
 const snapshot: MetadataSnapshot = {
   logicalDatabaseId: "db-1",
-  topologyVersion: 5,
+  shardMapVersion: 5,
+  controlEpoch: 10,
   shards: [{
     logicalDatabaseId: "db-1",
     logicalShardId: "ls-7",
     physicalShardId: "ps-3",
-    topologyVersion: 5,
-    lifecycle: "ACTIVE",
+    shardMapVersion: 5,
+    shardStatus: "ACTIVE",
+    keySpace: { lowerInclusive: "0000", upperExclusive: "ffff" },
+    controlEpoch: 10,
     capacityState: "ADMITTED",
-    creationTimestamp: 1,
-    lastTransitionTimestamp: 2,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
   }],
 };
 
-test("authoritative store resolves only from the published topology head", async () => {
+test("authoritative store resolves only from the published shard map head", async () => {
   const store = new D1AuthoritativeMetadataStore(new FakeDb());
-  const result = await store.resolve({ logicalDatabaseId: "db-1", logicalShardId: "ls-7", topologyVersion: 4 });
+  const result = await store.resolve({ logicalDatabaseId: "db-1", logicalShardKey: "abcd", shardMapVersion: 4 });
   assert.deepEqual(result, {
     logicalDatabaseId: "db-1",
     logicalShardId: "ls-7",
     physicalShardId: "ps-3",
-    topologyVersion: 4,
+    shardMapVersion: 4,
+    shardStatus: "ACTIVE",
+    keySpace: { lowerInclusive: "0000", upperExclusive: "ffff" },
+    controlEpoch: 9,
   });
 });
 
 test("authoritative store rejects an unpublished requested version", async () => {
   class HeadDb {
     prepare(sql: string): FakeStatement {
-      if (sql.includes("FROM d1f_w06_topology_head")) return new FakeStatement([{ topology_version: 5 }]);
+      if (sql.includes("FROM d1f_w06_shard_map_head")) return new FakeStatement([{ shard_map_version: 5, control_epoch: 10 }]);
       throw new Error("metadata query must not execute after unpublished head rejection");
     }
     async batch(): Promise<never[]> { throw new Error("batch must not execute"); }
   }
   const store = new D1AuthoritativeMetadataStore(new HeadDb());
   await assert.rejects(
-    () => store.resolve({ logicalDatabaseId: "db-1", logicalShardId: "ls-7", topologyVersion: 4 }),
-    (error: unknown) => error instanceof Error && error.message === "requested topology version is not the published head",
+    () => store.resolve({ logicalDatabaseId: "db-1", logicalShardKey: "abcd", shardMapVersion: 4 }),
+    (error: unknown) => error instanceof ShardMapVersionNotPublishedError,
   );
 });
 
-test("topology publication uses one atomic batch and CAS-updates the head", async () => {
+test("shard map publication uses one atomic batch and CAS-updates the head", async () => {
   const db = new FakeDb();
   const store = new D1AuthoritativeMetadataStore(db);
-  await store.publish({ snapshot, expectedCurrentVersion: 4 });
+  await store.publish({ snapshot, expectedCurrent: { shardMapVersion: 4, controlEpoch: 9 } });
   assert.deepEqual(db.batchCalls, [3]);
 });
 
-test("topology publication rejects an invalid expected version before touching D1", async () => {
+test("shard map publication rejects a stale epoch before touching D1", async () => {
   const db = new FakeDb();
   const store = new D1AuthoritativeMetadataStore(db);
   await assert.rejects(
-    () => store.publish({ snapshot, expectedCurrentVersion: 5 }),
-    (error: unknown) => error instanceof TopologyPublicationConflictError,
+    () => store.publish({ snapshot, expectedCurrent: { shardMapVersion: 4, controlEpoch: 11 } }),
+    (error: unknown) => error instanceof ShardMapPublicationConflictError,
   );
   assert.deepEqual(db.batchCalls, []);
 });
