@@ -2,20 +2,33 @@ import { planExpansion, type ExpansionRequest } from "./expansion.ts";
 import { planMigration, type MigrationPlanRequest } from "./migration.ts";
 import { planRebalance, type RebalanceRequest } from "./rebalance.ts";
 import { D1AuthoritativeMetadataStore, type D1DatabaseLike } from "./authoritative-store.ts";
-import type { PlacementRequest, ShardMetadata } from "./placement.ts";
+import type { PlacementRequest } from "./placement.ts";
 
 export const MAX_BODY_BYTES = 1_048_576;
-export type W06ApiErrorCode = "INVALID_REQUEST" | "PAYLOAD_TOO_LARGE" | "UNSUPPORTED_MEDIA_TYPE" | "NOT_FOUND" | "AUTHORITATIVE_METADATA_UNAVAILABLE";
+export type W06ApiErrorCode =
+  | "INVALID_REQUEST"
+  | "PAYLOAD_TOO_LARGE"
+  | "UNSUPPORTED_MEDIA_TYPE"
+  | "NOT_FOUND"
+  | "AUTHORITATIVE_METADATA_UNAVAILABLE";
 
 export class W06ApiError extends Error {
   readonly code: W06ApiErrorCode;
   readonly status: number;
-  constructor(code: W06ApiErrorCode, message: string, status: number) { super(message); this.name = "W06ApiError"; this.code = code; this.status = status; }
+  constructor(code: W06ApiErrorCode, message: string, status: number) {
+    super(message);
+    this.name = "W06ApiError";
+    this.code = code;
+    this.status = status;
+  }
 }
 
 interface W06Env { DB?: D1DatabaseLike }
 function isRecord(value: unknown): value is Record<string, unknown> { return value !== null && typeof value === "object" && !Array.isArray(value); }
-function requireRecord(value: unknown, field: string): Record<string, unknown> { if (!isRecord(value)) throw new W06ApiError("INVALID_REQUEST", `${field} must be an object`, 400); return value; }
+function requireRecord(value: unknown, field: string): Record<string, unknown> {
+  if (!isRecord(value)) throw new W06ApiError("INVALID_REQUEST", `${field} must be an object`, 400);
+  return value;
+}
 
 async function readJson(request: Request): Promise<unknown> {
   const contentType = request.headers.get("content-type") ?? "";
@@ -38,13 +51,10 @@ function errorResponse(error: unknown): Response {
   if (error instanceof Error) {
     const code = (error as unknown as { code?: unknown }).code;
     if (code === "AUTHORITATIVE_METADATA_UNAVAILABLE") return json({ status: "ERROR", code, message: error.message }, 503);
-    if (code === "TOPOLOGY_VERSION_NOT_PUBLISHED") return json({ status: "ERROR", code, message: error.message }, 409);
+    if (code === "SHARD_MAP_VERSION_NOT_PUBLISHED" || code === "SHARD_MAP_PUBLICATION_CONFLICT") return json({ status: "ERROR", code, message: error.message }, 409);
     if (typeof code === "string") return json({ status: "ERROR", code, message: error.message }, 400);
   }
   return json({ status: "ERROR", code: "CONTROL_PLANE_FAILURE", message: "control-plane operation failed" }, 500);
-}
-function requireAuthoritativeCapacityState(metadata: readonly ShardMetadata[]): void {
-  for (const entry of metadata) if (!isRecord(entry) || (entry.capacityState !== "ADMITTED" && entry.capacityState !== "BLOCKED")) throw new W06ApiError("INVALID_REQUEST", "placement metadata must include an authoritative capacityState", 400);
 }
 
 export async function handleW06(request: Request, env: W06Env = {}): Promise<Response> {
@@ -57,11 +67,7 @@ export async function handleW06(request: Request, env: W06Env = {}): Promise<Res
     switch (pathname) {
       case "/v1/placement/resolve": {
         const requestBody = requireRecord(body.request, "request") as unknown as PlacementRequest;
-        if (body.metadata !== undefined) {
-          if (!Array.isArray(body.metadata)) throw new W06ApiError("INVALID_REQUEST", "metadata must be an array", 400);
-          requireAuthoritativeCapacityState(body.metadata as ShardMetadata[]);
-          throw new W06ApiError("INVALID_REQUEST", "caller-supplied placement metadata is forbidden", 400);
-        }
+        if (body.metadata !== undefined) throw new W06ApiError("INVALID_REQUEST", "caller-supplied placement metadata is forbidden", 400);
         if (!env.DB) throw new W06ApiError("AUTHORITATIVE_METADATA_UNAVAILABLE", "authoritative metadata store is not configured", 503);
         const result = await new D1AuthoritativeMetadataStore(env.DB).resolve(requestBody);
         return json({ status: "RESOLVED", result });
