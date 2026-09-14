@@ -25,16 +25,16 @@ CREATE TABLE IF NOT EXISTS d1f_w06_shard_metadata_v11 (
   CHECK (keyspace_lower_inclusive < keyspace_upper_exclusive),
   CHECK (control_epoch > 0),
   CHECK (capacity_state IN ('ADMITTED', 'BLOCKED')),
-  FOREIGN KEY (logical_database_id, shard_map_version, control_epoch)
-    REFERENCES d1f_w06_shard_map_versions(logical_database_id, shard_map_version, control_epoch)
+  FOREIGN KEY (logical_database_id, shard_map_version)
+    REFERENCES d1f_w06_shard_map_versions(logical_database_id, shard_map_version)
 );
 
 CREATE TABLE IF NOT EXISTS d1f_w06_shard_map_head (
   logical_database_id TEXT PRIMARY KEY,
   shard_map_version INTEGER NOT NULL,
   control_epoch INTEGER NOT NULL,
-  FOREIGN KEY (logical_database_id, shard_map_version, control_epoch)
-    REFERENCES d1f_w06_shard_map_versions(logical_database_id, shard_map_version, control_epoch)
+  FOREIGN KEY (logical_database_id, shard_map_version)
+    REFERENCES d1f_w06_shard_map_versions(logical_database_id, shard_map_version)
 );
 
 CREATE INDEX IF NOT EXISTS idx_d1f_w06_shard_metadata_v11_lookup
