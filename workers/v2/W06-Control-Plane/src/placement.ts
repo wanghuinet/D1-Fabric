@@ -1,41 +1,56 @@
 export type ShardLifecycle =
-  | "PROVISIONING"
+  | "REGISTERED"
+  | "VALIDATING"
   | "ACTIVE"
+  | "SPLITTING"
   | "DRAINING"
-  | "MIGRATING"
   | "RETIRED";
 
 export type PlacementCapacityState = "ADMITTED" | "BLOCKED";
+
+export interface KeySpace {
+  lowerInclusive: string;
+  upperExclusive: string;
+}
 
 export interface ShardMetadata {
   logicalDatabaseId: string;
   logicalShardId: string;
   physicalShardId: string;
-  topologyVersion: number;
-  lifecycle: ShardLifecycle;
-  capacityState?: PlacementCapacityState;
+  shardMapVersion: number;
+  shardStatus: ShardLifecycle;
+  keySpace: KeySpace;
+  controlEpoch: number;
+  capacityState: PlacementCapacityState;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TargetShardLocation {
+  logicalDatabaseId: string;
+  logicalShardId: string;
+  physicalShardId: string;
+  shardMapVersion: number;
+  shardStatus: "ACTIVE";
+  keySpace: KeySpace;
+  controlEpoch: number;
 }
 
 export interface PlacementRequest {
   logicalDatabaseId: string;
-  logicalShardId: string;
-  topologyVersion: number;
-}
-
-export interface PlacementResult {
-  logicalDatabaseId: string;
-  logicalShardId: string;
-  physicalShardId: string;
-  topologyVersion: number;
+  logicalShardKey: string;
+  shardMapVersion: number;
 }
 
 export type PlacementErrorCode =
   | "INVALID_REQUEST"
   | "INVALID_METADATA"
   | "STALE_VERSION"
+  | "STALE_CONTROL_EPOCH"
   | "MISSING_PLACEMENT"
   | "AMBIGUOUS_PLACEMENT"
-  | "CAPACITY_BLOCKED";
+  | "CAPACITY_BLOCKED"
+  | "KEYSPACE_MISMATCH";
 
 export class PlacementError extends Error {
   readonly code: PlacementErrorCode;
@@ -48,7 +63,20 @@ export class PlacementError extends Error {
 }
 
 function validIdentifier(value: string): boolean {
-  return value.length > 0 && value.length <= 256;
+  return typeof value === "string" && value.length > 0 && value.length <= 256;
+}
+
+function validVersion(value: number): boolean {
+  return Number.isSafeInteger(value) && value >= 1;
+}
+
+function validateKeySpace(keySpace: KeySpace): void {
+  if (!keySpace || !validIdentifier(keySpace.lowerInclusive) || !validIdentifier(keySpace.upperExclusive)) {
+    throw new PlacementError("INVALID_METADATA", "invalid shard keyspace");
+  }
+  if (keySpace.lowerInclusive >= keySpace.upperExclusive) {
+    throw new PlacementError("INVALID_METADATA", "keyspace lower bound must be less than upper bound");
+  }
 }
 
 function validateMetadata(metadata: ShardMetadata): void {
@@ -56,62 +84,70 @@ function validateMetadata(metadata: ShardMetadata): void {
     !validIdentifier(metadata.logicalDatabaseId) ||
     !validIdentifier(metadata.logicalShardId) ||
     !validIdentifier(metadata.physicalShardId) ||
-    !Number.isSafeInteger(metadata.topologyVersion) ||
-    metadata.topologyVersion < 1 ||
-    (metadata.capacityState !== undefined && metadata.capacityState !== "ADMITTED" && metadata.capacityState !== "BLOCKED")
+    !validVersion(metadata.shardMapVersion) ||
+    !validVersion(metadata.controlEpoch) ||
+    !validIdentifier(metadata.createdAt) ||
+    !validIdentifier(metadata.updatedAt) ||
+    !Object.prototype.hasOwnProperty.call(metadata, "capacityState") ||
+    (metadata.capacityState !== "ADMITTED" && metadata.capacityState !== "BLOCKED")
   ) {
     throw new PlacementError("INVALID_METADATA", "invalid shard metadata");
   }
+  validateKeySpace(metadata.keySpace);
 }
 
 function validateRequest(request: PlacementRequest): void {
   if (
     !validIdentifier(request.logicalDatabaseId) ||
-    !validIdentifier(request.logicalShardId) ||
-    !Number.isSafeInteger(request.topologyVersion) ||
-    request.topologyVersion < 1
+    !validIdentifier(request.logicalShardKey) ||
+    !validVersion(request.shardMapVersion)
   ) {
     throw new PlacementError("INVALID_REQUEST", "invalid placement request");
   }
 }
 
+function keyInRange(key: string, keySpace: KeySpace): boolean {
+  return key >= keySpace.lowerInclusive && key < keySpace.upperExclusive;
+}
+
 export function resolvePlacement(
   request: PlacementRequest,
   metadata: readonly ShardMetadata[],
-): PlacementResult {
+): TargetShardLocation {
   validateRequest(request);
 
-  const matches = metadata.filter(
-    (entry) =>
-      entry.logicalDatabaseId === request.logicalDatabaseId &&
-      entry.logicalShardId === request.logicalShardId,
+  const sameDatabase = metadata.filter((entry) => entry.logicalDatabaseId === request.logicalDatabaseId);
+  if (sameDatabase.length === 0) {
+    throw new PlacementError("MISSING_PLACEMENT", "no placement metadata exists for the requested logical database");
+  }
+
+  for (const entry of sameDatabase) validateMetadata(entry);
+
+  const versionMatches = sameDatabase.filter((entry) => entry.shardMapVersion === request.shardMapVersion);
+  if (versionMatches.length === 0) {
+    throw new PlacementError("STALE_VERSION", "requested shard map version is not published for this database");
+  }
+
+  const activeMatches = versionMatches.filter(
+    (entry) => entry.shardStatus === "ACTIVE" && entry.capacityState === "ADMITTED" && keyInRange(request.logicalShardKey, entry.keySpace),
   );
 
-  if (matches.length === 0) {
-    throw new PlacementError("MISSING_PLACEMENT", "no placement metadata exists for the requested logical shard");
+  if (activeMatches.length === 0) {
+    throw new PlacementError("MISSING_PLACEMENT", "no active placement covers the requested shard key");
   }
 
-  for (const entry of matches) validateMetadata(entry);
-
-  const versionMatches = matches.filter((entry) => entry.topologyVersion === request.topologyVersion);
-  if (versionMatches.length === 0) {
-    throw new PlacementError("STALE_VERSION", "requested topology version is not published for this placement");
-  }
-
-  const activeMatches = versionMatches.filter((entry) => entry.lifecycle === "ACTIVE");
   if (activeMatches.length !== 1) {
     throw new PlacementError("AMBIGUOUS_PLACEMENT", "placement must resolve to exactly one active physical shard");
   }
 
   const selected = activeMatches[0];
-  if (selected.capacityState === "BLOCKED") {
-    throw new PlacementError("CAPACITY_BLOCKED", "placement target is currently blocked by capacity admission state");
-  }
-
   return {
-    logicalDatabaseId: request.logicalDatabaseId,
-    logicalShardId: request.logicalShardId,
+    logicalDatabaseId: selected.logicalDatabaseId,
+    logicalShardId: selected.logicalShardId,
     physicalShardId: selected.physicalShardId,
-    topologyVersion: request.topologyVersion,
+    shardMapVersion: selected.shardMapVersion,
+    shardStatus: "ACTIVE",
+    keySpace: selected.keySpace,
+    controlEpoch: selected.controlEpoch,
   };
 }
