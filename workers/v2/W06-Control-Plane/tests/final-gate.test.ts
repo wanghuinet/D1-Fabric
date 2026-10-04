@@ -6,173 +6,107 @@ import { planMigration, transitionMigrationPhase } from "../src/migration.ts";
 import { resolvePlacement } from "../src/placement.ts";
 import { planRebalance } from "../src/rebalance.ts";
 
-test("final gate: one published version is the authoritative placement source", () => {
-  const registry = new MetadataRegistry();
-  const snapshot: MetadataSnapshot = {
-    logicalDatabaseId: "db-gate",
-    topologyVersion: 7,
+function snapshot(logicalDatabaseId: string, shardMapVersion: number, controlEpoch: number): MetadataSnapshot {
+  return {
+    logicalDatabaseId,
+    shardMapVersion,
+    controlEpoch,
     shards: [
       {
-        logicalDatabaseId: "db-gate",
+        logicalDatabaseId,
         logicalShardId: "ls-0",
         physicalShardId: "ps-0",
-        topologyVersion: 7,
-        lifecycle: "ACTIVE",
+        shardMapVersion,
+        shardStatus: "ACTIVE",
+        keySpace: { lowerInclusive: "0000", upperExclusive: "8000" },
+        controlEpoch,
         capacityState: "ADMITTED",
-        creationTimestamp: 1,
-        lastTransitionTimestamp: 1,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
       },
       {
-        logicalDatabaseId: "db-gate",
+        logicalDatabaseId,
         logicalShardId: "ls-1",
         physicalShardId: "ps-1",
-        topologyVersion: 7,
-        lifecycle: "ACTIVE",
+        shardMapVersion,
+        shardStatus: "ACTIVE",
+        keySpace: { lowerInclusive: "8000", upperExclusive: "ffff" },
+        controlEpoch,
         capacityState: "ADMITTED",
-        creationTimestamp: 1,
-        lastTransitionTimestamp: 1,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
       },
     ],
   };
-  registry.publish(snapshot);
-  const published = registry.read("db-gate", 7);
-  assert.deepEqual(resolvePlacement(
-    { logicalDatabaseId: "db-gate", logicalShardId: "ls-1", topologyVersion: 7 },
-    published.shards.map((shard) => ({
-      logicalDatabaseId: shard.logicalDatabaseId,
-      logicalShardId: shard.logicalShardId,
-      physicalShardId: shard.physicalShardId,
-      topologyVersion: shard.topologyVersion,
-      lifecycle: shard.lifecycle,
-    })),
-  ), {
-    logicalDatabaseId: "db-gate",
-    logicalShardId: "ls-1",
-    physicalShardId: "ps-1",
-    topologyVersion: 7,
-  });
+}
 
+test("final gate: one published version is the authoritative placement source", () => {
+  const registry = new MetadataRegistry();
+  const input = snapshot("db-gate", 7, 3);
+  registry.publish(input);
+  const published = registry.read("db-gate", 7);
+  const placement = resolvePlacement(
+    { logicalDatabaseId: "db-gate", logicalShardKey: "ffff", shardMapVersion: 7 },
+    published.shards,
+  );
+  assert.equal(placement.physicalShardId, "ps-1");
+  assert.equal(placement.shardMapVersion, 7);
+  assert.equal(placement.controlEpoch, 3);
   assert.throws(() => registry.read("db-gate", 6));
 });
 
 test("final gate: expansion only increases capacity and derives explicit migration work", async () => {
-  const sourceSnapshot: MetadataSnapshot = {
-    logicalDatabaseId: "db-exp",
-    topologyVersion: 10,
-    shards: [
-      {
-        logicalDatabaseId: "db-exp",
-        logicalShardId: "ls-0",
-        physicalShardId: "ps-0",
-        topologyVersion: 10,
-        lifecycle: "ACTIVE",
-        capacityState: "ADMITTED",
-        creationTimestamp: 1,
-        lastTransitionTimestamp: 1,
-      },
-      {
-        logicalDatabaseId: "db-exp",
-        logicalShardId: "ls-1",
-        physicalShardId: "ps-1",
-        topologyVersion: 10,
-        lifecycle: "ACTIVE",
-        capacityState: "ADMITTED",
-        creationTimestamp: 1,
-        lastTransitionTimestamp: 1,
-      },
-    ],
-  };
-
+  const sourceSnapshot = snapshot("db-exp", 10, 3);
   const request = {
     sourceSnapshot,
-    targetTopologyVersion: 11,
+    targetShardMapVersion: 11,
+    targetControlEpoch: 3,
     newPhysicalShardIds: ["ps-2", "ps-3"],
     placementChanges: [
-      {
-        logicalShardId: "ls-0",
-        sourcePhysicalShardId: "ps-0",
-        targetPhysicalShardId: "ps-2",
-      },
+      { logicalShardId: "ls-0", sourcePhysicalShardId: "ps-0", targetPhysicalShardId: "ps-2" },
     ],
   };
   const first = await planExpansion(request);
   const second = await planExpansion(request);
   assert.equal(first.planId, second.planId);
-  assert.deepEqual(first.existingPhysicalShardIds, ["ps-0", "ps-1"]);
-  assert.deepEqual(first.proposedNewPhysicalShardIds, ["ps-2", "ps-3"]);
-  assert.deepEqual(first.migrationRequirements, [
-    {
-      logicalShardId: "ls-0",
-      sourcePhysicalShardId: "ps-0",
-      targetPhysicalShardId: "ps-2",
-    },
-  ]);
-  assert.notEqual(first.sourceTopologyVersion, first.targetTopologyVersion);
+  assert.deepEqual(first.migrationRequirements, [{
+    logicalShardId: "ls-0",
+    sourcePhysicalShardId: "ps-0",
+    targetPhysicalShardId: "ps-2",
+  }]);
+  assert.notEqual(first.sourceShardMapVersion, first.targetShardMapVersion);
 });
 
-test("final gate: migration remains an explicit state machine", async () => {
+test("final gate: migration remains the explicit v1.1 state machine", async () => {
   const plan = await planMigration({
     logicalDatabaseId: "db-mig",
     logicalShardId: "ls-0",
     sourcePhysicalShardId: "ps-0",
     targetPhysicalShardId: "ps-1",
-    sourceTopologyVersion: 20,
-    targetTopologyVersion: 21,
+    sourceShardMapVersion: 20,
+    targetShardMapVersion: 21,
+    controlEpoch: 5,
   });
   const phases = [
-    "PLANNED",
-    "COPYING",
-    "VERIFYING",
-    "CUTOVER_READY",
-    "CUTOVER",
-    "COMPLETE",
+    "PREPARED", "COPYING", "COPIED", "CHECKSUMMING", "RECONCILING", "VERIFIED",
+    "APPROVED", "PUBLISHED", "CUTOVER", "DRAINING", "RETIRED", "CLEANUP",
   ] as const;
   let current = plan.phase;
-  for (const next of phases.slice(1)) {
-    current = transitionMigrationPhase(current, next);
-  }
-  assert.equal(current, "COMPLETE");
+  for (const next of phases.slice(1)) current = transitionMigrationPhase(current, next);
+  assert.equal(current, "CLEANUP");
 });
 
 test("final gate: rebalance exposes only explicit ownership changes", async () => {
-  const snapshot: MetadataSnapshot = {
-    logicalDatabaseId: "db-reb",
-    topologyVersion: 30,
-    shards: [
-      {
-        logicalDatabaseId: "db-reb",
-        logicalShardId: "ls-0",
-        physicalShardId: "ps-0",
-        topologyVersion: 30,
-        lifecycle: "ACTIVE",
-        capacityState: "ADMITTED",
-        creationTimestamp: 1,
-        lastTransitionTimestamp: 1,
-      },
-      {
-        logicalDatabaseId: "db-reb",
-        logicalShardId: "ls-1",
-        physicalShardId: "ps-1",
-        topologyVersion: 30,
-        lifecycle: "ACTIVE",
-        capacityState: "ADMITTED",
-        creationTimestamp: 1,
-        lastTransitionTimestamp: 1,
-      },
-    ],
-  };
-
   const plan = await planRebalance({
-    sourceSnapshot: snapshot,
-    targetTopologyVersion: 31,
+    sourceSnapshot: snapshot("db-reb", 30, 6),
+    targetShardMapVersion: 31,
+    controlEpoch: 6,
     assignments: [
       { logicalShardId: "ls-0", sourcePhysicalShardId: "ps-0", targetPhysicalShardId: "ps-1" },
       { logicalShardId: "ls-1", sourcePhysicalShardId: "ps-1", targetPhysicalShardId: "ps-0" },
     ],
   });
-
   assert.equal(plan.ownershipChanges.length, 2);
   assert.deepEqual(plan.ownershipChanges, plan.assignments);
-  assert.equal(typeof plan.planId, "string");
   assert.ok(plan.planId.startsWith("reb-30-31-"));
 });
