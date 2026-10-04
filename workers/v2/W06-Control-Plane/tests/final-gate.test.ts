@@ -46,7 +46,7 @@ test("final gate: one published version is the authoritative placement source", 
   registry.publish(input);
   const published = registry.read("db-gate", 7);
   const placement = resolvePlacement(
-    { logicalDatabaseId: "db-gate", logicalShardKey: "ffff", shardMapVersion: 7 },
+    { logicalDatabaseId: "db-gate", logicalShardKey: "fffe", shardMapVersion: 7 },
     published.shards,
   );
   assert.equal(placement.physicalShardId, "ps-1");
