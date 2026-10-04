@@ -193,3 +193,14 @@ test("semicolon inside a quoted SQL literal is accepted", async () => {
   const result = await executeWrite(db, identity(), { statement: "UPDATE business SET value='a;b' WHERE id=?", bindings: ["1"], retryable: false });
   assert.equal(result.status, "COMMITTED");
 });
+
+ 
+test("retryable writes fail closed when the target lacks atomic batch capability", async () => {
+  const db = new MockDb();
+  const noBatch = { prepare: db.prepare.bind(db) } as unknown as D1DatabaseLike;
+  await assert.rejects(
+    () => executeWrite(noBatch, identity(), retryableOperation),
+    (error: unknown) => error instanceof WriteExecutionError && error.code === "TARGET_UNSUPPORTED",
+  );
+  assert.equal(db.prepared.length, 0);
+});

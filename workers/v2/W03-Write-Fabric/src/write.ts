@@ -1,3 +1,4 @@
+import { inspectD1Capabilities } from "./provider-capabilities.ts";
 export const MASTER_CONTRACT_VERSION = "D1F-3.0-MASTER-v1.0" as const;
 export const ARCHITECTURE_ID = "D1F-3.0-ARCH-v1.0" as const;
 export const IDEMPOTENCY_TABLE = "__d1f_idempotency" as const;
@@ -111,6 +112,8 @@ export async function executeWrite(db: D1DatabaseLike, identity: WriteIdentity, 
   if (!identity.logicalTargetId) throw new WriteExecutionError("TARGET_REQUIRED", "logicalTargetId is required");
 
   if (operation.retryable) {
+    const capabilities = inspectD1Capabilities(db);
+    if (!capabilities.atomicBatch) throw new WriteExecutionError("TARGET_UNSUPPORTED", "retryable writes require atomic D1 batch capability");
     const key = operation.idempotencyKey as string;
     ensureBudget(identity, 1, 0, 0, 0);
     const existing = await replayState(db, identity, key);

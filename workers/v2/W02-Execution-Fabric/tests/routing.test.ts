@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { routeExecutionPlan, RoutingError, type RoutingMap } from "../src/routing.ts";
+import { routeExecutionPlan, RoutingError, RoutingSnapshotStore, type RoutingMap } from "../src/routing.ts";
 import type { ExecutionPlan } from "../src/plan.ts";
 
 const plan = Object.freeze({
@@ -63,4 +63,44 @@ test("P05.1 never exposes physical storage identifiers", () => {
   const result = routeExecutionPlan(plan, "keyA", map);
   const text = JSON.stringify(result).toLowerCase();
   for (const forbidden of ["physical", "d1", "sql", "databaseid"]) assert.equal(text.includes(forbidden), false);
+});
+
+ 
+test("versioned routing snapshots are exact-match and bounded", () => {
+  const store = new RoutingSnapshotStore(2);
+  store.publish("7", map);
+  store.publish("8", Object.freeze({
+    t1: Object.freeze({ keyA: Object.freeze({ logicalTargetId: "logical-8", mapVersion: "8" }) }),
+  }));
+  store.publish("9", Object.freeze({
+    t1: Object.freeze({ keyA: Object.freeze({ logicalTargetId: "logical-9", mapVersion: "9" }) }),
+  }));
+  assert.deepEqual(store.versions(), ["9", "8"]);
+  assert.equal(store.get("7"), undefined);
+  const routed = store.resolve(plan, "keyA", "8");
+  assert.equal(routed.logicalTargetId, "logical-8");
+  assert.throws(
+    () => store.resolve(plan, "keyA", "7"),
+    (error: unknown) => error instanceof RoutingError && error.code === "ROUTING_SNAPSHOT_NOT_FOUND",
+  );
+});
+
+test("publishing the same snapshot version replaces only that version", () => {
+  const store = new RoutingSnapshotStore();
+  store.publish("7", map);
+  const replacement = Object.freeze({
+    t1: Object.freeze({ keyA: Object.freeze({ logicalTargetId: "logical-replacement", mapVersion: "7" }) }),
+  });
+  store.publish("7", replacement);
+  assert.deepEqual(store.versions(), ["7"]);
+  assert.equal(store.get("7")?.routingMap.t1.keyA.logicalTargetId, "logical-replacement");
+});
+
+test("snapshot history never silently upgrades to another version", () => {
+  const store = new RoutingSnapshotStore();
+  store.publish("7", map);
+  assert.throws(
+    () => store.resolve(plan, "keyA", "8"),
+    (error: unknown) => error instanceof RoutingError && error.code === "ROUTING_SNAPSHOT_NOT_FOUND",
+  );
 });

@@ -71,3 +71,65 @@ export function routeExecutionPlan(
     mapVersion,
   });
 }
+
+export interface VersionedRoutingSnapshot {
+  readonly version: string;
+  readonly routingMap: RoutingMap;
+}
+
+export class RoutingSnapshotStore {
+  private readonly snapshots: VersionedRoutingSnapshot[] = [];
+  private readonly maxSnapshots: number;
+
+  constructor(maxSnapshots = 3) {
+    if (!Number.isSafeInteger(maxSnapshots) || maxSnapshots < 1 || maxSnapshots > 16) {
+      throw new RoutingError("ROUTING_MAP_INVALID", "maxSnapshots must be between 1 and 16");
+    }
+    this.maxSnapshots = maxSnapshots;
+  }
+
+  publish(version: string, routingMap: RoutingMap): VersionedRoutingSnapshot {
+    token(version, "snapshot version");
+    const normalized = normalizeRoutingMap(routingMap);
+    const existing = this.snapshots.findIndex((snapshot) => snapshot.version === version);
+    if (existing >= 0) this.snapshots.splice(existing, 1);
+    const snapshot = Object.freeze({ version, routingMap: normalized });
+    this.snapshots.unshift(snapshot);
+    if (this.snapshots.length > this.maxSnapshots) this.snapshots.length = this.maxSnapshots;
+    return snapshot;
+  }
+
+  get(version: string): VersionedRoutingSnapshot | undefined {
+    token(version, "snapshot version");
+    return this.snapshots.find((snapshot) => snapshot.version === version);
+  }
+
+  resolve(plan: ExecutionPlan, routingKey: string, version: string): RoutingResult {
+    const snapshot = this.get(version);
+    if (!snapshot) {
+      throw new RoutingError("ROUTING_SNAPSHOT_NOT_FOUND", "routing snapshot " + version + " is not available");
+    }
+    return routeExecutionPlan(plan, routingKey, snapshot.routingMap);
+  }
+
+  versions(): readonly string[] {
+    return Object.freeze(this.snapshots.map((snapshot) => snapshot.version));
+  }
+}
+
+function normalizeRoutingMap(routingMap: RoutingMap): RoutingMap {
+  const root = object(routingMap, "routingMap");
+  const normalizedRoot: Record<string, TenantRoutingMap> = {};
+  for (const [tenantId, tenantValue] of Object.entries(root)) {
+    const tenantMap = object(tenantValue, "tenant routing map: " + tenantId);
+    const normalizedTenant: Record<string, RoutingEntry> = {};
+    for (const [key, entryValue] of Object.entries(tenantMap)) {
+      const entry = object(entryValue, "routing entry: " + tenantId + "/" + key);
+      const logicalTargetId = token(entry.logicalTargetId, "logicalTargetId");
+      const mapVersion = token(entry.mapVersion, "mapVersion");
+      normalizedTenant[key] = Object.freeze({ logicalTargetId, mapVersion });
+    }
+    normalizedRoot[tenantId] = Object.freeze(normalizedTenant);
+  }
+  return Object.freeze(normalizedRoot);
+}
