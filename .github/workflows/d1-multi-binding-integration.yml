@@ -15,6 +15,7 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       WRANGLER_VERSION: 4.130.0
+      SMOKE_DIR: /home/runner/work/_temp/d1-fabric-smoke
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,7 +38,6 @@ jobs:
           set -euo pipefail
           echo "DB_A_NAME=d1-fabric-it-a" >> "${GITHUB_ENV}"
           echo "DB_B_NAME=d1-fabric-it-b" >> "${GITHUB_ENV}"
-          echo "SMOKE_DIR=${RUNNER_TEMP}/d1-fabric-smoke" >> "${GITHUB_ENV}"
 
       - name: Create or reuse D1-A
         shell: bash
