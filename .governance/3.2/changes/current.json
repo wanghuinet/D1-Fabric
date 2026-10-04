@@ -1,12 +1,13 @@
 {
-  "change_id": "CHG-3.2-015",
+  "change_id": "CHG-3.2-016",
   "actor": {"type": "automation", "id": "gpt-architecture-governance"},
   "target_environment": "dev",
   "risk": "controlled",
-  "owners": ["governance"],
-  "capabilities": ["governance.machine-enforcement"],
-  "resources": [".governance/3.2/changes", ".governance/3.2/kernel", "tools/governance"],
+  "owners": ["governance", "W03"],
+  "capabilities": ["governance.machine-enforcement", "relational.sql"],
+  "resources": [".github/workflows", ".governance/3.2/changes"],
   "files": [
+    ".github/workflows/d1-multi-binding-integration.yml",
     ".governance/3.2/changes/current.json"
   ],
   "evidence_artifacts": [
@@ -19,10 +20,10 @@
   ],
   "policy_version": "3.2.6",
   "verification_plan": [
-    "record trusted Governance workflow and structural-gate job identity",
-    "allow only the canonical kernel evidence producer as verifier",
-    "bind CI event/ref provenance to generated evidence",
-    "preserve architecture and runtime admission separation"
+    "create two ephemeral Cloudflare D1 databases through GitHub Actions credentials",
+    "bind both remote D1 databases to an ephemeral Worker session",
+    "exercise physical-target resolution, single-target write execution, idempotent replay, and topology-version fail-closed behavior",
+    "upload runtime evidence and delete all ephemeral resources in finally-style cleanup"
   ],
   "recovery_class": "controlled",
   "expiry": "9999-12-31T23:59:59Z",
