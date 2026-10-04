@@ -8,7 +8,8 @@ export interface ExpansionPlacementChange {
 
 export interface ExpansionRequest {
   sourceSnapshot: MetadataSnapshot;
-  targetTopologyVersion: number;
+  targetShardMapVersion: number;
+  targetControlEpoch: number;
   newPhysicalShardIds: readonly string[];
   placementChanges?: readonly ExpansionPlacementChange[];
 }
@@ -21,8 +22,10 @@ export interface ExpansionMigrationRequirement {
 
 export interface ExpansionPlan {
   logicalDatabaseId: string;
-  sourceTopologyVersion: number;
-  targetTopologyVersion: number;
+  sourceShardMapVersion: number;
+  targetShardMapVersion: number;
+  sourceControlEpoch: number;
+  targetControlEpoch: number;
   existingPhysicalShardIds: readonly string[];
   proposedNewPhysicalShardIds: readonly string[];
   placementChanges: readonly ExpansionPlacementChange[];
@@ -64,7 +67,8 @@ function sortedUnique(values: readonly string[]): string[] {
 
 function canonicalize(
   source: MetadataSnapshot,
-  targetTopologyVersion: number,
+  targetShardMapVersion: number,
+  targetControlEpoch: number,
   newPhysicalShardIds: readonly string[],
   placementChanges: readonly ExpansionPlacementChange[],
 ): string {
@@ -72,8 +76,11 @@ function canonicalize(
     .map((shard) => ({
       logicalShardId: shard.logicalShardId,
       physicalShardId: shard.physicalShardId,
-      lifecycle: shard.lifecycle,
+      shardStatus: shard.shardStatus,
       capacityState: shard.capacityState,
+      shardMapVersion: shard.shardMapVersion,
+      controlEpoch: shard.controlEpoch,
+      keySpace: shard.keySpace,
     }))
     .sort((a, b) => a.logicalShardId.localeCompare(b.logicalShardId));
   const changes = [...placementChanges]
@@ -85,8 +92,10 @@ function canonicalize(
     );
   return JSON.stringify({
     logicalDatabaseId: source.logicalDatabaseId,
-    sourceTopologyVersion: source.topologyVersion,
-    targetTopologyVersion,
+    sourceShardMapVersion: source.shardMapVersion,
+    targetShardMapVersion,
+    sourceControlEpoch: source.controlEpoch,
+    targetControlEpoch,
     shards,
     newPhysicalShardIds: sortedUnique(newPhysicalShardIds),
     placementChanges: changes,
@@ -108,9 +117,14 @@ export async function planExpansion(request: ExpansionRequest): Promise<Expansio
   }
 
   validateSnapshot(request.sourceSnapshot);
-  const sourceVersion = request.sourceSnapshot.topologyVersion;
-  if (!validVersion(request.targetTopologyVersion) || request.targetTopologyVersion <= sourceVersion) {
-    throw new ExpansionError("INVALID_VERSION", "target topology version must be greater than source version");
+  const sourceVersion = request.sourceSnapshot.shardMapVersion;
+  const sourceEpoch = request.sourceSnapshot.controlEpoch;
+
+  if (!validVersion(request.targetShardMapVersion) || request.targetShardMapVersion <= sourceVersion) {
+    throw new ExpansionError("INVALID_VERSION", "target shard map version must be greater than source version");
+  }
+  if (!validVersion(request.targetControlEpoch) || request.targetControlEpoch < sourceEpoch) {
+    throw new ExpansionError("INVALID_VERSION", "target control epoch must not move backwards");
   }
 
   if (!Array.isArray(request.newPhysicalShardIds) || request.newPhysicalShardIds.length === 0) {
@@ -127,6 +141,7 @@ export async function planExpansion(request: ExpansionRequest): Promise<Expansio
   const existingSet = new Set(existingPhysicalShardIds);
   const newPhysicalShardIds = [...request.newPhysicalShardIds].sort();
   const newSet = new Set<string>();
+
   for (const id of newPhysicalShardIds) {
     if (newSet.has(id)) {
       throw new ExpansionError("DUPLICATE_NEW_SHARD", "new physical shard identifiers must be unique");
@@ -140,7 +155,7 @@ export async function planExpansion(request: ExpansionRequest): Promise<Expansio
   const changes = [...(request.placementChanges ?? [])];
   const logicalOwners = new Map(request.sourceSnapshot.shards.map((shard) => [shard.logicalShardId, shard.physicalShardId]));
   const changedLogicalShards = new Set<string>();
-  const targetPhysicalShards = new Set<string>(existingPhysicalShardIds.filter((id) => !changes.some((change) => change.sourcePhysicalShardId === id)));
+  const usedTargets = new Set<string>();
 
   for (const change of changes) {
     if (
@@ -150,16 +165,22 @@ export async function planExpansion(request: ExpansionRequest): Promise<Expansio
       changedLogicalShards.has(change.logicalShardId) ||
       logicalOwners.get(change.logicalShardId) !== change.sourcePhysicalShardId ||
       !newSet.has(change.targetPhysicalShardId) ||
-      targetPhysicalShards.has(change.targetPhysicalShardId)
+      usedTargets.has(change.targetPhysicalShardId)
     ) {
       throw new ExpansionError("INVALID_PLACEMENT_CHANGE", "placement changes must explicitly move one existing logical shard to one new physical shard");
     }
     changedLogicalShards.add(change.logicalShardId);
-    targetPhysicalShards.add(change.targetPhysicalShardId);
+    usedTargets.add(change.targetPhysicalShardId);
   }
 
-  const canonical = canonicalize(request.sourceSnapshot, request.targetTopologyVersion, newPhysicalShardIds, changes);
-  const planId = `exp-${request.sourceSnapshot.topologyVersion}-${request.targetTopologyVersion}-${await sha256Hex(canonical)}`;
+  const canonical = canonicalize(
+    request.sourceSnapshot,
+    request.targetShardMapVersion,
+    request.targetControlEpoch,
+    newPhysicalShardIds,
+    changes,
+  );
+  const planId = `exp-${sourceVersion}-${request.targetShardMapVersion}-${await sha256Hex(canonical)}`;
   const normalizedChanges = changes
     .map((change) => Object.freeze({ ...change }))
     .sort((a, b) => a.logicalShardId.localeCompare(b.logicalShardId));
@@ -173,8 +194,10 @@ export async function planExpansion(request: ExpansionRequest): Promise<Expansio
 
   return Object.freeze({
     logicalDatabaseId: request.sourceSnapshot.logicalDatabaseId,
-    sourceTopologyVersion: sourceVersion,
-    targetTopologyVersion: request.targetTopologyVersion,
+    sourceShardMapVersion: sourceVersion,
+    targetShardMapVersion: request.targetShardMapVersion,
+    sourceControlEpoch: sourceEpoch,
+    targetControlEpoch: request.targetControlEpoch,
     existingPhysicalShardIds: Object.freeze(existingPhysicalShardIds),
     proposedNewPhysicalShardIds: Object.freeze(newPhysicalShardIds),
     placementChanges: Object.freeze(normalizedChanges),
