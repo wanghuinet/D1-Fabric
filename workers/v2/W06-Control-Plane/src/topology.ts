@@ -13,18 +13,20 @@ export class TopologyTransitionError extends Error {
 }
 
 const legalTransitions: Readonly<Record<ShardLifecycle, readonly ShardLifecycle[]>> = {
-  PROVISIONING: ["ACTIVE"],
-  ACTIVE: ["DRAINING"],
-  DRAINING: ["MIGRATING"],
-  MIGRATING: ["ACTIVE", "RETIRED"],
+  REGISTERED: ["VALIDATING"],
+  VALIDATING: ["ACTIVE"],
+  ACTIVE: ["SPLITTING", "DRAINING"],
+  SPLITTING: ["ACTIVE", "DRAINING"],
+  DRAINING: ["RETIRED"],
   RETIRED: [],
 };
 
 const lifecycleValues = new Set<ShardLifecycle>([
-  "PROVISIONING",
+  "REGISTERED",
+  "VALIDATING",
   "ACTIVE",
+  "SPLITTING",
   "DRAINING",
-  "MIGRATING",
   "RETIRED",
 ]);
 
