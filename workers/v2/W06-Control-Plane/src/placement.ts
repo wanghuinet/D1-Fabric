@@ -36,6 +36,8 @@ export interface TargetShardLocation {
   controlEpoch: number;
 }
 
+export type PlacementResult = TargetShardLocation;
+
 export interface PlacementRequest {
   logicalDatabaseId: string;
   logicalShardKey: string;
