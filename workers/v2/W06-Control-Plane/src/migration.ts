@@ -1,15 +1,22 @@
 export type MigrationPhase =
-  | "PLANNED"
+  | "PREPARED"
   | "COPYING"
-  | "VERIFYING"
-  | "CUTOVER_READY"
+  | "COPIED"
+  | "CHECKSUMMING"
+  | "RECONCILING"
+  | "VERIFIED"
+  | "APPROVED"
+  | "PUBLISHED"
   | "CUTOVER"
-  | "COMPLETE";
+  | "DRAINING"
+  | "RETIRED"
+  | "CLEANUP";
 
 export interface MigrationPlanRequest {
   logicalDatabaseId: string;
-  sourceTopologyVersion: number;
-  targetTopologyVersion: number;
+  sourceShardMapVersion: number;
+  targetShardMapVersion: number;
+  controlEpoch: number;
   logicalShardId: string;
   sourcePhysicalShardId: string;
   targetPhysicalShardId: string;
@@ -20,8 +27,9 @@ export interface MigrationPlan {
   logicalShardId: string;
   sourcePhysicalShardId: string;
   targetPhysicalShardId: string;
-  sourceTopologyVersion: number;
-  targetTopologyVersion: number;
+  sourceShardMapVersion: number;
+  targetShardMapVersion: number;
+  controlEpoch: number;
   phase: MigrationPhase;
   planId: string;
 }
@@ -45,22 +53,21 @@ export class MigrationError extends Error {
 }
 
 const legalTransitions: Readonly<Record<MigrationPhase, readonly MigrationPhase[]>> = {
-  PLANNED: ["COPYING"],
-  COPYING: ["VERIFYING"],
-  VERIFYING: ["CUTOVER_READY"],
-  CUTOVER_READY: ["CUTOVER"],
-  CUTOVER: ["COMPLETE"],
-  COMPLETE: [],
+  PREPARED: ["COPYING"],
+  COPYING: ["COPIED"],
+  COPIED: ["CHECKSUMMING"],
+  CHECKSUMMING: ["RECONCILING"],
+  RECONCILING: ["VERIFIED"],
+  VERIFIED: ["APPROVED"],
+  APPROVED: ["PUBLISHED"],
+  PUBLISHED: ["CUTOVER"],
+  CUTOVER: ["DRAINING"],
+  DRAINING: ["RETIRED"],
+  RETIRED: ["CLEANUP"],
+  CLEANUP: [],
 };
 
-const phaseValues = new Set<MigrationPhase>([
-  "PLANNED",
-  "COPYING",
-  "VERIFYING",
-  "CUTOVER_READY",
-  "CUTOVER",
-  "COMPLETE",
-]);
+const phaseValues = new Set<MigrationPhase>(Object.keys(legalTransitions) as MigrationPhase[]);
 
 function validIdentifier(value: string): boolean {
   return typeof value === "string" && value.length > 0 && value.length <= 256;
@@ -76,8 +83,9 @@ function canonicalize(request: MigrationPlanRequest): string {
     logicalShardId: request.logicalShardId,
     sourcePhysicalShardId: request.sourcePhysicalShardId,
     targetPhysicalShardId: request.targetPhysicalShardId,
-    sourceTopologyVersion: request.sourceTopologyVersion,
-    targetTopologyVersion: request.targetTopologyVersion,
+    sourceShardMapVersion: request.sourceShardMapVersion,
+    targetShardMapVersion: request.targetShardMapVersion,
+    controlEpoch: request.controlEpoch,
   });
 }
 
@@ -114,25 +122,26 @@ export async function planMigration(request: MigrationPlanRequest): Promise<Migr
   ) {
     throw new MigrationError("INVALID_REQUEST", "migration identifiers are invalid");
   }
-  if (!validVersion(request.sourceTopologyVersion) || !validVersion(request.targetTopologyVersion)) {
-    throw new MigrationError("INVALID_VERSION", "migration topology versions are invalid");
+  if (!validVersion(request.sourceShardMapVersion) || !validVersion(request.targetShardMapVersion) || !validVersion(request.controlEpoch)) {
+    throw new MigrationError("INVALID_VERSION", "migration versions are invalid");
   }
-  if (request.targetTopologyVersion <= request.sourceTopologyVersion) {
-    throw new MigrationError("INVALID_VERSION", "migration target topology version must be newer than source version");
+  if (request.targetShardMapVersion <= request.sourceShardMapVersion) {
+    throw new MigrationError("INVALID_VERSION", "migration target shard map version must be newer than source version");
   }
   if (request.sourcePhysicalShardId === request.targetPhysicalShardId) {
     throw new MigrationError("IDENTICAL_SOURCE_AND_TARGET", "migration source and target physical shards must differ");
   }
 
-  const planId = `mig-${request.sourceTopologyVersion}-${request.targetTopologyVersion}-${await sha256Hex(canonicalize(request))}`;
+  const planId = `mig-${request.sourceShardMapVersion}-${request.targetShardMapVersion}-${await sha256Hex(canonicalize(request))}`;
   return Object.freeze({
     logicalDatabaseId: request.logicalDatabaseId,
     logicalShardId: request.logicalShardId,
     sourcePhysicalShardId: request.sourcePhysicalShardId,
     targetPhysicalShardId: request.targetPhysicalShardId,
-    sourceTopologyVersion: request.sourceTopologyVersion,
-    targetTopologyVersion: request.targetTopologyVersion,
-    phase: "PLANNED",
+    sourceShardMapVersion: request.sourceShardMapVersion,
+    targetShardMapVersion: request.targetShardMapVersion,
+    controlEpoch: request.controlEpoch,
+    phase: "PREPARED",
     planId,
   });
 }
