@@ -1,0 +1,352 @@
+name: D1 Multi-Binding Integration (Ephemeral)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    name: Real D1 A/B binding integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WRANGLER_VERSION: 4.130.0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Require Cloudflare credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_API_TOKEN}" || { echo "::error::CLOUDFLARE_API_TOKEN secret is missing"; exit 1; }
+          test -n "${CLOUDFLARE_ACCOUNT_ID}" || { echo "::error::CLOUDFLARE_ACCOUNT_ID secret is missing"; exit 1; }
+
+      - name: Allocate names
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "DB_A_NAME=d1-fabric-it-a-${GITHUB_RUN_ID}" >> "${GITHUB_ENV}"
+          echo "DB_B_NAME=d1-fabric-it-b-${GITHUB_RUN_ID}" >> "${GITHUB_ENV}"
+          echo "SMOKE_DIR=${RUNNER_TEMP}/d1-fabric-smoke" >> "${GITHUB_ENV}"
+
+      - name: Create D1-A
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${SMOKE_DIR}"
+          npx --yes wrangler@${WRANGLER_VERSION} d1 create "${DB_A_NAME}" --json > "${SMOKE_DIR}/create-a.json"
+          jq -e '.d1_databases[0].database_id' "${SMOKE_DIR}/create-a.json" > "${SMOKE_DIR}/db-a-id"
+          echo "DB_A_ID=$(cat "${SMOKE_DIR}/db-a-id")" >> "${GITHUB_ENV}"
+          cat "${SMOKE_DIR}/create-a.json"
+
+      - name: Create D1-B
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@${WRANGLER_VERSION} d1 create "${DB_B_NAME}" --json > "${SMOKE_DIR}/create-b.json"
+          jq -e '.d1_databases[0].database_id' "${SMOKE_DIR}/create-b.json" > "${SMOKE_DIR}/db-b-id"
+          echo "DB_B_ID=$(cat "${SMOKE_DIR}/db-b-id")" >> "${GITHUB_ENV}"
+          cat "${SMOKE_DIR}/create-b.json"
+
+      - name: Initialize D1-A and D1-B
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "${SMOKE_DIR}/schema.sql" <<'SQL'
+          CREATE TABLE IF NOT EXISTS __d1f_idempotency (
+            tenant_id TEXT NOT NULL,
+            principal_scope TEXT NOT NULL,
+            operation TEXT NOT NULL,
+            operation_version TEXT NOT NULL,
+            idempotency_key TEXT NOT NULL,
+            owner_request_id TEXT NOT NULL,
+            state TEXT NOT NULL CHECK (state IN ('IN_FLIGHT', 'COMMITTED', 'FAILED')),
+            affected_rows INTEGER,
+            created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+            committed_at INTEGER,
+            PRIMARY KEY (tenant_id, principal_scope, operation, operation_version, idempotency_key)
+          );
+          CREATE INDEX IF NOT EXISTS idx_d1f_idempotency_owner
+            ON __d1f_idempotency (tenant_id, principal_scope, owner_request_id);
+          CREATE TABLE IF NOT EXISTS smoke_items (
+            id TEXT PRIMARY KEY,
+            shard TEXT NOT NULL,
+            value TEXT NOT NULL
+          );
+          SQL
+          npx --yes wrangler@${WRANGLER_VERSION} d1 execute "${DB_A_NAME}" --remote --yes --file "${SMOKE_DIR}/schema.sql"
+          npx --yes wrangler@${WRANGLER_VERSION} d1 execute "${DB_B_NAME}" --remote --yes --file "${SMOKE_DIR}/schema.sql"
+
+      - name: Generate temporary two-binding Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${SMOKE_DIR}"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+
+          smoke = Path(os.environ["SMOKE_DIR"])
+          work = Path("workers/v2/W03-Write-Fabric/.tmp")
+          work.mkdir(parents=True, exist_ok=True)
+
+          catalog = {
+              "version": 1,
+              "targets": [
+                  {
+                      "logicalDatabaseId": "integration-db",
+                      "logicalShardId": "shard-a",
+                      "physicalShardId": "physical-a",
+                      "topologyVersion": 1,
+                      "physicalTargetId": "target-a",
+                      "bindingName": "DB_A",
+                      "admitted": True,
+                  },
+                  {
+                      "logicalDatabaseId": "integration-db",
+                      "logicalShardId": "shard-b",
+                      "physicalShardId": "physical-b",
+                      "topologyVersion": 1,
+                      "physicalTargetId": "target-b",
+                      "bindingName": "DB_B",
+                      "admitted": True,
+                  },
+              ],
+          }
+
+          config = "\n".join([
+              'name = "d1-fabric-ephemeral-d1-binding-smoke"',
+              'main = "smoke.ts"',
+              'compatibility_date = "2026-09-10"',
+              "",
+              "[vars]",
+              "PHYSICAL_TARGET_CATALOG_JSON = " + json.dumps(json.dumps(catalog, separators=(",", ":"))),
+              "",
+              "[[d1_databases]]",
+              'binding = "DB_A"',
+              f'database_name = {json.dumps(os.environ["DB_A_NAME"])}',
+              f'database_id = {json.dumps(os.environ["DB_A_ID"])}',
+              "",
+              "[[d1_databases]]",
+              'binding = "DB_B"',
+              f'database_name = {json.dumps(os.environ["DB_B_NAME"])}',
+              f'database_id = {json.dumps(os.environ["DB_B_ID"])}',
+              "",
+          ]) + "\n"
+          (work / "d1-binding-smoke.toml").write_text(config, encoding="utf-8")
+
+          script = r'''
+          import { resolvePhysicalTarget } from "../src/target.ts";
+          import {
+            ARCHITECTURE_ID,
+            MASTER_CONTRACT_VERSION,
+            executeWrite,
+            type D1DatabaseLike,
+            type WriteIdentity,
+          } from "../src/write.ts";
+
+          interface Env {
+            PHYSICAL_TARGET_CATALOG_JSON: string;
+            DB_A: D1DatabaseLike;
+            DB_B: D1DatabaseLike;
+          }
+
+          function makeIdentity(requestId: string, shardId: string, physicalShardId: string): WriteIdentity {
+            return {
+              requestId,
+              planId: "plan-d1-smoke",
+              contractId: "contract-d1-smoke",
+              contractVersion: MASTER_CONTRACT_VERSION,
+              architectureId: ARCHITECTURE_ID,
+              tenantId: "tenant-smoke",
+              principalScope: "smoke",
+              operation: "smoke_insert",
+              operationVersion: "v1",
+              logicalDatabaseId: "integration-db",
+              logicalShardId: shardId,
+              logicalTargetId: shardId === "shard-a" ? "target-a" : "target-b",
+              physicalShardId,
+              topologyVersion: 1,
+              executionEpoch: 1,
+              deadlineAt: Date.now() + 30_000,
+              budget: {
+                d1Statements: 5,
+                rowsWritten: 1,
+                payloadBytes: 10_000,
+                retries: 1,
+              },
+            };
+          }
+
+          async function probe(
+            env: Env,
+            shardId: "shard-a" | "shard-b",
+            physicalShardId: "physical-a" | "physical-b",
+            value: "A" | "B",
+          ) {
+            const target = resolvePhysicalTarget(env, {
+              logicalDatabaseId: "integration-db",
+              logicalShardId: shardId,
+              physicalShardId,
+              topologyVersion: 1,
+            });
+            const key = "smoke-" + shardId;
+            const operation = {
+              statement: "INSERT INTO smoke_items (id, shard, value) VALUES (?, ?, ?)",
+              bindings: [key, shardId, value] as const,
+              retryable: true as const,
+              idempotencyKey: key,
+              expectedWriteCount: 1,
+              atomicIdempotency: {
+                guardedMutation: {
+                  sql: "INSERT INTO smoke_items (id, shard, value) VALUES (?, ?, ?)",
+                  bindings: [key, shardId, value] as const,
+                },
+              },
+            };
+            const first = await executeWrite(
+              target.db,
+              makeIdentity("req-" + shardId, shardId, physicalShardId),
+              operation,
+            );
+            const replay = await executeWrite(
+              target.db,
+              makeIdentity("req-replay-" + shardId, shardId, physicalShardId),
+              operation,
+            );
+            const rows = await target.db.prepare(
+              "SELECT id, shard, value FROM smoke_items ORDER BY id",
+            ).all<{ id: string; shard: string; value: string }>();
+
+            return {
+              bindingName: target.bindingName,
+              physicalTargetId: target.physicalTargetId,
+              firstStatus: first.status,
+              replayStatus: replay.status,
+              rows: rows.results,
+            };
+          }
+
+          export default {
+            async fetch(request: Request, env: Env): Promise<Response> {
+              const pathname = new URL(request.url).pathname;
+              if (pathname === "/health") return Response.json({ status: "ok" });
+              if (pathname !== "/test") return Response.json({ error: "NOT_FOUND" }, { status: 404 });
+
+              try {
+                const a = await probe(env, "shard-a", "physical-a", "A");
+                const b = await probe(env, "shard-b", "physical-b", "B");
+
+                let mismatchCode = "";
+                try {
+                  resolvePhysicalTarget(env, {
+                    logicalDatabaseId: "integration-db",
+                    logicalShardId: "shard-a",
+                    physicalShardId: "physical-a",
+                    topologyVersion: 2,
+                  });
+                } catch (error) {
+                  mismatchCode = error instanceof Error && "code" in error
+                    ? String((error as { code?: unknown }).code)
+                    : "";
+                }
+
+                const pass =
+                  a.bindingName === "DB_A" &&
+                  a.physicalTargetId === "target-a" &&
+                  a.firstStatus === "COMMITTED" &&
+                  a.replayStatus === "REPLAYED" &&
+                  a.rows.length === 1 &&
+                  a.rows[0].shard === "shard-a" &&
+                  a.rows[0].value === "A" &&
+                  b.bindingName === "DB_B" &&
+                  b.physicalTargetId === "target-b" &&
+                  b.firstStatus === "COMMITTED" &&
+                  b.replayStatus === "REPLAYED" &&
+                  b.rows.length === 1 &&
+                  b.rows[0].shard === "shard-b" &&
+                  b.rows[0].value === "B" &&
+                  mismatchCode === "PHYSICAL_TARGET_VERSION_MISMATCH";
+
+                return Response.json({ status: pass ? "PASS" : "FAIL", a, b, mismatchCode });
+              } catch (error) {
+                return Response.json({
+                  status: "ERROR",
+                  message: error instanceof Error ? error.message : String(error),
+                }, { status: 500 });
+              }
+            },
+          };
+          '''
+          (work / "d1-binding-smoke.ts").write_text(script, encoding="utf-8")
+          (smoke / "worker-config.txt").write_text(config, encoding="utf-8")
+
+      - name: Run remote two-D1 binding test
+        shell: bash
+        working-directory: workers/v2/W03-Write-Fabric
+        run: |
+          set -euo pipefail
+          CI=1 npx --yes wrangler@${WRANGLER_VERSION} dev --remote --config ".tmp/d1-binding-smoke.toml" --ip 127.0.0.1 --port 8787 --log-level error --show-interactive-dev-session=false > "${SMOKE_DIR}/wrangler.log" 2>&1 &
+          echo $! > "${SMOKE_DIR}/wrangler.pid"
+          for _ in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8787/health > /dev/null; then
+              curl -fsS http://127.0.0.1:8787/test | tee "${SMOKE_DIR}/result.json"
+              python - <<'PY'
+          import json, os
+          from pathlib import Path
+          result = json.loads(Path(os.environ["SMOKE_DIR"], "result.json").read_text())
+          print(json.dumps(result, indent=2, ensure_ascii=False))
+          if result.get("status") != "PASS":
+              raise SystemExit("D1_MULTI_BINDING_TEST_FAILED")
+          PY
+              exit 0
+            fi
+            sleep 2
+          done
+          cat "${SMOKE_DIR}/wrangler.log"
+          exit 1
+
+      - name: Upload runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: d1-fabric-d1-multibinding-${{ github.run_id }}
+          path: ${{ runner.temp }}/d1-fabric-smoke
+          if-no-files-found: warn
+
+      - name: Stop remote dev
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          if test -f "${SMOKE_DIR}/wrangler.pid"; then
+            kill "$(cat "${SMOKE_DIR}/wrangler.pid")" 2>/dev/null || true
+          fi
+
+      - name: Delete D1-A
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          if test -n "${DB_A_NAME:-}"; then
+            npx --yes wrangler@${WRANGLER_VERSION} d1 delete "${DB_A_NAME}" --skip-confirmation
+          fi
+
+      - name: Delete D1-B
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          if test -n "${DB_B_NAME:-}"; then
+            npx --yes wrangler@${WRANGLER_VERSION} d1 delete "${DB_B_NAME}" --skip-confirmation
+          fi
