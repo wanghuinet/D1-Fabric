@@ -133,7 +133,7 @@ jobs:
 
           config = "\n".join([
               'name = "d1-fabric-ephemeral-d1-binding-smoke"',
-              'main = "smoke.ts"',
+              'main = "d1-binding-smoke.ts"',
               'compatibility_date = "2026-09-10"',
               "",
               "[vars]",
