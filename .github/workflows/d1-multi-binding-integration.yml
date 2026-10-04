@@ -1,4 +1,4 @@
-name: D1 Multi-Binding Integration (Ephemeral)
+# Disposable integration only: all D1 databases and the remote Worker session are deleted in cleanup.\nname: D1 Multi-Binding Integration (Ephemeral)
 
 on:
   workflow_dispatch:
