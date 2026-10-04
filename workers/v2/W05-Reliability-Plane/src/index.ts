@@ -10,8 +10,8 @@ import {
   type OperationDescriptor,
 } from "./reliability.ts";
 
-export { executeReliably, classifyFailure, retryDelayMs, RetryBudget, CircuitBreaker, ReliabilityError };
-export type { ExecuteOptions, ReliabilityPolicy, OperationDescriptor } from "./reliability.ts";
+export { executeReliably, classifyFailure, retryDelayMs, RetryBudget, CircuitBreaker, ReliabilityError };\nexport { PhaseCollector } from "./telemetry.ts";
+export type { ExecuteOptions, ReliabilityPolicy, OperationDescriptor } from "./reliability.ts";\nexport type { ReliabilityPhase, ReliabilityPhaseEvent, ReliabilityPhaseObserver } from "./telemetry.ts";
 
 interface ServiceBinding { fetch(request: Request): Promise<Response> }
 interface Env { W03?: ServiceBinding }

@@ -303,3 +303,27 @@ test("invalid reliability policy is rejected before execution", async () => {
     (error: unknown) => error instanceof ReliabilityError && error.code === "INVALID_POLICY",
   );
 });
+
+test("phase observer reports attempts and backoff without affecting execution", async () => {
+  const events: string[] = [];
+  let calls = 0;
+  const observer = (event: { phase: string; outcome: string }) => {
+    events.push(event.phase + ":" + event.outcome);
+    if (events.length === 1) throw new Error("observer failure must be isolated");
+  };
+  const result = await executeReliably(async () => {
+    calls += 1;
+    if (calls === 1) throw new Error("Network connection lost");
+    return "ok";
+  }, {
+    policy,
+    retryBudget: new RetryBudget({ capacity: 2, refillRate: 0 }, () => 0),
+    operation: { kind: "read", idempotent: true, target: "db-1" },
+    sleep: async () => undefined,
+    observer,
+    onPhase: observer,
+  });
+  assert.equal(result, "ok");
+  assert.equal(calls, 2);
+  assert.deepEqual(events, ["attempt:failure", "backoff:completed", "attempt:success"]);
+});
