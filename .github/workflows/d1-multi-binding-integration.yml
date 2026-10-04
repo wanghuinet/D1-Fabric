@@ -31,6 +31,7 @@ jobs:
           set -euo pipefail
           test -n "${CLOUDFLARE_API_TOKEN}" || { echo "::error::CLOUDFLARE_API_TOKEN secret is missing"; exit 1; }
           test -n "${CLOUDFLARE_ACCOUNT_ID}" || { echo "::error::CLOUDFLARE_ACCOUNT_ID secret is missing"; exit 1; }
+          echo "CLOUDFLARE_CREDENTIALS_PRESENT=true" >> "${GITHUB_ENV}"
 
       - name: Allocate names
         shell: bash
@@ -329,10 +330,11 @@ jobs:
         run: |
           set -euo pipefail
           {
-            echo "DB_A_NAME=${DB_A_NAME}"
-            echo "DB_A_ID=${DB_A_ID:-}"
-            echo "DB_B_NAME=${DB_B_NAME}"
-            echo "DB_B_ID=${DB_B_ID:-}"
+            echo "DB_A_NAME=${DB_A_NAME:-UNSET}"
+            echo "DB_A_ID=${DB_A_ID:-UNSET}"
+            echo "DB_B_NAME=${DB_B_NAME:-UNSET}"
+            echo "DB_B_ID=${DB_B_ID:-UNSET}"
+            echo "CLOUDFLARE_CREDENTIALS_PRESENT=${CLOUDFLARE_CREDENTIALS_PRESENT:-false}"
             echo "LIFECYCLE=RETAINED_FOR_FOLLOW_UP_TESTS"
           } > "${SMOKE_DIR}/environment.txt"
 
