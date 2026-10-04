@@ -320,7 +320,6 @@ test("phase observer reports attempts and backoff without affecting execution", 
     retryBudget: new RetryBudget({ capacity: 2, refillRate: 0 }, () => 0),
     operation: { kind: "read", idempotent: true, target: "db-1" },
     sleep: async () => undefined,
-    observer,
     onPhase: observer,
   });
   assert.equal(result, "ok");
