@@ -8,14 +8,16 @@ export interface RebalanceAssignment {
 
 export interface RebalanceRequest {
   sourceSnapshot: MetadataSnapshot;
-  targetTopologyVersion: number;
+  targetShardMapVersion: number;
+  controlEpoch: number;
   assignments: readonly RebalanceAssignment[];
 }
 
 export interface RebalancePlan {
   logicalDatabaseId: string;
-  sourceTopologyVersion: number;
-  targetTopologyVersion: number;
+  sourceShardMapVersion: number;
+  targetShardMapVersion: number;
+  controlEpoch: number;
   assignments: readonly RebalanceAssignment[];
   ownershipChanges: readonly RebalanceAssignment[];
   planId: string;
@@ -50,11 +52,12 @@ function validVersion(value: number): boolean {
   return Number.isSafeInteger(value) && value >= 1;
 }
 
-function canonicalize(source: MetadataSnapshot, targetTopologyVersion: number, assignments: readonly RebalanceAssignment[]): string {
+function canonicalize(source: MetadataSnapshot, targetShardMapVersion: number, controlEpoch: number, assignments: readonly RebalanceAssignment[]): string {
   return JSON.stringify({
     logicalDatabaseId: source.logicalDatabaseId,
-    sourceTopologyVersion: source.topologyVersion,
-    targetTopologyVersion,
+    sourceShardMapVersion: source.shardMapVersion,
+    targetShardMapVersion,
+    controlEpoch,
     assignments: [...assignments]
       .map((assignment) => ({ ...assignment }))
       .sort((a, b) =>
@@ -78,9 +81,14 @@ export async function planRebalance(request: RebalanceRequest): Promise<Rebalanc
   if (!request || !request.sourceSnapshot || !Array.isArray(request.assignments)) {
     throw new RebalanceError("INVALID_REQUEST", "rebalance request, snapshot, and assignments are required");
   }
+
   validateSnapshot(request.sourceSnapshot);
-  if (!validVersion(request.targetTopologyVersion) || request.targetTopologyVersion <= request.sourceSnapshot.topologyVersion) {
-    throw new RebalanceError("INVALID_VERSION", "target topology version must be newer than source version");
+  const sourceVersion = request.sourceSnapshot.shardMapVersion;
+  if (!validVersion(request.targetShardMapVersion) || request.targetShardMapVersion <= sourceVersion) {
+    throw new RebalanceError("INVALID_VERSION", "target shard map version must be newer than source version");
+  }
+  if (!validVersion(request.controlEpoch) || request.controlEpoch < request.sourceSnapshot.controlEpoch) {
+    throw new RebalanceError("INVALID_VERSION", "control epoch must not move backwards");
   }
   if (request.assignments.length !== request.sourceSnapshot.shards.length) {
     throw new RebalanceError("INCOMPLETE_COVERAGE", "rebalance must explicitly assign every logical shard exactly once");
@@ -104,8 +112,9 @@ export async function planRebalance(request: RebalanceRequest): Promise<Rebalanc
       throw new RebalanceError("DUPLICATE_LOGICAL_SHARD", "each logical shard must be assigned exactly once");
     }
     if (seenTargets.has(assignment.targetPhysicalShardId)) {
-      throw new RebalanceError("DUPLICATE_TARGET_OWNERSHIP", "each physical shard may own at most one logical shard in a published topology");
+      throw new RebalanceError("DUPLICATE_TARGET_OWNERSHIP", "each physical shard may own at most one logical shard in the target ownership plan");
     }
+
     const source = sourceByLogical.get(assignment.logicalShardId);
     if (source === undefined) {
       throw new RebalanceError("UNKNOWN_LOGICAL_SHARD", "rebalance references an unknown logical shard");
@@ -113,13 +122,15 @@ export async function planRebalance(request: RebalanceRequest): Promise<Rebalanc
     if (source.physicalShardId !== assignment.sourcePhysicalShardId) {
       throw new RebalanceError("SOURCE_MISMATCH", "rebalance source ownership must match the published snapshot");
     }
+
     const target = targetByPhysical.get(assignment.targetPhysicalShardId);
     if (target === undefined) {
       throw new RebalanceError("UNKNOWN_TARGET_SHARD", "rebalance target physical shard is not in the published topology");
     }
-    if (target.lifecycle !== "ACTIVE") {
+    if (target.shardStatus !== "ACTIVE") {
       throw new RebalanceError("NON_ACTIVE_TARGET", "rebalance target physical shard must be ACTIVE");
     }
+
     seenLogical.add(assignment.logicalShardId);
     seenTargets.add(assignment.targetPhysicalShardId);
     normalized.push(Object.freeze({ ...assignment }));
@@ -135,14 +146,15 @@ export async function planRebalance(request: RebalanceRequest): Promise<Rebalanc
   const ownershipChanges = normalized.filter(
     (assignment) => assignment.sourcePhysicalShardId !== assignment.targetPhysicalShardId,
   );
-  const planId = `reb-${request.sourceSnapshot.topologyVersion}-${request.targetTopologyVersion}-${await sha256Hex(
-    canonicalize(request.sourceSnapshot, request.targetTopologyVersion, normalized),
+  const planId = `reb-${sourceVersion}-${request.targetShardMapVersion}-${await sha256Hex(
+    canonicalize(request.sourceSnapshot, request.targetShardMapVersion, request.controlEpoch, normalized),
   )}`;
 
   return Object.freeze({
     logicalDatabaseId: request.sourceSnapshot.logicalDatabaseId,
-    sourceTopologyVersion: request.sourceSnapshot.topologyVersion,
-    targetTopologyVersion: request.targetTopologyVersion,
+    sourceShardMapVersion: sourceVersion,
+    targetShardMapVersion: request.targetShardMapVersion,
+    controlEpoch: request.controlEpoch,
     assignments: Object.freeze(normalized),
     ownershipChanges: Object.freeze(ownershipChanges),
     planId,
