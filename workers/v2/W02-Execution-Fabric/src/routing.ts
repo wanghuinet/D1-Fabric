@@ -13,7 +13,7 @@ export type RoutingResult = Readonly<{
 }>;
 
 export class RoutingError extends Error {
-  readonly code: "INVALID_ROUTING" | "ROUTING_MAP_INVALID" | "ROUTING_TARGET_NOT_FOUND" | "BUDGET_EXCEEDED";
+  readonly code: "INVALID_ROUTING" | "ROUTING_MAP_INVALID" | "ROUTING_TARGET_NOT_FOUND" | "BUDGET_EXCEEDED" | "ROUTING_SNAPSHOT_NOT_FOUND";
   constructor(code: RoutingError["code"], message: string) {
     super(message);
     this.name = "RoutingError";
