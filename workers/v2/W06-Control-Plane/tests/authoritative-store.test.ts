@@ -52,7 +52,7 @@ class FakeDb {
       updated_at: "2026-01-01T00:00:00.000Z",
     }]);
   }
-  async batch(statements: FakeStatement[]): Promise<Array<{ success: boolean; meta?: { changes?: number }>> {
+  async batch(statements: FakeStatement[]): Promise<Array<{ success: boolean; meta?: { changes?: number }>>> {
     this.batchCalls.push(statements.length);
     return statements.map(() => ({ success: true, meta: { changes: 1 } }));
   }
