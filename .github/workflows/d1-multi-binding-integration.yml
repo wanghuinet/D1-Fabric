@@ -35,28 +35,35 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "DB_A_NAME=d1-fabric-it-a-${GITHUB_RUN_ID}" >> "${GITHUB_ENV}"
-          echo "DB_B_NAME=d1-fabric-it-b-${GITHUB_RUN_ID}" >> "${GITHUB_ENV}"
+          echo "DB_A_NAME=d1-fabric-it-a" >> "${GITHUB_ENV}"
+          echo "DB_B_NAME=d1-fabric-it-b" >> "${GITHUB_ENV}"
           echo "SMOKE_DIR=${RUNNER_TEMP}/d1-fabric-smoke" >> "${GITHUB_ENV}"
 
-      - name: Create D1-A
+      - name: Create or reuse D1-A
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p "${SMOKE_DIR}"
-          npx --yes wrangler@${WRANGLER_VERSION} d1 create "${DB_A_NAME}" --json > "${SMOKE_DIR}/create-a.json"
-          jq -e '.d1_databases[0].database_id' "${SMOKE_DIR}/create-a.json" > "${SMOKE_DIR}/db-a-id"
+          npx --yes wrangler@${WRANGLER_VERSION} d1 list --json > "${SMOKE_DIR}/d1-inventory.json"
+          jq -e --arg name "${DB_A_NAME}" '.[] | select(.name == $name) | .uuid' "${SMOKE_DIR}/d1-inventory.json" | head -n1 > "${SMOKE_DIR}/db-a-id" || true
+          if ! test -s "${SMOKE_DIR}/db-a-id"; then
+            npx --yes wrangler@${WRANGLER_VERSION} d1 create "${DB_A_NAME}" --json > "${SMOKE_DIR}/create-a.json"
+            jq -e '.d1_databases[0].database_id' "${SMOKE_DIR}/create-a.json" > "${SMOKE_DIR}/db-a-id"
+          fi
           echo "DB_A_ID=$(cat "${SMOKE_DIR}/db-a-id")" >> "${GITHUB_ENV}"
-          cat "${SMOKE_DIR}/create-a.json"
+          cat "${SMOKE_DIR}/db-a-id"
 
-      - name: Create D1-B
+      - name: Create or reuse D1-B
         shell: bash
         run: |
           set -euo pipefail
-          npx --yes wrangler@${WRANGLER_VERSION} d1 create "${DB_B_NAME}" --json > "${SMOKE_DIR}/create-b.json"
-          jq -e '.d1_databases[0].database_id' "${SMOKE_DIR}/create-b.json" > "${SMOKE_DIR}/db-b-id"
+          jq -e --arg name "${DB_B_NAME}" '.[] | select(.name == $name) | .uuid' "${SMOKE_DIR}/d1-inventory.json" | head -n1 > "${SMOKE_DIR}/db-b-id" || true
+          if ! test -s "${SMOKE_DIR}/db-b-id"; then
+            npx --yes wrangler@${WRANGLER_VERSION} d1 create "${DB_B_NAME}" --json > "${SMOKE_DIR}/create-b.json"
+            jq -e '.d1_databases[0].database_id' "${SMOKE_DIR}/create-b.json" > "${SMOKE_DIR}/db-b-id"
+          fi
           echo "DB_B_ID=$(cat "${SMOKE_DIR}/db-b-id")" >> "${GITHUB_ENV}"
-          cat "${SMOKE_DIR}/create-b.json"
+          cat "${SMOKE_DIR}/db-b-id"
 
       - name: Initialize D1-A and D1-B
         shell: bash
@@ -316,6 +323,19 @@ jobs:
           cat "${SMOKE_DIR}/wrangler.log"
           exit 1
 
+      - name: Record persistent test environment
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "DB_A_NAME=${DB_A_NAME}"
+            echo "DB_A_ID=${DB_A_ID:-}"
+            echo "DB_B_NAME=${DB_B_NAME}"
+            echo "DB_B_ID=${DB_B_ID:-}"
+            echo "LIFECYCLE=RETAINED_FOR_FOLLOW_UP_TESTS"
+          } > "${SMOKE_DIR}/environment.txt"
+
       - name: Upload runtime evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -333,20 +353,3 @@ jobs:
             kill "$(cat "${SMOKE_DIR}/wrangler.pid")" 2>/dev/null || true
           fi
 
-      - name: Delete D1-A
-        if: always()
-        shell: bash
-        run: |
-          set +e
-          if test -n "${DB_A_NAME:-}"; then
-            npx --yes wrangler@${WRANGLER_VERSION} d1 delete "${DB_A_NAME}" --skip-confirmation
-          fi
-
-      - name: Delete D1-B
-        if: always()
-        shell: bash
-        run: |
-          set +e
-          if test -n "${DB_B_NAME:-}"; then
-            npx --yes wrangler@${WRANGLER_VERSION} d1 delete "${DB_B_NAME}" --skip-confirmation
-          fi
